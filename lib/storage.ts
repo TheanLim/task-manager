@@ -105,14 +105,14 @@ export class LocalStorageAdapter implements StorageAdapter {
       
       if (!this.validateState(state)) {
         console.error('Validation failed for state:', {
-          hasProjects: Array.isArray((state as any).projects),
-          hasTasks: Array.isArray((state as any).tasks),
-          hasSections: Array.isArray((state as any).sections),
-          hasDependencies: Array.isArray((state as any).dependencies),
-          hasTmsState: !!(state as any).tmsState,
-          hasSettings: !!(state as any).settings,
-          tmsState: (state as any).tmsState,
-          settings: (state as any).settings
+          hasProjects: Array.isArray((state as Record<string, unknown>).projects),
+          hasTasks: Array.isArray((state as Record<string, unknown>).tasks),
+          hasSections: Array.isArray((state as Record<string, unknown>).sections),
+          hasDependencies: Array.isArray((state as Record<string, unknown>).dependencies),
+          hasTmsState: !!(state as Record<string, unknown>).tmsState,
+          hasSettings: !!(state as Record<string, unknown>).settings,
+          tmsState: (state as Record<string, unknown>).tmsState,
+          settings: (state as Record<string, unknown>).settings
         });
         throw new StorageError('Invalid state structure in localStorage');
       }
