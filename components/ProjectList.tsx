@@ -45,30 +45,26 @@ export function ProjectList({
   }
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
+    <div className="space-y-1">
+      <div className="flex items-center justify-between px-1">
         <h2 className="text-sm font-semibold text-muted-foreground">Projects</h2>
-        <Button onClick={onNewProject} size="sm" variant="ghost">
-          <Plus className="h-4 w-4" />
+        <Button onClick={onNewProject} size="sm" variant="ghost" className="h-6 w-6 p-0">
+          <Plus className="h-3.5 w-3.5" />
         </Button>
       </div>
 
-      <div className="space-y-1">
+      <div className="space-y-0.5">
         {projects.map((project) => (
           <Card
             key={project.id}
             className={`
-              cursor-pointer p-3 transition-colors hover:bg-accent
+              cursor-pointer px-2 py-1.5 transition-colors hover:bg-accent border-0 shadow-none rounded-md
               ${activeProjectId === project.id ? 'bg-accent' : ''}
             `}
             onClick={() => handleProjectClick(project.id)}
+            title={project.description ? `${project.name}\n${project.description}` : project.name}
           >
-            <h3 className="font-medium">{project.name}</h3>
-            {project.description && (
-              <p className="mt-1 text-sm text-muted-foreground line-clamp-2">
-                {project.description}
-              </p>
-            )}
+            <h3 className="font-medium text-sm truncate">{project.name}</h3>
           </Card>
         ))}
       </div>
