@@ -347,7 +347,7 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
         {/* Add Section Button / Input */}
         <div className="flex-shrink-0 w-[280px]">
           {isAddingSection ? (
-            <div className="bg-muted/50 rounded-lg p-4 min-h-[500px] flex flex-col">
+            <div className="bg-muted/50 rounded-lg p-4 min-h-[500px]">
               <Input
                 value={newSectionName}
                 onChange={(e) => setNewSectionName(e.target.value)}
@@ -369,14 +369,16 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
               </div>
             </div>
           ) : (
-            <Button
-              variant="outline"
-              className="w-full h-full min-h-[500px] border-dashed"
-              onClick={() => setIsAddingSection(true)}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add section
-            </Button>
+            <div className="bg-muted/50 rounded-lg p-4 min-h-[500px]">
+              <Button
+                variant="ghost"
+                className="w-full justify-start text-muted-foreground hover:text-foreground"
+                onClick={() => setIsAddingSection(true)}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add section
+              </Button>
+            </div>
           )}
         </div>
       </div>
