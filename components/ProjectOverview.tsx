@@ -17,8 +17,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { InlineEditable } from '@/components/InlineEditable';
-import { validateProjectName } from '@/lib/validation';
 import { format } from 'date-fns';
 
 interface ProjectOverviewProps {
@@ -61,21 +59,8 @@ export function ProjectOverview({
           <CardTitle>Project Details</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Project Name - inline editable */}
-          <div>
-            <Label>Project Name</Label>
-            <InlineEditable
-              value={project.name}
-              onSave={(name) => onUpdateProject({ name })}
-              validate={validateProjectName}
-              placeholder="Project name"
-              displayClassName="text-base"
-              inputClassName="text-base"
-            />
-          </div>
-          
           {/* Project Description - textarea */}
-          <div>
+          <div className="space-y-2">
             <Label htmlFor="description">Description</Label>
             <Textarea
               id="description"
@@ -83,7 +68,7 @@ export function ProjectOverview({
               onChange={(e) => setDescription(e.target.value)}
               onBlur={handleDescriptionBlur}
               placeholder="Add a project description..."
-              className="mt-2 min-h-[100px]"
+              className="min-h-[100px]"
             />
           </div>
           
