@@ -321,13 +321,13 @@ function HomeContent() {
     >
       <div className="flex flex-col lg:flex-row gap-6 h-full">
         {/* Sidebar with search, filters, and TMS selector */}
-        {activeProject && (
+        {/* {activeProject && (
           <div className="w-full lg:w-80 space-y-4 overflow-y-auto">
             <TMSSelector />
             <SearchBar />
             <FilterPanel />
           </div>
-        )}
+        )} */}
 
         {/* Main content */}
         <div 
