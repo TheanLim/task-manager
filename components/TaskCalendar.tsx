@@ -4,12 +4,13 @@ import { Task } from '@/types';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Calendar } from '@/components/ui/calendar';
+import { Button } from '@/components/ui/button';
 import { useState } from 'react';
-import { format, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
+import { format, isSameDay, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, addMonths, subMonths, isSameMonth, isToday } from 'date-fns';
 import { InlineEditable } from '@/components/InlineEditable';
 import { validateTaskDescription } from '@/lib/validation';
 import { useDataStore } from '@/stores/dataStore';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface TaskCalendarProps {
   tasks: Task[];
@@ -18,7 +19,6 @@ interface TaskCalendarProps {
 }
 
 export function TaskCalendar({ tasks, onTaskClick, onTaskComplete }: TaskCalendarProps) {
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   const { updateTask } = useDataStore();
 
@@ -32,14 +32,44 @@ export function TaskCalendar({ tasks, onTaskClick, onTaskComplete }: TaskCalenda
   // Get tasks without due dates
   const tasksWithoutDueDate = tasks.filter(task => !task.dueDate);
 
-  // Get tasks for selected date
-  const selectedDateTasks = selectedDate ? getTasksForDate(selectedDate) : [];
+  // Generate calendar days
+  const generateCalendarDays = () => {
+    const monthStart = startOfMonth(currentMonth);
+    const monthEnd = endOfMonth(currentMonth);
+    const startDate = startOfWeek(monthStart);
+    const endDate = endOfWeek(monthEnd);
 
-  // Get all dates in current month with tasks
-  const datesWithTasks = new Set(
-    tasks
-      .filter(task => task.dueDate)
-      .map(task => format(new Date(task.dueDate!), 'yyyy-MM-dd'))
+    const days = [];
+    let day = startDate;
+
+    while (day <= endDate) {
+      days.push(day);
+      day = addDays(day, 1);
+    }
+
+    return days;
+  };
+
+  const calendarDays = generateCalendarDays();
+  const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  const renderTaskInCell = (task: Task) => (
+    <div
+      key={task.id}
+      className="text-xs px-1 py-0.5 mb-0.5 rounded truncate cursor-pointer hover:opacity-80 transition-opacity"
+      style={{
+        backgroundColor: task.completed ? 'rgb(34 197 94 / 0.2)' : 'rgb(59 130 246 / 0.2)',
+        color: task.completed ? 'rgb(22 163 74)' : 'rgb(37 99 235)',
+      }}
+      onClick={(e) => {
+        e.stopPropagation();
+        onTaskClick(task.id);
+      }}
+      title={task.description}
+    >
+      {task.completed && '✓ '}
+      {task.description}
+    </div>
   );
 
   const renderTaskCard = (task: Task) => (
@@ -90,72 +120,100 @@ export function TaskCalendar({ tasks, onTaskClick, onTaskComplete }: TaskCalenda
   );
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Calendar */}
-      <div className="lg:col-span-2">
-        <Card className="p-6">
-          <Calendar
-            mode="single"
-            selected={selectedDate}
-            onSelect={setSelectedDate}
-            month={currentMonth}
-            onMonthChange={setCurrentMonth}
-            className="rounded-md"
-            modifiers={{
-              hasTasks: (date) => datesWithTasks.has(format(date, 'yyyy-MM-dd'))
-            }}
-            modifiersStyles={{
-              hasTasks: {
-                fontWeight: 'bold',
-                textDecoration: 'underline',
-              }
-            }}
-          />
-          
-          <div className="mt-4 text-sm text-muted-foreground">
-            <p>Dates with tasks are <strong className="underline">underlined</strong></p>
-          </div>
-        </Card>
+    <div className="space-y-6">
+      {/* Calendar Header */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold">
+          {format(currentMonth, 'MMMM yyyy')}
+        </h2>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentMonth(new Date())}
+          >
+            Today
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
-      {/* Tasks for selected date */}
-      <div className="space-y-6">
-        {selectedDate && (
-          <div>
-            <h3 className="text-lg font-semibold mb-3">
-              {format(selectedDate, 'MMMM d, yyyy')}
-            </h3>
-            
-            {selectedDateTasks.length === 0 ? (
-              <Card className="p-6 text-center">
-                <p className="text-muted-foreground">
-                  No tasks scheduled for this date
-                </p>
-              </Card>
-            ) : (
-              <div className="space-y-2">
-                {selectedDateTasks.map(task => renderTaskCard(task))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Tasks without due date */}
-        {tasksWithoutDueDate.length > 0 && (
-          <div>
-            <h3 className="text-lg font-semibold mb-3">
-              No Due Date
-              <Badge variant="outline" className="ml-2">
-                {tasksWithoutDueDate.length}
-              </Badge>
-            </h3>
-            
-            <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
-              {tasksWithoutDueDate.map(task => renderTaskCard(task))}
+      {/* Calendar Grid */}
+      <Card className="p-4">
+        <div className="grid grid-cols-7 gap-px bg-border">
+          {/* Week day headers */}
+          {weekDays.map(day => (
+            <div
+              key={day}
+              className="bg-muted p-2 text-center text-sm font-semibold"
+            >
+              {day}
             </div>
+          ))}
+
+          {/* Calendar days */}
+          {calendarDays.map((day, index) => {
+            const dayTasks = getTasksForDate(day);
+            const isCurrentMonth = isSameMonth(day, currentMonth);
+            const isTodayDate = isToday(day);
+
+            return (
+              <div
+                key={index}
+                className={`
+                  bg-background p-2 min-h-[120px] border-border
+                  ${!isCurrentMonth ? 'opacity-40' : ''}
+                  ${isTodayDate ? 'ring-2 ring-primary ring-inset' : ''}
+                `}
+              >
+                <div className={`
+                  text-sm font-medium mb-1
+                  ${isTodayDate ? 'text-primary font-bold' : ''}
+                `}>
+                  {format(day, 'd')}
+                </div>
+                <div className="space-y-0.5 overflow-y-auto max-h-[90px]">
+                  {dayTasks.slice(0, 3).map(task => renderTaskInCell(task))}
+                  {dayTasks.length > 3 && (
+                    <div className="text-xs text-muted-foreground px-1">
+                      +{dayTasks.length - 3} more
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      {/* Tasks without due date */}
+      {tasksWithoutDueDate.length > 0 && (
+        <div>
+          <h3 className="text-lg font-semibold mb-3">
+            No Due Date
+            <Badge variant="outline" className="ml-2">
+              {tasksWithoutDueDate.length}
+            </Badge>
+          </h3>
+          
+          <div className="space-y-2">
+            {tasksWithoutDueDate.map(task => renderTaskCard(task))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
