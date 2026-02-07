@@ -355,15 +355,28 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
                   if (e.key === 'Enter') handleAddSection();
                   if (e.key === 'Escape') handleCancelAddSection();
                 }}
+                onBlur={handleCancelAddSection}
                 placeholder="Section name"
                 autoFocus
                 className="mb-2"
               />
               <div className="flex gap-2">
-                <Button onClick={handleAddSection} disabled={!newSectionName.trim()} size="sm" className="flex-1">
+                <Button 
+                  onClick={handleAddSection} 
+                  disabled={!newSectionName.trim()} 
+                  size="sm" 
+                  className="flex-1"
+                  onMouseDown={(e) => e.preventDefault()} // Prevent blur when clicking button
+                >
                   Add
                 </Button>
-                <Button variant="ghost" onClick={handleCancelAddSection} size="sm" className="flex-1">
+                <Button 
+                  variant="ghost" 
+                  onClick={handleCancelAddSection} 
+                  size="sm" 
+                  className="flex-1"
+                  onMouseDown={(e) => e.preventDefault()} // Prevent blur when clicking button
+                >
                   Cancel
                 </Button>
               </div>
