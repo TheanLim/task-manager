@@ -304,7 +304,7 @@ This document specifies the requirements for a task management web application i
 
 ### Requirement 22: Collapsible Sections in List View
 
-**User Story:** As a user, I want to organize tasks into collapsible sections in the list view, with default sections that map to board columns.
+**User Story:** As a user, I want to organize tasks into collapsible sections in the list view with a table-like structure, with default sections that map to board columns.
 
 #### Acceptance Criteria
 
@@ -321,16 +321,26 @@ This document specifies the requirements for a task management web application i
 11. THE System SHALL maintain the mapping between sections (List view) and columns (Board view) automatically
 12. WHEN a section is collapsed, THE System SHALL hide all tasks in that section but display the task count in the section header
 13. WHEN a user views the List tab, THE System SHALL always display the default sections ("To Do", "Doing", "Done") with an "Add Section" button
-14. WHEN a user clicks "Add tasks..." button in List view, THE System SHALL open the Task Dialog modal for creating a new task
-15. WHEN a user drags a task in List view, THE System SHALL allow dropping it into any section to move it
-16. WHEN a user drags a task within a section in List view, THE System SHALL allow reordering tasks within that section
-17. WHEN a user drags a section header in List view, THE System SHALL allow reordering sections
-18. WHEN a user views the Board tab, THE System SHALL display a "+ Add task" button at the end of each section
-19. WHEN a user clicks "+ Add task" button in Board view, THE System SHALL open the Task Dialog modal for creating a new task
-20. WHEN a user views the Board tab, THE System SHALL display a "+ Add section" button at the rightmost position
-21. WHEN a user clicks "+ Add section" button in Board view, THE System SHALL convert the button into an inline text input field for entering the section name
-22. WHEN a user clicks on a section name in Board view, THE System SHALL enable inline editing of the section name
-23. WHEN a user drags a section in Board view, THE System SHALL allow reordering sections
+14. WHEN a section is expanded, THE System SHALL display tasks in a table-like view with rows and configurable columns
+15. WHEN a user views a task row, THE System SHALL display a tick round button that is green when the task is completed and has no color when incomplete
+16. WHEN a user clicks the tick button on a task row, THE System SHALL toggle the task's completion status
+17. WHEN a user views a task row, THE System SHALL display the task name/description as a clickable field
+18. WHEN a user views a task row, THE System SHALL display a "Details" button that opens the task sidebar
+19. WHEN a task has subtasks, THE System SHALL display an expand/collapse button to the left of the task name
+20. WHEN a user clicks the expand/collapse button on a task with subtasks, THE System SHALL toggle the visibility of subtasks beneath the parent task
+21. WHEN a task has subtasks, THE System SHALL display a "View Subtasks" button in the task row
+22. WHEN a user clicks the "View Subtasks" button, THE System SHALL open the task sidebar and scroll to/focus on the subtask section
+23. WHEN a user views a task row, THE System SHALL display arbitrary configurable columns including due date, priority, assignee, and tags
+24. WHEN a user clicks "Add tasks..." button in List view, THE System SHALL open the Task Dialog modal for creating a new task
+25. WHEN a user drags a task in List view, THE System SHALL allow dropping it into any section to move it
+26. WHEN a user drags a task within a section in List view, THE System SHALL allow reordering tasks within that section
+27. WHEN a user drags a section header in List view, THE System SHALL allow reordering sections
+28. WHEN a user views the Board tab, THE System SHALL display a "+ Add task" button at the end of each section
+29. WHEN a user clicks "+ Add task" button in Board view, THE System SHALL open the Task Dialog modal for creating a new task
+30. WHEN a user views the Board tab, THE System SHALL display a "+ Add section" button at the rightmost position
+31. WHEN a user clicks "+ Add section" button in Board view, THE System SHALL convert the button into an inline text input field for entering the section name
+32. WHEN a user clicks on a section name in Board view, THE System SHALL enable inline editing of the section name
+33. WHEN a user drags a section in Board view, THE System SHALL allow reordering sections
 
 ### Requirement 18: Future Extensibility
 

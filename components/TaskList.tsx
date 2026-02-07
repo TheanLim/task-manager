@@ -1,24 +1,28 @@
 'use client';
 
-import { Circle, ChevronRight, ChevronDown, Calendar, Tag, MoreVertical, Plus, GripVertical } from 'lucide-react';
-import { Card } from '@/components/ui/card';
+import React from 'react';
+import { Circle, ChevronRight, ChevronDown, MoreVertical, Plus, GripVertical } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Task, Section, Priority } from '@/types';
-import { format } from 'date-fns';
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Task, Section } from '@/types';
 import { useState } from 'react';
 import { InlineEditable } from '@/components/InlineEditable';
-import { validateTaskDescription, validateSectionName } from '@/lib/validation';
+import { validateSectionName } from '@/lib/validation';
 import { useDataStore } from '@/stores/dataStore';
 import { v4 as uuidv4 } from 'uuid';
 import { Input } from '@/components/ui/input';
+import { TaskRow } from '@/components/TaskRow';
+import { cn } from '@/lib/utils';
 
 interface TaskListProps {
   tasks: Task[];
@@ -26,29 +30,103 @@ interface TaskListProps {
   onTaskClick: (taskId: string) => void;
   onTaskComplete: (taskId: string, completed: boolean) => void;
   onAddTask: (sectionId: string) => void;
+  onViewSubtasks?: (taskId: string) => void;
+  selectedTaskId?: string | null;
+}
+
+interface ColumnWidths {
+  name: number;
+  dueDate: number;
+  priority: number;
+  assignee: number;
+  tags: number;
 }
 
 /**
  * List view component for displaying tasks grouped by collapsible sections
+ * with table-like task rows
  */
-export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTask }: TaskListProps) {
-  const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
+export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTask, onViewSubtasks, selectedTaskId }: TaskListProps) {
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverTaskId, setDragOverTaskId] = useState<string | null>(null);
   const [draggedSectionId, setDraggedSectionId] = useState<string | null>(null);
   const [dragOverSectionId, setDragOverSectionId] = useState<string | null>(null);
+  const [sectionWasExpanded, setSectionWasExpanded] = useState<boolean>(false);
   const [isAddingSection, setIsAddingSection] = useState(false);
   const [newSectionName, setNewSectionName] = useState('');
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [sectionToDelete, setSectionToDelete] = useState<string | null>(null);
   const { updateTask, updateSection, deleteSection, addSection } = useDataStore();
 
-  const toggleTaskExpanded = (taskId: string) => {
-    const newExpanded = new Set(expandedTasks);
-    if (newExpanded.has(taskId)) {
-      newExpanded.delete(taskId);
-    } else {
-      newExpanded.add(taskId);
+  // Calculate minimum column widths based on content
+  const calculateMinWidths = (): ColumnWidths => {
+    // Base minimum widths for headers and UI elements
+    const minWidths: ColumnWidths = {
+      name: 200, // Minimum for task name with icons
+      dueDate: 100, // Minimum for date display
+      priority: 80, // Minimum for priority badge
+      assignee: 100, // Minimum for assignee name
+      tags: 120 // Minimum for tags
+    };
+
+    // Calculate actual content widths (rough estimation)
+    tasks.forEach(task => {
+      // Estimate name width (characters * 8px + icons ~100px)
+      const nameWidth = Math.min(400, task.description.length * 8 + 100);
+      minWidths.name = Math.max(minWidths.name, nameWidth);
+
+      // Estimate assignee width
+      if (task.assignee) {
+        const assigneeWidth = Math.min(200, task.assignee.length * 8 + 20);
+        minWidths.assignee = Math.max(minWidths.assignee, assigneeWidth);
+      }
+
+      // Estimate tags width
+      if (task.tags.length > 0) {
+        const tagsWidth = Math.min(300, task.tags.length * 60);
+        minWidths.tags = Math.max(minWidths.tags, tagsWidth);
+      }
+    });
+
+    return minWidths;
+  };
+
+  const minColumnWidths = calculateMinWidths();
+
+  // Column width state
+  const [columnWidths, setColumnWidths] = useState<ColumnWidths>({
+    name: Math.max(300, minColumnWidths.name),
+    dueDate: Math.max(128, minColumnWidths.dueDate),
+    priority: Math.max(96, minColumnWidths.priority),
+    assignee: Math.max(128, minColumnWidths.assignee),
+    tags: Math.max(160, minColumnWidths.tags)
+  });
+
+  const handleColumnResize = (column: keyof ColumnWidths, width: number) => {
+    // Enforce minimum width based on content
+    const minWidth = minColumnWidths[column];
+    const constrainedWidth = Math.max(minWidth, width);
+    
+    setColumnWidths(prev => ({
+      ...prev,
+      [column]: constrainedWidth
+    }));
+  };
+
+  const handleTaskComplete = (taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (task) {
+      onTaskComplete(taskId, !task.completed);
     }
-    setExpandedTasks(newExpanded);
+  };
+
+  const handleViewSubtasks = (taskId: string) => {
+    if (onViewSubtasks) {
+      onViewSubtasks(taskId);
+    } else {
+      // Fallback to regular click if onViewSubtasks not provided
+      onTaskClick(taskId);
+    }
   };
 
   const toggleSectionCollapsed = (sectionId: string) => {
@@ -63,9 +141,16 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
   };
 
   const handleDeleteSection = (sectionId: string) => {
-    if (confirm('Are you sure you want to delete this section? Tasks will be moved to the first section.')) {
-      deleteSection(sectionId);
+    setSectionToDelete(sectionId);
+    setShowDeleteDialog(true);
+  };
+
+  const handleConfirmDeleteSection = () => {
+    if (sectionToDelete) {
+      deleteSection(sectionToDelete);
+      setSectionToDelete(null);
     }
+    setShowDeleteDialog(false);
   };
 
   const handleAddSection = () => {
@@ -129,34 +214,66 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
     const draggedTask = tasks.find(t => t.id === draggedTaskId);
     const targetTask = tasks.find(t => t.id === targetTaskId);
     
-    if (!draggedTask || !targetTask || draggedTask.sectionId !== targetTask.sectionId) {
+    if (!draggedTask || !targetTask) {
       setDraggedTaskId(null);
       return;
     }
 
-    // Get all tasks in the same section, sorted by order
-    const sectionTasks = tasks
-      .filter(t => t.sectionId === draggedTask.sectionId && !t.parentTaskId)
-      .sort((a, b) => a.order - b.order);
+    // If moving to a different section, update the section and place at the target position
+    if (draggedTask.sectionId !== targetTask.sectionId) {
+      // Get all tasks in the target section, sorted by order
+      const targetSectionTasks = tasks
+        .filter(t => t.sectionId === targetTask.sectionId && !t.parentTaskId && t.id !== draggedTaskId)
+        .sort((a, b) => a.order - b.order);
 
-    // Find indices
-    const draggedIndex = sectionTasks.findIndex(t => t.id === draggedTaskId);
-    const targetIndex = sectionTasks.findIndex(t => t.id === targetTaskId);
+      // Find target index
+      const targetIndex = targetSectionTasks.findIndex(t => t.id === targetTaskId);
+      
+      if (targetIndex === -1) {
+        setDraggedTaskId(null);
+        return;
+      }
 
-    if (draggedIndex === -1 || targetIndex === -1) {
-      setDraggedTaskId(null);
-      return;
+      // Insert dragged task at target position
+      targetSectionTasks.splice(targetIndex, 0, draggedTask);
+
+      // Update section and order for dragged task
+      updateTask(draggedTaskId, { 
+        sectionId: targetTask.sectionId,
+        order: targetIndex
+      });
+
+      // Update order for all tasks after the insertion point
+      targetSectionTasks.forEach((task, index) => {
+        if (task.id !== draggedTaskId) {
+          updateTask(task.id, { order: index });
+        }
+      });
+    } else {
+      // Reordering within the same section
+      const sectionTasks = tasks
+        .filter(t => t.sectionId === draggedTask.sectionId && !t.parentTaskId)
+        .sort((a, b) => a.order - b.order);
+
+      // Find indices
+      const draggedIndex = sectionTasks.findIndex(t => t.id === draggedTaskId);
+      const targetIndex = sectionTasks.findIndex(t => t.id === targetTaskId);
+
+      if (draggedIndex === -1 || targetIndex === -1) {
+        setDraggedTaskId(null);
+        return;
+      }
+
+      // Reorder tasks
+      const reorderedTasks = [...sectionTasks];
+      const [removed] = reorderedTasks.splice(draggedIndex, 1);
+      reorderedTasks.splice(targetIndex, 0, removed);
+
+      // Update order for all affected tasks
+      reorderedTasks.forEach((task, index) => {
+        updateTask(task.id, { order: index });
+      });
     }
-
-    // Reorder tasks
-    const reorderedTasks = [...sectionTasks];
-    const [removed] = reorderedTasks.splice(draggedIndex, 1);
-    reorderedTasks.splice(targetIndex, 0, removed);
-
-    // Update order for all affected tasks
-    reorderedTasks.forEach((task, index) => {
-      updateTask(task.id, { order: index });
-    });
 
     setDraggedTaskId(null);
   };
@@ -171,6 +288,17 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
 
   // Section drag-and-drop handlers
   const handleSectionDragStart = (e: React.DragEvent, sectionId: string) => {
+    const section = sections.find(s => s.id === sectionId);
+    if (section) {
+      // Remember if section was expanded
+      setSectionWasExpanded(!section.collapsed);
+      
+      // Collapse the section if it was expanded
+      if (!section.collapsed) {
+        updateSection(sectionId, { collapsed: true });
+      }
+    }
+    
     setDraggedSectionId(sectionId);
     e.dataTransfer.effectAllowed = 'move';
   };
@@ -188,13 +316,29 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
     setDragOverSectionId(null);
   };
 
+  const handleSectionDragEnd = (e: React.DragEvent) => {
+    e.preventDefault();
+    // Restore expanded state if drag was cancelled (no drop occurred)
+    if (draggedSectionId && sectionWasExpanded) {
+      updateSection(draggedSectionId, { collapsed: false });
+    }
+    setDraggedSectionId(null);
+    setSectionWasExpanded(false);
+    setDragOverSectionId(null);
+  };
+
   const handleSectionDrop = (e: React.DragEvent, targetSectionId: string) => {
     e.preventDefault();
     e.stopPropagation();
     setDragOverSectionId(null);
 
     if (!draggedSectionId || draggedSectionId === targetSectionId) {
+      // Restore expanded state if drag was cancelled or invalid
+      if (draggedSectionId && sectionWasExpanded) {
+        updateSection(draggedSectionId, { collapsed: false });
+      }
       setDraggedSectionId(null);
+      setSectionWasExpanded(false);
       return;
     }
 
@@ -206,7 +350,12 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
     const targetIndex = sortedSections.findIndex(s => s.id === targetSectionId);
 
     if (draggedIndex === -1 || targetIndex === -1) {
+      // Restore expanded state if drag failed
+      if (sectionWasExpanded) {
+        updateSection(draggedSectionId, { collapsed: false });
+      }
       setDraggedSectionId(null);
+      setSectionWasExpanded(false);
       return;
     }
 
@@ -220,7 +369,13 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
       updateSection(section.id, { order: index });
     });
 
+    // Restore expanded state if section was expanded before drag
+    if (sectionWasExpanded) {
+      updateSection(draggedSectionId, { collapsed: false });
+    }
+
     setDraggedSectionId(null);
+    setSectionWasExpanded(false);
   };
 
   // Group tasks by section and sort by order
@@ -234,137 +389,6 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
   // Tasks without section
   const unsectionedTasks = tasks.filter(t => !t.sectionId && !t.parentTaskId);
 
-  const getSubtasks = (parentId: string) => {
-    return tasks.filter(t => t.parentTaskId === parentId);
-  };
-
-  const getPriorityColor = (priority: Priority) => {
-    switch (priority) {
-      case Priority.HIGH:
-        return 'destructive';
-      case Priority.MEDIUM:
-        return 'default';
-      case Priority.LOW:
-        return 'secondary';
-      default:
-        return 'outline';
-    }
-  };
-
-  const renderTask = (task: Task, depth: number = 0) => {
-    const subtasks = getSubtasks(task.id);
-    const hasSubtasks = subtasks.length > 0;
-    const isExpanded = expandedTasks.has(task.id);
-
-    return (
-      <div key={task.id} style={{ marginLeft: `${depth * 24}px` }}>
-        <Card
-          className={`
-            mb-2 p-3 transition-colors hover:bg-accent cursor-pointer
-            ${task.completed ? 'opacity-60' : ''}
-            ${draggedTaskId === task.id ? 'opacity-50' : ''}
-            ${dragOverTaskId === task.id ? 'ring-2 ring-primary' : ''}
-          `}
-          draggable={depth === 0}
-          onDragStart={(e) => depth === 0 && handleDragStart(e, task.id)}
-          onDragOver={(e) => depth === 0 && handleTaskDragOver(e, task.id)}
-          onDragLeave={(e) => depth === 0 && handleTaskDragLeave(e)}
-          onDrop={(e) => depth === 0 && handleTaskDrop(e, task.id)}
-        >
-          <div className="flex items-start gap-3">
-            {/* Expand/collapse button for tasks with subtasks */}
-            {hasSubtasks && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleTaskExpanded(task.id);
-                }}
-                className="mt-1 text-muted-foreground hover:text-foreground"
-              >
-                {isExpanded ? (
-                  <ChevronDown className="h-4 w-4" />
-                ) : (
-                  <ChevronRight className="h-4 w-4" />
-                )}
-              </button>
-            )}
-
-            {/* Checkbox */}
-            <Checkbox
-              checked={task.completed}
-              onCheckedChange={(checked) => {
-                onTaskComplete(task.id, checked as boolean);
-              }}
-              onClick={(e) => e.stopPropagation()}
-              className="mt-1"
-            />
-
-            {/* Task content */}
-            <div
-              className="flex-1 min-w-0"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0" onClick={() => onTaskClick(task.id)}>
-                  <InlineEditable
-                    value={task.description}
-                    onSave={(newDescription) => updateTask(task.id, { description: newDescription })}
-                    validate={validateTaskDescription}
-                    placeholder="Task description"
-                    displayClassName={`font-medium ${task.completed ? 'line-through' : ''}`}
-                    inputClassName="font-medium w-full"
-                  />
-                </div>
-                
-                {/* Priority badge */}
-                {task.priority !== Priority.NONE && (
-                  <Badge variant={getPriorityColor(task.priority)} className="shrink-0">
-                    {task.priority}
-                  </Badge>
-                )}
-              </div>
-
-              {/* Task metadata */}
-              <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                {/* Due date */}
-                {task.dueDate && (
-                  <div className="flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />
-                    <span>{format(new Date(task.dueDate), 'MMM d, yyyy')}</span>
-                  </div>
-                )}
-
-                {/* Tags */}
-                {task.tags.length > 0 && (
-                  <div className="flex items-center gap-1">
-                    <Tag className="h-3 w-3" />
-                    <span>{task.tags.join(', ')}</span>
-                  </div>
-                )}
-
-                {/* Assignee */}
-                {task.assignee && (
-                  <span>@{task.assignee}</span>
-                )}
-
-                {/* Subtask count */}
-                {hasSubtasks && (
-                  <span>{subtasks.length} subtask{subtasks.length !== 1 ? 's' : ''}</span>
-                )}
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        {/* Render subtasks */}
-        {hasSubtasks && isExpanded && (
-          <div>
-            {subtasks.map(subtask => renderTask(subtask, depth + 1))}
-          </div>
-        )}
-      </div>
-    );
-  };
-
   if (tasks.length === 0 && sections.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -376,142 +400,367 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
   }
 
   return (
-    <div className="space-y-4">
-      {/* Render sections */}
-      {sections.sort((a, b) => a.order - b.order).map(section => {
-        const sectionTasks = tasksBySection[section.id] || [];
+    <div className="flex flex-col h-full">
+      {/* Single scrollable container for header and all sections */}
+      <div className="overflow-x-auto flex-1">
+        {/* One big table containing everything */}
+        <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
+          <colgroup>
+            <col style={{ width: columnWidths.name }} />
+            <col style={{ width: columnWidths.dueDate }} />
+            <col style={{ width: columnWidths.priority }} />
+            <col style={{ width: columnWidths.assignee }} />
+            <col style={{ width: columnWidths.tags }} />
+          </colgroup>
 
-        return (
-          <div 
-            key={section.id} 
-            className={`
-              border rounded-lg transition-all
-              ${draggedSectionId === section.id ? 'opacity-50' : ''}
-              ${dragOverSectionId === section.id ? 'ring-2 ring-primary' : ''}
-            `}
-            draggable
-            onDragStart={(e) => handleSectionDragStart(e, section.id)}
-            onDragOver={(e) => handleSectionDragOver(e, section.id)}
-            onDragLeave={handleSectionDragLeave}
-            onDrop={(e) => handleSectionDrop(e, section.id)}
-          >
-            {/* Section Header */}
-            <div className="flex items-center justify-between p-3 bg-muted/50">
-              <div className="flex items-center gap-2 flex-1">
-                <div className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground">
-                  <GripVertical className="h-4 w-4" />
-                </div>
-                <button
-                  onClick={() => toggleSectionCollapsed(section.id)}
-                  className="flex items-center gap-2 flex-1 text-left hover:opacity-80"
-                >
-                  {section.collapsed ? (
-                    <ChevronRight className="h-4 w-4" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4" />
+          {/* Frozen Column Header */}
+          <thead className="sticky top-0 z-20 bg-background border-b">
+            <tr className="border-b">
+              <th className="p-2 text-left text-sm font-medium border-r relative bg-muted sticky left-0 z-30">
+                Name
+                <div
+                  className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/50 active:bg-primary"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    const startX = e.clientX;
+                    const startWidth = columnWidths.name;
+                    const handleMouseMove = (moveEvent: MouseEvent) => {
+                      const diff = moveEvent.clientX - startX;
+                      const newWidth = Math.max(minColumnWidths.name, startWidth + diff);
+                      handleColumnResize('name', newWidth);
+                    };
+                    const handleMouseUp = () => {
+                      document.removeEventListener('mousemove', handleMouseMove);
+                      document.removeEventListener('mouseup', handleMouseUp);
+                    };
+                    document.addEventListener('mousemove', handleMouseMove);
+                    document.addEventListener('mouseup', handleMouseUp);
+                  }}
+                />
+              </th>
+              <th className="p-2 text-left text-sm font-medium border-r relative bg-muted/50">
+                Due date
+                <div
+                  className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/50 active:bg-primary"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    const startX = e.clientX;
+                    const startWidth = columnWidths.dueDate;
+                    const handleMouseMove = (moveEvent: MouseEvent) => {
+                      const diff = moveEvent.clientX - startX;
+                      const newWidth = Math.max(minColumnWidths.dueDate, startWidth + diff);
+                      handleColumnResize('dueDate', newWidth);
+                    };
+                    const handleMouseUp = () => {
+                      document.removeEventListener('mousemove', handleMouseMove);
+                      document.removeEventListener('mouseup', handleMouseUp);
+                    };
+                    document.addEventListener('mousemove', handleMouseMove);
+                    document.addEventListener('mouseup', handleMouseUp);
+                  }}
+                />
+              </th>
+              <th className="p-2 text-left text-sm font-medium border-r relative bg-muted/50">
+                Priority
+                <div
+                  className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/50 active:bg-primary"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    const startX = e.clientX;
+                    const startWidth = columnWidths.priority;
+                    const handleMouseMove = (moveEvent: MouseEvent) => {
+                      const diff = moveEvent.clientX - startX;
+                      const newWidth = Math.max(minColumnWidths.priority, startWidth + diff);
+                      handleColumnResize('priority', newWidth);
+                    };
+                    const handleMouseUp = () => {
+                      document.removeEventListener('mousemove', handleMouseMove);
+                      document.removeEventListener('mouseup', handleMouseUp);
+                    };
+                    document.addEventListener('mousemove', handleMouseMove);
+                    document.addEventListener('mouseup', handleMouseUp);
+                  }}
+                />
+              </th>
+              <th className="p-2 text-left text-sm font-medium border-r relative bg-muted/50">
+                Assignee
+                <div
+                  className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/50 active:bg-primary"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    const startX = e.clientX;
+                    const startWidth = columnWidths.assignee;
+                    const handleMouseMove = (moveEvent: MouseEvent) => {
+                      const diff = moveEvent.clientX - startX;
+                      const newWidth = Math.max(minColumnWidths.assignee, startWidth + diff);
+                      handleColumnResize('assignee', newWidth);
+                    };
+                    const handleMouseUp = () => {
+                      document.removeEventListener('mousemove', handleMouseMove);
+                      document.removeEventListener('mouseup', handleMouseUp);
+                    };
+                    document.addEventListener('mousemove', handleMouseMove);
+                    document.addEventListener('mouseup', handleMouseUp);
+                  }}
+                />
+              </th>
+              <th className="p-2 text-left text-sm font-medium relative bg-muted/50">
+                Tags
+                <div
+                  className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/50 active:bg-primary"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    const startX = e.clientX;
+                    const startWidth = columnWidths.tags;
+                    const handleMouseMove = (moveEvent: MouseEvent) => {
+                      const diff = moveEvent.clientX - startX;
+                      const newWidth = Math.max(minColumnWidths.tags, startWidth + diff);
+                      handleColumnResize('tags', newWidth);
+                    };
+                    const handleMouseUp = () => {
+                      document.removeEventListener('mousemove', handleMouseMove);
+                      document.removeEventListener('mouseup', handleMouseUp);
+                    };
+                    document.addEventListener('mousemove', handleMouseMove);
+                    document.addEventListener('mouseup', handleMouseUp);
+                  }}
+                />
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {/* Render sections */}
+            {sections.sort((a, b) => a.order - b.order).map(section => {
+              const sectionTasks = tasksBySection[section.id] || [];
+
+              return (
+                <React.Fragment key={section.id}>
+                  {/* Section Header Row */}
+                  <tr 
+                    className={`
+                      group border-b
+                      ${draggedSectionId === section.id ? 'opacity-50' : ''}
+                      ${dragOverSectionId === section.id ? 'ring-2 ring-primary' : ''}
+                    `}
+                    draggable={true}
+                    onDragStart={(e) => handleSectionDragStart(e, section.id)}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (draggedSectionId && draggedSectionId !== section.id) {
+                        setDragOverSectionId(section.id);
+                      }
+                    }}
+                    onDragLeave={handleSectionDragLeave}
+                    onDrop={(e) => handleSectionDrop(e, section.id)}
+                    onDragEnd={handleSectionDragEnd}
+                  >
+                    <td className="pt-6 pb-3 px-3 sticky left-0 z-10 bg-background">
+                      <div className="flex items-center gap-2">
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground flex-shrink-0">
+                          <GripVertical className="h-4 w-4" />
+                        </div>
+                        <button
+                          onClick={() => toggleSectionCollapsed(section.id)}
+                          className="text-left hover:opacity-80 flex-shrink-0"
+                        >
+                          {section.collapsed ? (
+                            <ChevronRight className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          )}
+                        </button>
+                        <InlineEditable
+                          value={section.name}
+                          onSave={(newName) => handleRenameSection(section.id, newName)}
+                          validate={validateSectionName}
+                          placeholder="Section name"
+                          displayClassName="font-semibold truncate"
+                          inputClassName="font-semibold"
+                        />
+                        <Badge variant="secondary" className="flex-shrink-0">
+                          {sectionTasks.length}
+                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteSection(section.id);
+                          }}
+                          className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                          title="Delete section"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </td>
+                    <td className="bg-background"></td>
+                    <td className="bg-background"></td>
+                    <td className="bg-background"></td>
+                    <td className="bg-background"></td>
+                  </tr>
+
+                  {/* Section Tasks */}
+                  {!section.collapsed && sectionTasks.length > 0 && sectionTasks.map(task => (
+                    <TaskRow
+                      key={task.id}
+                      task={task}
+                      onComplete={handleTaskComplete}
+                      onClick={onTaskClick}
+                      onViewSubtasks={handleViewSubtasks}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, task.id)}
+                      onDragOver={(e) => handleTaskDragOver(e, task.id)}
+                      onDragLeave={handleTaskDragLeave}
+                      onDrop={(e) => handleTaskDrop(e, task.id)}
+                      isDragging={draggedTaskId === task.id}
+                      isDragOver={dragOverTaskId === task.id}
+                      isSelected={selectedTaskId === task.id}
+                    />
+                  ))}
+
+                  {/* Add Task Button Row - also serves as drop zone for empty sections */}
+                  {!section.collapsed && (
+                    <tr 
+                      className={cn(
+                        "hover:bg-accent cursor-pointer transition-colors",
+                        draggedTaskId && sectionTasks.length === 0 && "bg-accent/50"
+                      )}
+                      onClick={() => handleAddTask(section.id)}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        // Allow dropping on empty section via Add tasks row
+                        if (draggedTaskId && sectionTasks.length === 0) {
+                          setDragOverTaskId(`section-${section.id}`);
+                        }
+                      }}
+                      onDragLeave={(e) => {
+                        e.preventDefault();
+                        if (draggedTaskId && sectionTasks.length === 0) {
+                          setDragOverTaskId(null);
+                        }
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setDragOverTaskId(null);
+                        
+                        if (draggedTaskId && sectionTasks.length === 0) {
+                          // Move task to this empty section
+                          updateTask(draggedTaskId, { 
+                            sectionId: section.id,
+                            order: 0
+                          });
+                          setDraggedTaskId(null);
+                        }
+                      }}
+                    >
+                      <td className="p-2 sticky left-0 z-10 bg-background hover:bg-accent transition-colors">
+                        <div className="flex items-center gap-2">
+                          {/* Spacing to align with task name - matches drag handle + expand/collapse + checkbox widths */}
+                          <div className="w-4 flex-shrink-0" />
+                          <div className="w-4 flex-shrink-0" />
+                          <div className="w-5 flex-shrink-0" />
+                          <span className="text-muted-foreground hover:text-foreground">Add tasks...</span>
+                        </div>
+                      </td>
+                      <td></td>
+                      <td></td>
+                      <td></td>
+                      <td></td>
+                    </tr>
                   )}
-                  <InlineEditable
-                    value={section.name}
-                    onSave={(newName) => handleRenameSection(section.id, newName)}
-                    validate={validateSectionName}
-                    placeholder="Section name"
-                    displayClassName="font-semibold"
-                    inputClassName="font-semibold"
+                </React.Fragment>
+              );
+            })}
+
+            {/* Render unsectioned tasks */}
+            {unsectionedTasks.length > 0 && (
+              <>
+                <tr className="bg-muted/50">
+                  <td className="p-3 text-sm font-semibold text-muted-foreground uppercase border-r sticky left-0 z-10 bg-muted/50">
+                    Unsectioned
+                  </td>
+                  <td className="border-r bg-muted/50"></td>
+                  <td className="border-r bg-muted/50"></td>
+                  <td className="border-r bg-muted/50"></td>
+                  <td className="bg-muted/50"></td>
+                </tr>
+                {unsectionedTasks.map(task => (
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    onComplete={handleTaskComplete}
+                    onClick={onTaskClick}
+                    onViewSubtasks={handleViewSubtasks}
+                    isSelected={selectedTaskId === task.id}
                   />
-                  <Badge variant="secondary" className="ml-2">
-                    {sectionTasks.length}
-                  </Badge>
-                </button>
-              </div>
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => handleDeleteSection(section.id)}>
-                    Delete Section
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-
-            {/* Section Content */}
-            {!section.collapsed && (
-              <div
-                className="p-3"
-                onDragOver={handleDragOver}
-                onDrop={(e) => handleDrop(e, section.id)}
-              >
-                {sectionTasks.length > 0 ? (
-                  <div>
-                    {sectionTasks.map(task => renderTask(task))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    No tasks in this section
-                  </p>
-                )}
-
-                {/* Add Task Button */}
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start text-muted-foreground hover:text-foreground mt-2"
-                  onClick={() => handleAddTask(section.id)}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add tasks...
-                </Button>
-              </div>
+                ))}
+              </>
             )}
-          </div>
-        );
-      })}
+          </tbody>
+        </table>
 
-      {/* Render unsectioned tasks */}
-      {unsectionedTasks.length > 0 && (
-        <div className="border rounded-lg p-3">
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground uppercase">
-            Unsectioned
-          </h3>
-          <div>
-            {unsectionedTasks.map(task => renderTask(task))}
-          </div>
+        {/* Add Section Button */}
+        <div className="mt-4">
+          {isAddingSection ? (
+            <div className="flex gap-2">
+              <Input
+                value={newSectionName}
+                onChange={(e) => setNewSectionName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleAddSection();
+                  if (e.key === 'Escape') handleCancelAddSection();
+                }}
+                placeholder="Section name"
+                autoFocus
+              />
+              <Button onClick={handleAddSection} disabled={!newSectionName.trim()}>
+                Add
+              </Button>
+              <Button variant="ghost" onClick={handleCancelAddSection}>
+                Cancel
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              className="w-full border-dashed"
+              onClick={() => setIsAddingSection(true)}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Section
+            </Button>
+          )}
         </div>
-      )}
+      </div>
 
-      {/* Add Section Button / Input */}
-      {isAddingSection ? (
-        <div className="flex gap-2">
-          <Input
-            value={newSectionName}
-            onChange={(e) => setNewSectionName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleAddSection();
-              if (e.key === 'Escape') handleCancelAddSection();
-            }}
-            placeholder="Section name"
-            autoFocus
-          />
-          <Button onClick={handleAddSection} disabled={!newSectionName.trim()}>
-            Add
-          </Button>
-          <Button variant="ghost" onClick={handleCancelAddSection}>
-            Cancel
-          </Button>
-        </div>
-      ) : (
-        <Button
-          variant="outline"
-          className="w-full border-dashed"
-          onClick={() => setIsAddingSection(true)}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Add Section
-        </Button>
-      )}
+      {/* Delete Section Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Section</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this section?
+              {sectionToDelete && tasksBySection[sectionToDelete]?.length > 0 && (
+                <span className="block mt-2 font-semibold text-destructive">
+                  This section has {tasksBySection[sectionToDelete].length} task{tasksBySection[sectionToDelete].length > 1 ? 's' : ''} that will be moved to the first section.
+                </span>
+              )}
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDeleteSection} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

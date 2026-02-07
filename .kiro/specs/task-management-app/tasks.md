@@ -654,7 +654,7 @@ This implementation plan breaks down the task management web app into incrementa
     - Handle project deletion and redirect to project list
     - _Requirements: 21.9, 21.10, 21.11, 21.12, 21.13, 21.14, 21.15_
   
-  - [x] 28.7 Update TaskList for collapsible sections
+  - [x] 28.7 Update TaskList for collapsible sections with table-like view
     - Add section header with collapse/expand button
     - Display task count in section header
     - Implement toggle functionality
@@ -662,8 +662,16 @@ This implementation plan breaks down the task management web app into incrementa
     - Add section actions menu (rename, delete)
     - Add "Add Section" button at the bottom
     - Add "Add tasks..." button at the end of each section
+    - Implement table-like task row structure:
+      - Tick round button (green when completed, gray when incomplete)
+      - Task name/description (clickable)
+      - Configurable columns (due date, priority, assignee, tags)
+      - Expand/collapse button for tasks with subtasks (left of task name)
+      - "View Subtasks" button for tasks with subtasks (opens sidebar focused on subtasks)
+      - "Details" button (opens task sidebar)
+    - Display subtasks indented beneath parent when expanded
     - Implement drag-and-drop for tasks between sections
-    - _Requirements: 22.1, 22.3, 22.4, 22.5, 22.6, 22.12, 22.13, 22.14, 22.15_
+    - _Requirements: 22.1, 22.3, 22.4, 22.5, 22.6, 22.12, 22.13, 22.14, 22.15, 22.16, 22.17, 22.18, 22.19, 22.20, 22.21, 22.22, 22.23_
   
   - [x] 28.8 Update TaskBoard to use sections with add buttons
     - Update TaskBoard to receive sections instead of columns
@@ -721,6 +729,32 @@ This implementation plan breaks down the task management web app into incrementa
     - Update header to show project name only
     - Test navigation between tabs
     - _Requirements: 21.1, 21.2, 21.3, 21.4, 21.5_
+
+  - [x] 28.9.1 Implement TaskRow component for table-like list view
+    - Create TaskRow component with all interactive elements:
+      - Conditional expand/collapse subtasks button (chevron icon)
+      - Completion tick button (green/gray, toggles on click)
+      - Task name/description (clickable, opens sidebar)
+      - Configurable columns section (due date, priority, assignee, tags)
+      - Conditional "View Subtasks" button (opens sidebar, scrolls to subtasks)
+      - "Details" button (always visible, opens sidebar)
+    - Implement subtask expansion state (local component state)
+    - Display subtasks indented beneath parent when expanded
+    - Add hover states for all interactive elements
+    - Support drag-and-drop for task reordering
+    - Add responsive behavior (hide columns on mobile)
+    - _Requirements: 22.15, 22.16, 22.17, 22.18, 22.19, 22.20, 22.21, 22.22, 22.23_
+  
+  - [x]* 28.9.2 Write unit tests for TaskRow component
+    - Test tick button toggles completion status
+    - Test task name click opens sidebar
+    - Test Details button opens sidebar
+    - Test expand/collapse button toggles subtask visibility
+    - Test "View Subtasks" button opens sidebar and focuses subtasks
+    - Test configurable columns display correctly
+    - Test hover states
+    - Test responsive behavior
+    - _Requirements: 22.15, 22.16, 22.17, 22.18, 22.19, 22.20, 22.21, 22.22_
   
   - [ ]* 28.10 Write unit tests for new components
     - Test ProjectTabs tab switching

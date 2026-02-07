@@ -603,7 +603,7 @@ function createProject(name: string): Project {
 }
 ```
 
-**Collapsible Section Implementation**:
+**Collapsible Section Implementation with Table-Like View**:
 
 ```typescript
 interface CollapsibleSectionProps {
@@ -612,9 +612,21 @@ interface CollapsibleSectionProps {
   onToggle: (sectionId: UUID) => void;
   onAddTask: (sectionId: UUID) => void;
   onTaskDrop: (taskId: UUID, sectionId: UUID) => void;
+  onTaskComplete: (taskId: UUID) => void;
+  onTaskClick: (taskId: UUID) => void;
+  onViewSubtasks: (taskId: UUID) => void;
 }
 
-function CollapsibleSection({ section, tasks, onToggle, onAddTask, onTaskDrop }: CollapsibleSectionProps) {
+function CollapsibleSection({ 
+  section, 
+  tasks, 
+  onToggle, 
+  onAddTask, 
+  onTaskDrop,
+  onTaskComplete,
+  onTaskClick,
+  onViewSubtasks
+}: CollapsibleSectionProps) {
   return (
     <div className="space-y-2">
       {/* Section Header */}
@@ -647,17 +659,20 @@ function CollapsibleSection({ section, tasks, onToggle, onAddTask, onTaskDrop }:
         </DropdownMenu>
       </button>
       
-      {/* Section Content */}
+      {/* Section Content - Table-like View */}
       {!section.collapsed && (
         <div 
-          className="space-y-2 pl-6"
+          className="space-y-1"
           onDrop={(e) => handleDrop(e, section.id, onTaskDrop)}
           onDragOver={(e) => e.preventDefault()}
         >
           {tasks.map(task => (
-            <TaskCard 
+            <TaskRow 
               key={task.id} 
               task={task}
+              onComplete={onTaskComplete}
+              onClick={onTaskClick}
+              onViewSubtasks={onViewSubtasks}
               draggable
               onDragStart={(e) => e.dataTransfer.setData('taskId', task.id)}
             />
@@ -676,6 +691,151 @@ function CollapsibleSection({ section, tasks, onToggle, onAddTask, onTaskDrop }:
   );
 }
 
+// Task Row Component for Table-like View
+interface TaskRowProps {
+  task: Task;
+  onComplete: (taskId: UUID) => void;
+  onClick: (taskId: UUID) => void;
+  onViewSubtasks: (taskId: UUID) => void;
+  draggable?: boolean;
+  onDragStart?: (e: React.DragEvent) => void;
+}
+
+function TaskRow({ 
+  task, 
+  onComplete, 
+  onClick, 
+  onViewSubtasks,
+  draggable,
+  onDragStart 
+}: TaskRowProps) {
+  const [subtasksExpanded, setSubtasksExpanded] = useState(false);
+  const subtasks = useDataStore(state => state.getSubtasks(task.id));
+  const hasSubtasks = subtasks.length > 0;
+  
+  return (
+    <div className="space-y-1">
+      {/* Main Task Row */}
+      <div 
+        className="flex items-center gap-2 p-2 hover:bg-accent rounded group"
+        draggable={draggable}
+        onDragStart={onDragStart}
+      >
+        {/* Expand/Collapse Subtasks Button (if has subtasks) */}
+        {hasSubtasks && (
+          <button
+            onClick={() => setSubtasksExpanded(!subtasksExpanded)}
+            className="flex-shrink-0"
+          >
+            {subtasksExpanded ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+          </button>
+        )}
+        
+        {/* Completion Tick Button */}
+        <button
+          onClick={() => onComplete(task.id)}
+          className={cn(
+            "flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center",
+            task.completed 
+              ? "bg-green-500 border-green-500" 
+              : "border-gray-300 hover:border-gray-400"
+          )}
+        >
+          {task.completed && <Check className="h-3 w-3 text-white" />}
+        </button>
+        
+        {/* Task Name/Description */}
+        <span 
+          onClick={() => onClick(task.id)}
+          className={cn(
+            "flex-1 cursor-pointer",
+            task.completed && "line-through text-muted-foreground"
+          )}
+        >
+          {task.description}
+        </span>
+        
+        {/* Configurable Columns */}
+        <div className="flex items-center gap-4 flex-shrink-0">
+          {/* Due Date Column */}
+          {task.dueDate && (
+            <span className="text-sm text-muted-foreground">
+              {format(new Date(task.dueDate), 'MMM d')}
+            </span>
+          )}
+          
+          {/* Priority Column */}
+          {task.priority !== Priority.NONE && (
+            <Badge variant={getPriorityVariant(task.priority)}>
+              {task.priority}
+            </Badge>
+          )}
+          
+          {/* Assignee Column */}
+          {task.assignee && (
+            <span className="text-sm text-muted-foreground">
+              {task.assignee}
+            </span>
+          )}
+          
+          {/* Tags Column */}
+          {task.tags.length > 0 && (
+            <div className="flex gap-1">
+              {task.tags.slice(0, 2).map(tag => (
+                <Badge key={tag} variant="outline" className="text-xs">
+                  {tag}
+                </Badge>
+              ))}
+              {task.tags.length > 2 && (
+                <Badge variant="outline" className="text-xs">
+                  +{task.tags.length - 2}
+                </Badge>
+              )}
+            </div>
+          )}
+        </div>
+        
+        {/* View Subtasks Button (if has subtasks) */}
+        {hasSubtasks && (
+          <button
+            onClick={() => onViewSubtasks(task.id)}
+            className="flex-shrink-0 text-sm text-primary hover:underline"
+          >
+            View Subtasks ({subtasks.length})
+          </button>
+        )}
+        
+        {/* Details Button */}
+        <button
+          onClick={() => onClick(task.id)}
+          className="flex-shrink-0 px-3 py-1 text-sm border rounded hover:bg-accent"
+        >
+          Details
+        </button>
+      </div>
+      
+      {/* Subtasks (if expanded) */}
+      {hasSubtasks && subtasksExpanded && (
+        <div className="ml-8 space-y-1">
+          {subtasks.map(subtask => (
+            <TaskRow
+              key={subtask.id}
+              task={subtask}
+              onComplete={onComplete}
+              onClick={onClick}
+              onViewSubtasks={onViewSubtasks}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // List View with Add Section Button
 function ListView({ sections, tasks, onAddSection }: ListViewProps) {
   return (
@@ -688,6 +848,9 @@ function ListView({ sections, tasks, onAddSection }: ListViewProps) {
           onToggle={toggleSection}
           onAddTask={handleAddTask}
           onTaskDrop={handleTaskMove}
+          onTaskComplete={handleTaskComplete}
+          onTaskClick={handleTaskClick}
+          onViewSubtasks={handleViewSubtasks}
         />
       ))}
       
@@ -701,6 +864,192 @@ function ListView({ sections, tasks, onAddSection }: ListViewProps) {
     </div>
   );
 }
+
+### Table-Like List View Design
+
+**Design Decision**: Implement a table-like structure for task rows in the list view to provide a clear, scannable layout with configurable columns.
+
+**Rationale**:
+- Provides better visual organization than card-based layouts
+- Allows users to quickly scan multiple task properties at once
+- Familiar pattern from spreadsheets and project management tools
+- Supports configurable columns for different workflows
+- Maintains consistency with modern task management UIs (Linear, Asana, etc.)
+
+**Task Row Structure**:
+
+Each task row contains the following elements from left to right:
+
+1. **Subtask Expand/Collapse Button** (conditional)
+   - Only shown if task has subtasks
+   - Chevron icon (right when collapsed, down when expanded)
+   - Toggles visibility of subtasks beneath parent task
+   - Width: 24px
+
+2. **Completion Tick Button**
+   - Round button with border
+   - Green background with white checkmark when completed
+   - Gray border with no fill when incomplete
+   - Toggles task completion status on click
+   - Width: 20px
+
+3. **Task Name/Description**
+   - Primary task text
+   - Clickable to open task sidebar
+   - Strikethrough when task is completed
+   - Flex-grow to take available space
+   - Truncates with ellipsis if too long
+
+4. **Configurable Columns** (right-aligned)
+   - Due Date: Formatted as "MMM d" (e.g., "Jan 15")
+   - Priority: Badge with color coding (High=red, Medium=yellow, Low=blue)
+   - Assignee: User name or initials
+   - Tags: Up to 2 visible tags, "+N" badge for additional tags
+   - Each column has fixed width for alignment
+
+5. **View Subtasks Button** (conditional)
+   - Only shown if task has subtasks
+   - Text button: "View Subtasks (N)"
+   - Opens task sidebar and scrolls to subtask section
+   - Width: auto
+
+6. **Details Button**
+   - Always visible
+   - Text button: "Details"
+   - Opens task sidebar
+   - Width: 80px
+
+**Visual Hierarchy**:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ [>] [○] Task description goes here...    Jan 15  [High]  John  [tag1] [+2]  │
+│                                           View Subtasks (3)  [Details]       │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Subtask Display**:
+
+When subtasks are expanded, they appear indented beneath the parent task:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ [v] [✓] Parent task with subtasks         Jan 15  [High]  John  [tag1]      │
+│                                           View Subtasks (2)  [Details]       │
+│     [○] Subtask 1                         Jan 16  [Med]   Jane               │
+│                                                                   [Details]  │
+│     [○] Subtask 2                         Jan 17  [Low]   John               │
+│                                                                   [Details]  │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Responsive Behavior**:
+
+- **Desktop (>1024px)**: All columns visible
+- **Tablet (768px-1024px)**: Hide tags column, show on hover
+- **Mobile (<768px)**: Show only tick, name, and details button; other columns accessible via details sidebar
+
+**Hover States**:
+
+- Row hover: Light background highlight
+- Tick button hover: Border color darkens
+- Task name hover: Underline
+- Details button hover: Background highlight
+
+**Interaction Patterns**:
+
+1. **Click tick button**: Toggle completion (no sidebar open)
+2. **Click task name**: Open task sidebar
+3. **Click Details button**: Open task sidebar
+4. **Click View Subtasks button**: Open task sidebar + scroll to subtasks
+5. **Click expand/collapse button**: Toggle subtask visibility inline
+6. **Drag task row**: Reorder within section or move to different section
+
+**Implementation Notes**:
+
+```typescript
+// Task row component with all interactive elements
+interface TaskRowProps {
+  task: Task;
+  onComplete: (taskId: UUID) => void;
+  onClick: (taskId: UUID) => void;
+  onViewSubtasks: (taskId: UUID) => void;
+  draggable?: boolean;
+  onDragStart?: (e: React.DragEvent) => void;
+}
+
+// Column configuration for customization
+interface ColumnConfig {
+  id: string;
+  label: string;
+  width: number | 'auto';
+  visible: boolean;
+  render: (task: Task) => React.ReactNode;
+}
+
+const DEFAULT_COLUMNS: ColumnConfig[] = [
+  {
+    id: 'dueDate',
+    label: 'Due Date',
+    width: 80,
+    visible: true,
+    render: (task) => task.dueDate ? format(new Date(task.dueDate), 'MMM d') : null
+  },
+  {
+    id: 'priority',
+    label: 'Priority',
+    width: 80,
+    visible: true,
+    render: (task) => task.priority !== Priority.NONE ? (
+      <Badge variant={getPriorityVariant(task.priority)}>{task.priority}</Badge>
+    ) : null
+  },
+  {
+    id: 'assignee',
+    label: 'Assignee',
+    width: 100,
+    visible: true,
+    render: (task) => task.assignee || null
+  },
+  {
+    id: 'tags',
+    label: 'Tags',
+    width: 150,
+    visible: true,
+    render: (task) => task.tags.length > 0 ? (
+      <div className="flex gap-1">
+        {task.tags.slice(0, 2).map(tag => (
+          <Badge key={tag} variant="outline">{tag}</Badge>
+        ))}
+        {task.tags.length > 2 && <Badge variant="outline">+{task.tags.length - 2}</Badge>}
+      </div>
+    ) : null
+  }
+];
+
+// Future enhancement: Allow users to customize visible columns
+interface ListViewSettings {
+  visibleColumns: string[];
+  columnOrder: string[];
+  columnWidths: Record<string, number>;
+}
+```
+
+**Benefits**:
+- ✅ Clear visual hierarchy
+- ✅ Quick scanning of task properties
+- ✅ Efficient use of horizontal space
+- ✅ Familiar table-like pattern
+- ✅ Supports inline subtask expansion
+- ✅ Multiple interaction points per row
+- ✅ Configurable columns for future customization
+
+**Trade-offs**:
+- More complex layout than simple card view
+- Requires careful responsive design
+- More interactive elements per row (potential for confusion)
+
+These trade-offs are acceptable as the table-like view provides significantly better information density and scanning efficiency for power users.
 
 // Board View with Add Task and Add Section Buttons
 function BoardView({ sections, tasks, onAddTask, onAddSection }: BoardViewProps) {
@@ -2248,6 +2597,36 @@ const DEFAULT_STATE: AppState = {
 *For any* valid imported data, the import should persist the data to localStorage and make it available in the application.
 
 **Validates: Requirements 15.5**
+
+### Property 51: Task Row Completion Toggle
+
+*For any* task displayed in a task row, clicking the tick button should toggle the task's completion status and update the visual state (green with checkmark when complete, gray border when incomplete).
+
+**Validates: Requirements 22.15, 22.16**
+
+### Property 52: Task Row Details Button Opens Sidebar
+
+*For any* task displayed in a task row, clicking the "Details" button should open the task sidebar with that task's information.
+
+**Validates: Requirements 22.18**
+
+### Property 53: Subtask Expand/Collapse Toggle
+
+*For any* task with subtasks, clicking the expand/collapse button should toggle the visibility of subtasks beneath the parent task without affecting other tasks.
+
+**Validates: Requirements 22.19, 22.20**
+
+### Property 54: View Subtasks Button Opens Sidebar and Focuses
+
+*For any* task with subtasks, clicking the "View Subtasks" button should open the task sidebar and scroll to/focus on the subtask section.
+
+**Validates: Requirements 22.21, 22.22**
+
+### Property 55: Task Row Displays Configurable Columns
+
+*For any* task displayed in a task row, the row should display all configured columns (due date, priority, assignee, tags) with their respective values when present.
+
+**Validates: Requirements 22.23**
 
 ## Error Handling
 

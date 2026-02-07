@@ -25,6 +25,7 @@ import {
 import {
   SortableContext,
   horizontalListSortingStrategy,
+  verticalListSortingStrategy,
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -85,18 +86,22 @@ function SortableSection({ id, children }: { id: string; children: React.ReactNo
   );
 }
 
-// Draggable task card component
+// Draggable task card component with sortable support
 function DraggableTaskCard({ task, children }: { task: Task; children: React.ReactNode }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: task.id,
-  });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: task.id });
 
-  const style = transform
-    ? {
-        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-        opacity: isDragging ? 0.5 : 1,
-      }
-    : undefined;
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
 
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
@@ -136,6 +141,24 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
     }
   };
 
+  const handleDragOver = (event: DragOverEvent) => {
+    const { active, over } = event;
+    
+    if (!over || active.id === over.id) return;
+    
+    // Only handle task reordering here
+    const activeTask = tasks.find(t => t.id === active.id);
+    const overTask = tasks.find(t => t.id === over.id);
+    
+    if (activeTask && overTask) {
+      // Tasks being reordered within or across sections
+      if (activeTask.sectionId !== overTask.sectionId) {
+        // Moving to different section - update section immediately
+        updateTask(activeTask.id, { sectionId: overTask.sectionId });
+      }
+    }
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     
@@ -146,10 +169,59 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
     }
 
     if (activeType === 'task') {
-      // Handle task drag
-      const taskId = active.id as string;
-      const sectionId = over.id as string;
-      onTaskMove(taskId, sectionId);
+      // Handle task reordering
+      const activeTask = tasks.find(t => t.id === active.id);
+      const overTask = tasks.find(t => t.id === over.id);
+      
+      if (activeTask && overTask) {
+        const targetSectionId = overTask.sectionId;
+        
+        // Get all tasks in target section
+        const sectionTasks = tasks
+          .filter(t => t.sectionId === targetSectionId && !t.parentTaskId && t.id !== activeTask.id)
+          .sort((a, b) => a.order - b.order);
+        
+        // Find where to insert
+        const overIndex = sectionTasks.findIndex(t => t.id === over.id);
+        
+        if (overIndex !== -1) {
+          // Insert at the position
+          sectionTasks.splice(overIndex, 0, activeTask);
+        } else {
+          // Append to end
+          sectionTasks.push(activeTask);
+        }
+        
+        // Update task section and order
+        updateTask(activeTask.id, { 
+          sectionId: targetSectionId,
+          order: overIndex !== -1 ? overIndex : sectionTasks.length - 1
+        });
+        
+        // Update order for all tasks in section
+        sectionTasks.forEach((task, index) => {
+          if (task.id !== activeTask.id) {
+            updateTask(task.id, { order: index });
+          }
+        });
+      } else if (activeTask && !overTask) {
+        // Dropped on section (not on a task)
+        const sectionId = over.id as string;
+        const section = sections.find(s => s.id === sectionId);
+        
+        if (section) {
+          // Get tasks in target section
+          const sectionTasks = tasks
+            .filter(t => t.sectionId === sectionId && !t.parentTaskId)
+            .sort((a, b) => a.order - b.order);
+          
+          // Place at end
+          updateTask(activeTask.id, { 
+            sectionId: sectionId,
+            order: sectionTasks.length
+          });
+        }
+      }
     } else if (activeType === 'section') {
       // Handle section reordering
       const draggedSectionId = active.id as string;
@@ -210,7 +282,9 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
   };
 
   const getTasksBySection = (sectionId: string) => {
-    return tasks.filter(task => task.sectionId === sectionId);
+    return tasks
+      .filter(task => task.sectionId === sectionId && !task.parentTaskId)
+      .sort((a, b) => a.order - b.order);
   };
 
   const renderTaskCard = (task: Task) => (
@@ -288,6 +362,7 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
       sensors={sensors}
       collisionDetection={closestCenter}
       onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
@@ -321,11 +396,13 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
                           No tasks in this section
                         </div>
                       ) : (
-                        sectionTasks.map(task => (
-                          <DraggableTaskCard key={task.id} task={task}>
-                            {renderTaskCard(task)}
-                          </DraggableTaskCard>
-                        ))
+                        <SortableContext items={sectionTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+                          {sectionTasks.map(task => (
+                            <DraggableTaskCard key={task.id} task={task}>
+                              {renderTaskCard(task)}
+                            </DraggableTaskCard>
+                          ))}
+                        </SortableContext>
                       )}
                     </div>
 

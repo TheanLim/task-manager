@@ -391,6 +391,8 @@ function HomeContent() {
                         onTaskClick={handleTaskClick}
                         onTaskComplete={handleTaskComplete}
                         onAddTask={handleNewTask}
+                        onViewSubtasks={handleTaskClick}
+                        selectedTaskId={selectedTaskId}
                       />
                     ),
                     board: (
