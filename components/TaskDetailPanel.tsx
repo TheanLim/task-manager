@@ -14,7 +14,7 @@ import {
   Trash2,
   Plus,
   CheckCircle2,
-  X,
+  ChevronsRight,
   Maximize2,
   Minimize2
 } from 'lucide-react';
@@ -85,8 +85,8 @@ export function TaskDetailPanel({
           <Button variant="outline" size="icon" onClick={onDelete}>
             <Trash2 className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="icon" onClick={onClose}>
-            <X className="h-4 w-4" />
+          <Button variant="outline" size="icon" onClick={onClose} title="Close panel">
+            <ChevronsRight className="h-4 w-4" />
           </Button>
         </div>
       </div>
