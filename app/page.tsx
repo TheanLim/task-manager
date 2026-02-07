@@ -122,6 +122,13 @@ function HomeContent() {
     }
   }, [taskIdFromUrl]);
 
+  // Close task sidebar when switching tabs
+  useEffect(() => {
+    if (selectedTaskId && !expandedFromUrl) {
+      setSelectedTaskId(null);
+    }
+  }, [tabFromUrl]); // Only depend on tabFromUrl, not selectedTaskId to avoid infinite loop
+
   // Initialize TMS on mount and check for day change
   useEffect(() => {
     if (settings.timeManagementSystem) {
