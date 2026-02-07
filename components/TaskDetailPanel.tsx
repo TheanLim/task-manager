@@ -26,6 +26,7 @@ interface TaskDetailPanelProps {
   onEdit: () => void;
   onDelete: () => void;
   onClose: () => void;
+  onComplete: (completed: boolean) => void;
   onAddSubtask: () => void;
   onAddDependency: () => void;
   onRemoveDependency: (blockingTaskId: UUID, blockedTaskId: UUID) => void;
@@ -43,6 +44,7 @@ export function TaskDetailPanel({
   onEdit,
   onDelete,
   onClose,
+  onComplete,
   onAddSubtask,
   onAddDependency,
   onRemoveDependency,
@@ -50,17 +52,23 @@ export function TaskDetailPanel({
 }: TaskDetailPanelProps) {
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <h2 className="text-2xl font-bold">{task.description}</h2>
-          {task.completed && (
-            <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
-              <CheckCircle2 className="h-4 w-4" />
-              <span>Completed {task.completedAt && format(new Date(task.completedAt), 'PPP')}</span>
-            </div>
-          )}
-        </div>
+      {/* Action Bar */}
+      <div className="flex items-center justify-between gap-2">
+        {/* Completion Button - Left */}
+        <Button
+          onClick={() => onComplete(!task.completed)}
+          className={`${
+            task.completed
+              ? 'bg-green-500/20 text-green-700 hover:bg-green-500/30 border-2 border-green-500'
+              : 'bg-green-500 text-white hover:bg-green-600'
+          }`}
+          size="sm"
+        >
+          <CheckCircle2 className="mr-2 h-4 w-4" />
+          {task.completed ? 'Completed' : 'Mark Complete'}
+        </Button>
+
+        {/* Action Buttons - Right */}
         <div className="flex gap-2">
           <Button variant="outline" size="icon" onClick={onEdit}>
             <Edit className="h-4 w-4" />
@@ -68,10 +76,22 @@ export function TaskDetailPanel({
           <Button variant="outline" size="icon" onClick={onDelete}>
             <Trash2 className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={onClose}>
+          <Button variant="outline" size="icon" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
         </div>
+      </div>
+
+      <Separator />
+
+      {/* Header */}
+      <div>
+        <h2 className="text-2xl font-bold">{task.description}</h2>
+        {task.completed && task.completedAt && (
+          <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+            <span>Completed {format(new Date(task.completedAt), 'PPP')}</span>
+          </div>
+        )}
       </div>
 
       <Separator />
