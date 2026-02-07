@@ -31,11 +31,10 @@ export function ImportExportMenu() {
     sections: number;
     dependencies: number;
   } | null>(null);
+  const [importData, setImportData] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const dataStore = useDataStore();
-  const tmsStore = useTMSStore();
-  const appStore = useAppStore();
 
   const storage = new LocalStorageAdapter();
 
@@ -69,6 +68,9 @@ export function ImportExportMenu() {
       const text = await file.text();
       const data = storage.importFromJSON(text);
       
+      // Store the imported data
+      setImportData(data);
+      
       // Show preview
       setImportPreview({
         projects: data.projects.length,
@@ -81,6 +83,7 @@ export function ImportExportMenu() {
     } catch (error) {
       setImportError(error instanceof Error ? error.message : 'Invalid file format');
       setImportPreview(null);
+      setImportData(null);
       setImportDialogOpen(true);
     }
 
@@ -91,43 +94,38 @@ export function ImportExportMenu() {
   };
 
   const handleImportConfirm = (mode: 'replace' | 'merge') => {
-    if (!importPreview) return;
+    if (!importPreview || !importData) return;
 
     try {
-      const file = fileInputRef.current?.files?.[0];
-      if (!file) return;
-
-      file.text().then(text => {
-        const data = storage.importFromJSON(text);
-
-        if (mode === 'replace') {
-          // Replace all data - use the store's state directly
-          const currentState = dataStore;
-          Object.assign(currentState, {
-            projects: data.projects,
-            tasks: data.tasks,
-            sections: data.sections,
-            dependencies: data.dependencies
-          });
-          
-          const currentTMSState = tmsStore;
-          Object.assign(currentTMSState, { state: data.tmsState });
-          
-          const currentAppState = appStore;
-          Object.assign(currentAppState, { settings: data.settings });
-        } else {
-          // Merge data - add new items
-          data.projects.forEach(p => dataStore.addProject(p));
-          data.tasks.forEach(t => dataStore.addTask(t));
-          data.sections.forEach(s => dataStore.addSection(s));
-          data.dependencies.forEach(d => dataStore.addDependency(d));
-        }
-
+      if (mode === 'replace') {
+        // Replace all data - save directly to storage and reload
+        storage.save(importData);
         setImportDialogOpen(false);
         setImportPreview(null);
+        setImportData(null);
         alert('Data imported successfully!');
-        window.location.reload(); // Reload to ensure all state is synced
-      });
+        window.location.reload(); // Reload to load the new state
+      } else {
+        // Merge data - add items directly without creating default sections
+        // We need to manually merge the arrays to avoid duplicate sections
+        const currentProjects = dataStore.projects;
+        const currentTasks = dataStore.tasks;
+        const currentSections = dataStore.sections;
+        const currentDependencies = dataStore.dependencies;
+        
+        // Use Zustand's internal setState to merge data
+        useDataStore.setState({
+          projects: [...currentProjects, ...importData.projects],
+          tasks: [...currentTasks, ...importData.tasks],
+          sections: [...currentSections, ...importData.sections],
+          dependencies: [...currentDependencies, ...importData.dependencies]
+        });
+        
+        setImportDialogOpen(false);
+        setImportPreview(null);
+        setImportData(null);
+        alert('Data imported successfully!');
+      }
     } catch (error) {
       console.error('Import failed:', error);
       alert('Failed to import data. Please try again.');
