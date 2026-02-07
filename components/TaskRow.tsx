@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { useDataStore } from '@/stores/dataStore';
@@ -99,84 +100,92 @@ export function TaskRow({
       >
         {/* Task Name Column - contains drag handle, expand/collapse, checkbox, name, and chevron-right */}
         <td className="p-1 border-r sticky left-0 bg-background group-hover:bg-accent z-10 relative transition-colors">
-          <div className="flex items-center gap-2" style={{ paddingLeft: depth > 0 ? `${depth * 24}px` : 0 }}>
-            {/* Drag Handle - appears on hover */}
-            {draggable && depth === 0 && (
-              <div className="opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground flex-shrink-0">
-                <GripVertical className="h-4 w-4" />
-              </div>
-            )}
-            
-            {/* Expand/Collapse Subtasks Button */}
-            {hasSubtasks ? (
+          <TooltipProvider>
+            <div className="flex items-center gap-2" style={{ paddingLeft: depth > 0 ? `${depth * 24}px` : 0 }}>
+              {/* Drag Handle - appears on hover */}
+              {draggable && depth === 0 && (
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground flex-shrink-0">
+                  <GripVertical className="h-4 w-4" />
+                </div>
+              )}
+              
+              {/* Expand/Collapse Subtasks Button */}
+              {hasSubtasks ? (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSubtasksExpanded(!subtasksExpanded);
+                  }}
+                  className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label={subtasksExpanded ? 'Collapse subtasks' : 'Expand subtasks'}
+                >
+                  {subtasksExpanded ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                </button>
+              ) : (
+                <div className="w-4 flex-shrink-0" />
+              )}
+
+              {/* Completion Checkbox */}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setSubtasksExpanded(!subtasksExpanded);
+                  onComplete(task.id);
                 }}
-                className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors"
-                aria-label={subtasksExpanded ? 'Collapse subtasks' : 'Expand subtasks'}
+                className={cn(
+                  "flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
+                  task.completed
+                    ? "bg-green-500 border-green-500 hover:bg-green-600 hover:border-green-600"
+                    : "border-gray-300 hover:border-gray-400 dark:border-gray-600 dark:hover:border-gray-500"
+                )}
+                aria-label={task.completed ? 'Mark as incomplete' : 'Mark as complete'}
               >
-                {subtasksExpanded ? (
-                  <ChevronDown className="h-4 w-4" />
-                ) : (
-                  <ChevronRight className="h-4 w-4" />
-                )}
+                {task.completed && <Check className="h-3 w-3 text-white" />}
               </button>
-            ) : (
-              <div className="w-4 flex-shrink-0" />
-            )}
 
-            {/* Completion Checkbox */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onComplete(task.id);
-              }}
-              className={cn(
-                "flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
-                task.completed
-                  ? "bg-green-500 border-green-500 hover:bg-green-600 hover:border-green-600"
-                  : "border-gray-300 hover:border-gray-400 dark:border-gray-600 dark:hover:border-gray-500"
-              )}
-              aria-label={task.completed ? 'Mark as incomplete' : 'Mark as complete'}
-            >
-              {task.completed && <Check className="h-3 w-3 text-white" />}
-            </button>
+              {/* Task Name */}
+              <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+                <InlineEditable
+                  value={task.description}
+                  onSave={(newDescription) => updateTask(task.id, { description: newDescription })}
+                  validate={validateTaskDescription}
+                  placeholder="Task description"
+                  displayClassName={cn(
+                    "truncate",
+                    task.completed && "line-through text-muted-foreground"
+                  )}
+                  inputClassName="w-full"
+                />
+              </div>
 
-            {/* Task Name */}
-            <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
-              <InlineEditable
-                value={task.description}
-                onSave={(newDescription) => updateTask(task.id, { description: newDescription })}
-                validate={validateTaskDescription}
-                placeholder="Task description"
-                displayClassName={cn(
-                  "truncate",
-                  task.completed && "line-through text-muted-foreground"
-                )}
-                inputClassName="w-full"
-              />
+              {/* Chevron Right - appears on hover, hidden when selected */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onClick(task.id);
+                    }}
+                    className={cn(
+                      "h-8 w-8 p-0 transition-opacity flex-shrink-0 absolute right-3",
+                      isSelected ? "opacity-0" : "opacity-0 group-hover:opacity-100"
+                    )}
+                    aria-label="View details"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>View details</p>
+                </TooltipContent>
+              </Tooltip>
             </div>
-
-            {/* Chevron Right - appears on hover, hidden when selected */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                onClick(task.id);
-              }}
-              className={cn(
-                "h-8 w-8 p-0 transition-opacity flex-shrink-0 absolute right-3",
-                isSelected ? "opacity-0" : "opacity-0 group-hover:opacity-100"
-              )}
-              aria-label="View details"
-              title="View details"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
+          </TooltipProvider>
         </td>
 
         {/* Due Date Column */}
@@ -258,7 +267,7 @@ export function TaskRow({
         >
           <InlineEditable
             value={task.assignee || ''}
-            onSave={(newAssignee) => updateTask(task.id, { assignee: newAssignee || null })}
+            onSave={(newAssignee) => updateTask(task.id, { assignee: newAssignee || undefined })}
             placeholder="Assignee"
             displayClassName="truncate text-sm"
             inputClassName="w-full text-sm"

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -56,14 +57,22 @@ export function Layout({ children, sidebar, header }: LayoutProps) {
     <div className="flex flex-col h-screen overflow-hidden bg-background">
       {/* Header - always visible at top */}
       <header className="flex h-16 items-center gap-4 border-b bg-card px-4 flex-shrink-0">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          title={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
-        >
-          <Menu className="h-5 w-5" />
-        </Button>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{sidebarOpen ? 'Close sidebar' : 'Open sidebar'}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
         
         <div className="flex flex-1 items-center justify-between">
           {header}

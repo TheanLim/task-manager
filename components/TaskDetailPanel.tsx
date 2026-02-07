@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { DependencyList } from '@/components/DependencyList';
 import {
   AlertDialog,
@@ -80,42 +81,80 @@ export function TaskDetailPanel({
 
   return (
     <>
-      <div className="space-y-6">
-      {/* Action Bar */}
-      <div className="flex items-center justify-between gap-2">
-        {/* Completion Button - Left */}
-        <Button
-          onClick={() => onComplete(!task.completed)}
-          className={`${
-            task.completed
-              ? 'bg-green-500/20 text-green-700 hover:bg-green-500/30 border-2 border-green-500'
-              : 'bg-green-500 text-white hover:bg-green-600'
-          }`}
-          size="sm"
-          title={task.completed ? "Mark as incomplete" : "Mark as complete"}
-        >
-          <CheckCircle2 className="mr-2 h-4 w-4" />
-          {task.completed ? 'Completed' : 'Mark Complete'}
-        </Button>
+      <TooltipProvider>
+        <div className="space-y-6">
+        {/* Action Bar */}
+        <div className="flex items-center justify-between gap-2">
+          {/* Completion Button - Left */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={() => onComplete(!task.completed)}
+                className={`${
+                  task.completed
+                    ? 'bg-green-500/20 text-green-700 hover:bg-green-500/30 border-2 border-green-500'
+                    : 'bg-green-500 text-white hover:bg-green-600'
+                }`}
+                size="sm"
+              >
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                {task.completed ? 'Completed' : 'Mark Complete'}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{task.completed ? "Mark as incomplete" : "Mark as complete"}</p>
+            </TooltipContent>
+          </Tooltip>
 
-        {/* Action Buttons - Right */}
-        <div className="flex gap-2">
-          <Button variant="outline" size="icon" onClick={onExpand} title={isExpanded ? "Collapse to sidebar" : "Expand to full page"}>
-            {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-          </Button>
-          <Button variant="outline" size="icon" onClick={onEdit} title="Edit task">
-            <Edit className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="icon" onClick={handleDeleteClick} title="Delete task">
-            <Trash2 className="h-4 w-4" />
-          </Button>
-          {!isExpanded && (
-            <Button variant="outline" size="icon" onClick={onClose} title="Close panel">
-              <ChevronsRight className="h-4 w-4" />
-            </Button>
-          )}
+          {/* Action Buttons - Right */}
+          <div className="flex gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="icon" onClick={onExpand}>
+                  {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{isExpanded ? "Collapse to sidebar" : "Expand to full page"}</p>
+              </TooltipContent>
+            </Tooltip>
+            
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="icon" onClick={onEdit}>
+                  <Edit className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Edit task</p>
+              </TooltipContent>
+            </Tooltip>
+            
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="icon" onClick={handleDeleteClick}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Delete task</p>
+              </TooltipContent>
+            </Tooltip>
+            
+            {!isExpanded && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="icon" onClick={onClose}>
+                    <ChevronsRight className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Close panel</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
         </div>
-      </div>
 
       <Separator />
 
@@ -188,10 +227,17 @@ export function TaskDetailPanel({
       <div>
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-sm font-semibold">Subtasks ({subtasks.length})</h3>
-          <Button variant="outline" size="sm" onClick={onAddSubtask} title="Add a new subtask">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Subtask
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="sm" onClick={onAddSubtask}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Subtask
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Add a new subtask</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
         {subtasks.length === 0 ? (
           <p className="text-sm text-muted-foreground">No subtasks</p>
@@ -224,10 +270,17 @@ export function TaskDetailPanel({
       <div>
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-sm font-semibold">Dependencies</h3>
-          <Button variant="outline" size="sm" onClick={onAddDependency} title="Add a task dependency">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Dependency
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="sm" onClick={onAddDependency}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Dependency
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Add a task dependency</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
 
         <DependencyList
@@ -245,6 +298,7 @@ export function TaskDetailPanel({
         <p>Updated {format(new Date(task.updatedAt), 'PPP')}</p>
       </div>
     </div>
+    </TooltipProvider>
 
     <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
       <AlertDialogContent>
