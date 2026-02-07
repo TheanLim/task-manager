@@ -58,8 +58,9 @@ export function TaskCalendar({ tasks, onTaskClick, onTaskComplete }: TaskCalenda
       key={task.id}
       className="text-xs px-1 py-0.5 mb-0.5 rounded truncate cursor-pointer hover:opacity-80 transition-opacity"
       style={{
-        backgroundColor: task.completed ? 'rgb(34 197 94 / 0.2)' : 'rgb(59 130 246 / 0.2)',
+        backgroundColor: task.completed ? 'rgb(34 197 94 / 0.3)' : 'rgb(59 130 246 / 0.3)',
         color: task.completed ? 'rgb(22 163 74)' : 'rgb(37 99 235)',
+        border: task.completed ? '1px solid rgb(34 197 94 / 0.5)' : '1px solid rgb(59 130 246 / 0.5)',
       }}
       onClick={(e) => {
         e.stopPropagation();
@@ -77,45 +78,45 @@ export function TaskCalendar({ tasks, onTaskClick, onTaskComplete }: TaskCalenda
       key={task.id}
       className="p-3 cursor-pointer transition-colors hover:bg-accent mb-2"
     >
-      <div className="flex items-start gap-3">
-        <Checkbox
-          checked={task.completed}
-          onCheckedChange={(checked) => {
-            onTaskComplete(task.id, checked === true);
-          }}
-          onClick={(e) => e.stopPropagation()}
-        />
+      <div className="flex items-start gap-2">
+        <div className="mt-0.5">
+          <Checkbox
+            checked={task.completed}
+            onCheckedChange={(checked) => {
+              onTaskComplete(task.id, checked === true);
+            }}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
         
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <div className="flex-1 min-w-0" onClick={() => onTaskClick(task.id)}>
-              <InlineEditable
-                value={task.description}
-                onSave={(newDescription) => updateTask(task.id, { description: newDescription })}
-                validate={validateTaskDescription}
-                placeholder="Task description"
-                displayClassName={task.completed ? 'line-through text-muted-foreground' : ''}
-                inputClassName="w-full"
-              />
-            </div>
-            {task.priority !== 'none' && (
-              <Badge variant={task.priority === 'high' ? 'destructive' : 'secondary'}>
-                {task.priority}
-              </Badge>
-            )}
+        <div className="flex-1 min-w-0 flex items-center gap-2">
+          <div className="flex-1 min-w-0" onClick={() => onTaskClick(task.id)}>
+            <InlineEditable
+              value={task.description}
+              onSave={(newDescription) => updateTask(task.id, { description: newDescription })}
+              validate={validateTaskDescription}
+              placeholder="Task description"
+              displayClassName={task.completed ? 'line-through text-muted-foreground' : ''}
+              inputClassName="w-full"
+            />
           </div>
-          
-          {task.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1">
-              {task.tags.map(tag => (
-                <Badge key={tag} variant="outline" className="text-xs">
-                  {tag}
-                </Badge>
-              ))}
-            </div>
+          {task.priority !== 'none' && (
+            <Badge variant={task.priority === 'high' ? 'destructive' : 'secondary'} className="flex-shrink-0">
+              {task.priority}
+            </Badge>
           )}
         </div>
       </div>
+      
+      {task.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-2 ml-7">
+          {task.tags.map(tag => (
+            <Badge key={tag} variant="outline" className="text-xs">
+              {tag}
+            </Badge>
+          ))}
+        </div>
+      )}
     </Card>
   );
 
