@@ -7,6 +7,16 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { DependencyList } from '@/components/DependencyList';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Calendar,
   Tag,
   User,
@@ -19,6 +29,7 @@ import {
   Minimize2
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { useState } from 'react';
 
 interface TaskDetailPanelProps {
   task: Task;
@@ -56,8 +67,20 @@ export function TaskDetailPanel({
   onSubtaskClick,
   isExpanded = false
 }: TaskDetailPanelProps) {
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  const handleDeleteClick = () => {
+    setShowDeleteDialog(true);
+  };
+
+  const handleConfirmDelete = () => {
+    setShowDeleteDialog(false);
+    onDelete();
+  };
+
   return (
-    <div className="space-y-6">
+    <>
+      <div className="space-y-6">
       {/* Action Bar */}
       <div className="flex items-center justify-between gap-2">
         {/* Completion Button - Left */}
@@ -82,12 +105,14 @@ export function TaskDetailPanel({
           <Button variant="outline" size="icon" onClick={onEdit}>
             <Edit className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="icon" onClick={onDelete}>
+          <Button variant="outline" size="icon" onClick={handleDeleteClick}>
             <Trash2 className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="icon" onClick={onClose} title="Close panel">
-            <ChevronsRight className="h-4 w-4" />
-          </Button>
+          {!isExpanded && (
+            <Button variant="outline" size="icon" onClick={onClose} title="Close panel">
+              <ChevronsRight className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </div>
 
@@ -219,5 +244,29 @@ export function TaskDetailPanel({
         <p>Updated {format(new Date(task.updatedAt), 'PPP')}</p>
       </div>
     </div>
+
+    <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete Task</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to delete "{task.description}"?
+            {subtasks.length > 0 && (
+              <span className="block mt-2 font-semibold text-destructive">
+                This task has {subtasks.length} subtask{subtasks.length > 1 ? 's' : ''} that will also be deleted.
+              </span>
+            )}
+            This action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  </>
   );
 }
