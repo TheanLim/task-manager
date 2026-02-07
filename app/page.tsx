@@ -288,25 +288,7 @@ function HomeContent() {
       }
       header={
         <>
-          <div className="flex-1 min-w-0 mr-2 sm:mr-4">
-            {activeProject ? (
-              <div className="max-w-full">
-                <InlineEditable
-                  value={activeProject.name}
-                  onSave={(newName) => updateProject(activeProject.id, { name: newName })}
-                  validate={validateProjectName}
-                  placeholder="Project name"
-                  displayClassName="text-lg font-semibold"
-                  className="text-lg font-semibold"
-                />
-              </div>
-            ) : (
-              <h2 className="text-lg font-semibold truncate">
-                Select a project
-              </h2>
-            )}
-          </div>
-          <div className="flex items-center gap-2 flex-wrap shrink-0">
+          <div className="flex items-center gap-2 flex-wrap shrink-0 ml-auto">
             <ImportExportMenu />
             <ThemeToggle />
             {activeProject && (
@@ -346,6 +328,18 @@ function HomeContent() {
         >
           {activeProject ? (
             <>
+              {/* Project Name */}
+              <div className="mb-4">
+                <InlineEditable
+                  value={activeProject.name}
+                  onSave={(newName) => updateProject(activeProject.id, { name: newName })}
+                  validate={validateProjectName}
+                  placeholder="Project name"
+                  displayClassName="text-2xl font-bold"
+                  className="text-2xl font-bold"
+                />
+              </div>
+
               {settings.timeManagementSystem === TimeManagementSystem.DIT && (
                 <DITView
                   tasks={filteredTasks}
