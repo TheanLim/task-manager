@@ -218,21 +218,24 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
       key={task.id}
       className="p-3 cursor-pointer transition-colors hover:bg-accent mb-2"
     >
-      <div className="flex items-start gap-2">
-        <div className="cursor-grab active:cursor-grabbing mt-1">
-          <GripVertical className="h-4 w-4 text-muted-foreground" />
-        </div>
-        
-        <Checkbox
-          checked={task.completed}
-          onCheckedChange={(checked) => {
-            onTaskComplete(task.id, checked === true);
-          }}
-          onClick={(e) => e.stopPropagation()}
-        />
-        
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
+      <div className="space-y-2">
+        {/* First row: drag handle, checkbox, task name, priority */}
+        <div className="flex items-start gap-2">
+          <div className="cursor-grab active:cursor-grabbing mt-0.5">
+            <GripVertical className="h-4 w-4 text-muted-foreground" />
+          </div>
+          
+          <div className="mt-0.5">
+            <Checkbox
+              checked={task.completed}
+              onCheckedChange={(checked) => {
+                onTaskComplete(task.id, checked === true);
+              }}
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+          
+          <div className="flex-1 min-w-0 flex items-center gap-2">
             <div className="flex-1 min-w-0" onClick={() => onTaskClick(task.id)}>
               <InlineEditable
                 value={task.description}
@@ -244,29 +247,34 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
               />
             </div>
             {task.priority !== Priority.NONE && (
-              <Badge variant={task.priority === Priority.HIGH ? 'destructive' : 'secondary'} className="text-xs">
+              <Badge variant={task.priority === Priority.HIGH ? 'destructive' : 'secondary'} className="text-xs flex-shrink-0">
                 {task.priority}
               </Badge>
             )}
           </div>
-          
-          {task.dueDate && (
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Calendar className="h-3 w-3" />
-              <span>{format(new Date(task.dueDate), 'MMM d')}</span>
-            </div>
-          )}
-          
-          {task.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1">
-              {task.tags.map(tag => (
-                <Badge key={tag} variant="outline" className="text-xs">
-                  {tag}
-                </Badge>
-              ))}
-            </div>
-          )}
         </div>
+        
+        {/* Second row: due date and tags */}
+        {(task.dueDate || task.tags.length > 0) && (
+          <div className="flex items-center gap-2 flex-wrap ml-10">
+            {task.dueDate && (
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Calendar className="h-3 w-3" />
+                <span>{format(new Date(task.dueDate), 'MMM d')}</span>
+              </div>
+            )}
+            
+            {task.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {task.tags.map(tag => (
+                  <Badge key={tag} variant="outline" className="text-xs">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </Card>
   );
