@@ -19,8 +19,7 @@ import {
 import { Download, Upload, FileJson } from 'lucide-react';
 import { LocalStorageAdapter } from '@/lib/storage';
 import { useDataStore } from '@/stores/dataStore';
-import { useTMSStore } from '@/stores/tmsStore';
-import { useAppStore } from '@/stores/appStore';
+import { Toast } from '@/components/ui/toast';
 
 export function ImportExportMenu() {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -32,6 +31,7 @@ export function ImportExportMenu() {
     dependencies: number;
   } | null>(null);
   const [importData, setImportData] = useState<any>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const dataStore = useDataStore();
@@ -50,9 +50,10 @@ export function ImportExportMenu() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+      setToast({ message: 'Data exported successfully!', type: 'success' });
     } catch (error) {
       console.error('Export failed:', error);
-      alert('Failed to export data. Please try again.');
+      setToast({ message: 'Failed to export data. Please try again.', type: 'error' });
     }
   };
 
@@ -103,8 +104,8 @@ export function ImportExportMenu() {
         setImportDialogOpen(false);
         setImportPreview(null);
         setImportData(null);
-        alert('Data imported successfully!');
-        window.location.reload(); // Reload to load the new state
+        setToast({ message: 'Data imported successfully! Reloading...', type: 'success' });
+        setTimeout(() => window.location.reload(), 1000);
       } else {
         // Merge data - add items directly without creating default sections
         // We need to manually merge the arrays to avoid duplicate sections
@@ -124,11 +125,11 @@ export function ImportExportMenu() {
         setImportDialogOpen(false);
         setImportPreview(null);
         setImportData(null);
-        alert('Data imported successfully!');
+        setToast({ message: 'Data merged successfully!', type: 'success' });
       }
     } catch (error) {
       console.error('Import failed:', error);
-      alert('Failed to import data. Please try again.');
+      setToast({ message: 'Failed to import data. Please try again.', type: 'error' });
     }
   };
 
@@ -216,6 +217,14 @@ export function ImportExportMenu() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </>
   );
 }
