@@ -79,7 +79,7 @@ export function TaskRow({
         onDrop={onDrop}
       >
         {/* Task Name Column - contains drag handle, expand/collapse, checkbox, name, and chevron-right */}
-        <td className="p-2 border-r sticky left-0 bg-background group-hover:bg-accent z-10 relative transition-colors">
+        <td className="p-1 border-r sticky left-0 bg-background group-hover:bg-accent z-10 relative transition-colors">
           <div className="flex items-center gap-2" style={{ paddingLeft: depth > 0 ? `${depth * 24}px` : 0 }}>
             {/* Drag Handle - appears on hover */}
             {draggable && depth === 0 && (
@@ -161,7 +161,7 @@ export function TaskRow({
         </td>
 
         {/* Due Date Column */}
-        <td className="p-2 border-r text-sm text-muted-foreground">
+        <td className="p-1 border-r text-sm text-muted-foreground">
           {task.dueDate && (
             <div className="flex items-center gap-1">
               <Calendar className="h-3 w-3" />
@@ -171,7 +171,7 @@ export function TaskRow({
         </td>
 
         {/* Priority Column */}
-        <td className="p-2 border-r">
+        <td className="p-1 border-r">
           {task.priority !== Priority.NONE && (
             <Badge variant={getPriorityVariant(task.priority)}>
               {task.priority}
@@ -180,12 +180,12 @@ export function TaskRow({
         </td>
 
         {/* Assignee Column */}
-        <td className="p-2 border-r text-sm text-muted-foreground truncate" title={task.assignee || ''}>
+        <td className="p-1 border-r text-sm text-muted-foreground truncate" title={task.assignee || ''}>
           {task.assignee}
         </td>
 
         {/* Tags Column */}
-        <td className="p-2">
+        <td className="p-1">
           {task.tags.length > 0 && (
             <div className="flex gap-1 flex-wrap">
               {task.tags.slice(0, 2).map(tag => (
