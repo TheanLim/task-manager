@@ -92,6 +92,7 @@ export function TaskDetailPanel({
               : 'bg-green-500 text-white hover:bg-green-600'
           }`}
           size="sm"
+          title={task.completed ? "Mark as incomplete" : "Mark as complete"}
         >
           <CheckCircle2 className="mr-2 h-4 w-4" />
           {task.completed ? 'Completed' : 'Mark Complete'}
@@ -99,13 +100,13 @@ export function TaskDetailPanel({
 
         {/* Action Buttons - Right */}
         <div className="flex gap-2">
-          <Button variant="outline" size="icon" onClick={onExpand} title={isExpanded ? "Collapse" : "Expand to full page"}>
+          <Button variant="outline" size="icon" onClick={onExpand} title={isExpanded ? "Collapse to sidebar" : "Expand to full page"}>
             {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </Button>
-          <Button variant="outline" size="icon" onClick={onEdit}>
+          <Button variant="outline" size="icon" onClick={onEdit} title="Edit task">
             <Edit className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="icon" onClick={handleDeleteClick}>
+          <Button variant="outline" size="icon" onClick={handleDeleteClick} title="Delete task">
             <Trash2 className="h-4 w-4" />
           </Button>
           {!isExpanded && (
@@ -187,7 +188,7 @@ export function TaskDetailPanel({
       <div>
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-sm font-semibold">Subtasks ({subtasks.length})</h3>
-          <Button variant="outline" size="sm" onClick={onAddSubtask}>
+          <Button variant="outline" size="sm" onClick={onAddSubtask} title="Add a new subtask">
             <Plus className="mr-2 h-4 w-4" />
             Add Subtask
           </Button>
@@ -223,7 +224,7 @@ export function TaskDetailPanel({
       <div>
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-sm font-semibold">Dependencies</h3>
-          <Button variant="outline" size="sm" onClick={onAddDependency}>
+          <Button variant="outline" size="sm" onClick={onAddDependency} title="Add a task dependency">
             <Plus className="mr-2 h-4 w-4" />
             Add Dependency
           </Button>
