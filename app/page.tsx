@@ -292,7 +292,20 @@ function HomeContent() {
         )}
 
         {/* Main content */}
-        <div className="flex-1 min-w-0">
+        <div 
+          className="flex-1 min-w-0"
+          onClick={(e) => {
+            // Close task detail panel when clicking in main content area
+            // but not when clicking on interactive elements (buttons, cards, etc.)
+            const target = e.target as HTMLElement;
+            const isInteractive = target.closest('button, a, input, textarea, [role="button"]');
+            const isCard = target.closest('[class*="cursor-pointer"]');
+            
+            if (selectedTaskId && !isInteractive && !isCard) {
+              setSelectedTaskId(null);
+            }
+          }}
+        >
           {activeProject ? (
             <>
               {settings.timeManagementSystem === TimeManagementSystem.DIT && (
@@ -388,6 +401,7 @@ function HomeContent() {
               blockedTasks={blockedTasks}
               onEdit={handleTaskEdit}
               onDelete={handleTaskDelete}
+              onClose={() => setSelectedTaskId(null)}
               onAddSubtask={() => {
                 // TODO: Implement add subtask
                 console.log('Add subtask');

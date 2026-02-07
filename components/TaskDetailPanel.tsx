@@ -13,7 +13,8 @@ import {
   Edit,
   Trash2,
   Plus,
-  CheckCircle2
+  CheckCircle2,
+  X
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -24,6 +25,7 @@ interface TaskDetailPanelProps {
   blockedTasks: Task[];
   onEdit: () => void;
   onDelete: () => void;
+  onClose: () => void;
   onAddSubtask: () => void;
   onAddDependency: () => void;
   onRemoveDependency: (blockingTaskId: UUID, blockedTaskId: UUID) => void;
@@ -40,6 +42,7 @@ export function TaskDetailPanel({
   blockedTasks,
   onEdit,
   onDelete,
+  onClose,
   onAddSubtask,
   onAddDependency,
   onRemoveDependency,
@@ -64,6 +67,9 @@ export function TaskDetailPanel({
           </Button>
           <Button variant="outline" size="icon" onClick={onDelete}>
             <Trash2 className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" onClick={onClose}>
+            <X className="h-4 w-4" />
           </Button>
         </div>
       </div>
