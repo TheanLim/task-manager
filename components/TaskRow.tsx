@@ -1,13 +1,19 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronRight, ChevronDown, Check, Calendar, GripVertical } from 'lucide-react';
+import { ChevronRight, ChevronDown, Check, Calendar, GripVertical, X } from 'lucide-react';
 import { Task, Priority } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { useDataStore } from '@/stores/dataStore';
+import { InlineEditable } from '@/components/InlineEditable';
+import { validateTaskDescription } from '@/lib/validation';
 
 interface TaskRowProps {
   task: Task;
@@ -45,7 +51,9 @@ export function TaskRow({
   isSelected = false
 }: TaskRowProps) {
   const [subtasksExpanded, setSubtasksExpanded] = useState(false);
-  const { getSubtasks } = useDataStore();
+  const [isEditingTags, setIsEditingTags] = useState(false);
+  const [tagInput, setTagInput] = useState('');
+  const { getSubtasks, updateTask } = useDataStore();
   const subtasks = getSubtasks(task.id);
   const hasSubtasks = subtasks.length > 0;
 
@@ -60,6 +68,17 @@ export function TaskRow({
       default:
         return 'outline';
     }
+  };
+
+  const handleAddTag = () => {
+    if (tagInput.trim() && !task.tags.includes(tagInput.trim())) {
+      updateTask(task.id, { tags: [...task.tags, tagInput.trim()] });
+      setTagInput('');
+    }
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    updateTask(task.id, { tags: task.tags.filter(t => t !== tagToRemove) });
   };
 
   return (
@@ -126,19 +145,19 @@ export function TaskRow({
             </button>
 
             {/* Task Name */}
-            <span
-              onClick={(e) => {
-                e.stopPropagation();
-                onClick(task.id);
-              }}
-              className={cn(
-                "cursor-pointer hover:underline truncate flex-1",
-                task.completed && "line-through text-muted-foreground"
-              )}
-              title={task.description}
-            >
-              {task.description}
-            </span>
+            <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+              <InlineEditable
+                value={task.description}
+                onSave={(newDescription) => updateTask(task.id, { description: newDescription })}
+                validate={validateTaskDescription}
+                placeholder="Task description"
+                displayClassName={cn(
+                  "truncate",
+                  task.completed && "line-through text-muted-foreground"
+                )}
+                inputClassName="w-full"
+              />
+            </div>
 
             {/* Chevron Right - appears on hover, hidden when selected */}
             <Button
@@ -161,45 +180,154 @@ export function TaskRow({
         </td>
 
         {/* Due Date Column */}
-        <td className="p-1 border-r text-sm text-muted-foreground">
-          {task.dueDate && (
-            <div className="flex items-center gap-1">
-              <Calendar className="h-3 w-3" />
-              <span>{format(new Date(task.dueDate), 'MMM d')}</span>
-            </div>
-          )}
+        <td 
+          className="p-1 border-r text-sm text-muted-foreground cursor-pointer"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Popover>
+            <PopoverTrigger asChild>
+              <div className="flex items-center gap-1 hover:bg-accent rounded px-1 py-0.5">
+                {task.dueDate ? (
+                  <>
+                    <Calendar className="h-3 w-3" />
+                    <span>{format(new Date(task.dueDate), 'MMM d')}</span>
+                  </>
+                ) : (
+                  <span className="text-muted-foreground/50">Set date</span>
+                )}
+              </div>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <CalendarComponent
+                mode="single"
+                selected={task.dueDate ? new Date(task.dueDate) : undefined}
+                onSelect={(date) => {
+                  updateTask(task.id, { dueDate: date?.toISOString() || null });
+                }}
+                initialFocus
+              />
+              {task.dueDate && (
+                <div className="p-2 border-t">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => updateTask(task.id, { dueDate: null })}
+                  >
+                    Clear date
+                  </Button>
+                </div>
+              )}
+            </PopoverContent>
+          </Popover>
         </td>
 
         {/* Priority Column */}
-        <td className="p-1 border-r">
-          {task.priority !== Priority.NONE && (
-            <Badge variant={getPriorityVariant(task.priority)}>
-              {task.priority}
-            </Badge>
-          )}
+        <td 
+          className="p-1 border-r cursor-pointer"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Select
+            value={task.priority}
+            onValueChange={(value) => updateTask(task.id, { priority: value as Priority })}
+          >
+            <SelectTrigger className="h-6 border-0 shadow-none hover:bg-accent">
+              <SelectValue>
+                {task.priority !== Priority.NONE ? (
+                  <Badge variant={getPriorityVariant(task.priority)} className="text-xs">
+                    {task.priority}
+                  </Badge>
+                ) : (
+                  <span className="text-xs text-muted-foreground/50">Priority</span>
+                )}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={Priority.NONE}>None</SelectItem>
+              <SelectItem value={Priority.LOW}>Low</SelectItem>
+              <SelectItem value={Priority.MEDIUM}>Medium</SelectItem>
+              <SelectItem value={Priority.HIGH}>High</SelectItem>
+            </SelectContent>
+          </Select>
         </td>
 
         {/* Assignee Column */}
-        <td className="p-1 border-r text-sm text-muted-foreground truncate" title={task.assignee || ''}>
-          {task.assignee}
+        <td 
+          className="p-1 border-r text-sm text-muted-foreground truncate cursor-pointer"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <InlineEditable
+            value={task.assignee || ''}
+            onSave={(newAssignee) => updateTask(task.id, { assignee: newAssignee || null })}
+            placeholder="Assignee"
+            displayClassName="truncate text-sm"
+            inputClassName="w-full text-sm"
+          />
         </td>
 
         {/* Tags Column */}
-        <td className="p-1">
-          {task.tags.length > 0 && (
-            <div className="flex gap-1 flex-wrap">
-              {task.tags.slice(0, 2).map(tag => (
-                <Badge key={tag} variant="outline" className="text-xs">
-                  {tag}
-                </Badge>
-              ))}
-              {task.tags.length > 2 && (
-                <Badge variant="outline" className="text-xs">
-                  +{task.tags.length - 2}
-                </Badge>
-              )}
-            </div>
-          )}
+        <td 
+          className="p-1 cursor-pointer"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Popover open={isEditingTags} onOpenChange={setIsEditingTags}>
+            <PopoverTrigger asChild>
+              <div className="flex gap-1 flex-wrap hover:bg-accent rounded px-1 py-0.5 min-h-[24px]">
+                {task.tags.length > 0 ? (
+                  <>
+                    {task.tags.slice(0, 2).map(tag => (
+                      <Badge key={tag} variant="outline" className="text-xs">
+                        {tag}
+                      </Badge>
+                    ))}
+                    {task.tags.length > 2 && (
+                      <Badge variant="outline" className="text-xs">
+                        +{task.tags.length - 2}
+                      </Badge>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-xs text-muted-foreground/50">Add tags</span>
+                )}
+              </div>
+            </PopoverTrigger>
+            <PopoverContent className="w-64" align="start">
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <Input
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddTag();
+                      }
+                    }}
+                    placeholder="Add tag..."
+                    className="h-8 text-sm"
+                  />
+                  <Button size="sm" onClick={handleAddTag} disabled={!tagInput.trim()}>
+                    Add
+                  </Button>
+                </div>
+                {task.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {task.tags.map(tag => (
+                      <Badge key={tag} variant="outline" className="text-xs">
+                        {tag}
+                        <button
+                          onClick={() => handleRemoveTag(tag)}
+                          className="ml-1 hover:text-destructive"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
         </td>
       </tr>
 
