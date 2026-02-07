@@ -17,12 +17,14 @@ import { TMSSelector } from '@/components/TMSSelector';
 import { DITView } from '@/components/DITView';
 import { AF4View } from '@/components/AF4View';
 import { FVPView } from '@/components/FVPView';
+import { InlineEditable } from '@/components/InlineEditable';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { useDataStore } from '@/stores/dataStore';
 import { useAppStore } from '@/stores/appStore';
 import { useTMSStore } from '@/stores/tmsStore';
 import { getTMSHandler } from '@/lib/tms';
+import { validateProjectName } from '@/lib/validation';
 import { ViewMode, Priority, TimeManagementSystem } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 import { ImportExportMenu } from '@/components/ImportExportMenu';
@@ -250,9 +252,16 @@ function HomeContent() {
         <>
           <div className="flex-1 min-w-0 mr-2 sm:mr-4">
             {activeProject ? (
-              <h2 className="text-lg font-semibold truncate">
-                {activeProject.name}
-              </h2>
+              <div className="max-w-full">
+                <InlineEditable
+                  value={activeProject.name}
+                  onSave={(newName) => updateProject(activeProject.id, { name: newName })}
+                  validate={validateProjectName}
+                  placeholder="Project name"
+                  displayClassName="text-lg font-semibold"
+                  className="text-lg font-semibold"
+                />
+              </div>
             ) : (
               <h2 className="text-lg font-semibold truncate">
                 Select a project
