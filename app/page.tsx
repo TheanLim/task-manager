@@ -38,6 +38,8 @@ function HomeContent() {
   const router = useRouter();
   const projectIdFromUrl = searchParams.get('project');
   const tabFromUrl = searchParams.get('tab') || 'overview';
+  const taskIdFromUrl = searchParams.get('task');
+  const expandedFromUrl = searchParams.get('expanded') === 'true';
 
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
@@ -112,6 +114,13 @@ function HomeContent() {
       }
     }
   }, [activeProject, tabFromUrl, getProjectTab, setProjectTab]);
+
+  // Sync task from URL
+  useEffect(() => {
+    if (taskIdFromUrl) {
+      setSelectedTaskId(taskIdFromUrl);
+    }
+  }, [taskIdFromUrl]);
 
   // Initialize TMS on mount and check for day change
   useEffect(() => {
@@ -217,6 +226,28 @@ function HomeContent() {
     );
     if (dependency) {
       deleteDependency(dependency.id);
+    }
+  };
+
+  const handleTaskExpand = () => {
+    if (selectedTaskId && activeProject) {
+      const params = new URLSearchParams();
+      params.set('project', activeProject.id);
+      if (tabFromUrl) params.set('tab', tabFromUrl);
+      params.set('task', selectedTaskId);
+      params.set('expanded', 'true');
+      router.push(`/?${params.toString()}`);
+    }
+  };
+
+  const handleTaskCollapse = () => {
+    if (activeProject && selectedTaskId) {
+      const params = new URLSearchParams();
+      params.set('project', activeProject.id);
+      if (tabFromUrl) params.set('tab', tabFromUrl);
+      params.set('task', selectedTaskId);
+      // Remove the expanded parameter to go back to sidebar view
+      router.push(`/?${params.toString()}`);
     }
   };
 
@@ -392,7 +423,7 @@ function HomeContent() {
         </div>
 
         {/* Task detail panel */}
-        {selectedTask && (
+        {selectedTask && !expandedFromUrl && (
           <div className="w-full lg:w-96 border-t lg:border-t-0 lg:border-l p-6 overflow-y-auto">
             <TaskDetailPanel
               task={selectedTask}
@@ -402,6 +433,8 @@ function HomeContent() {
               onEdit={handleTaskEdit}
               onDelete={handleTaskDelete}
               onClose={() => setSelectedTaskId(null)}
+              onComplete={(completed) => handleTaskComplete(selectedTask.id, completed)}
+              onExpand={handleTaskExpand}
               onAddSubtask={() => {
                 // TODO: Implement add subtask
                 console.log('Add subtask');
@@ -410,6 +443,33 @@ function HomeContent() {
               onRemoveDependency={handleRemoveDependency}
               onSubtaskClick={handleTaskClick}
             />
+          </div>
+        )}
+
+        {/* Expanded task view - full page */}
+        {selectedTask && expandedFromUrl && (
+          <div className="fixed inset-0 bg-background z-50 overflow-y-auto">
+            <div className="max-w-4xl mx-auto p-6">
+              <TaskDetailPanel
+                task={selectedTask}
+                subtasks={subtasks}
+                blockingTasks={blockingTasks}
+                blockedTasks={blockedTasks}
+                onEdit={handleTaskEdit}
+                onDelete={handleTaskDelete}
+                onClose={handleTaskCollapse}
+                onComplete={(completed) => handleTaskComplete(selectedTask.id, completed)}
+                onExpand={handleTaskCollapse}
+                isExpanded={true}
+                onAddSubtask={() => {
+                  // TODO: Implement add subtask
+                  console.log('Add subtask');
+                }}
+                onAddDependency={handleAddDependency}
+                onRemoveDependency={handleRemoveDependency}
+                onSubtaskClick={handleTaskClick}
+              />
+            </div>
           </div>
         )}
       </div>

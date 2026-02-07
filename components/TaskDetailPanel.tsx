@@ -14,7 +14,9 @@ import {
   Trash2,
   Plus,
   CheckCircle2,
-  X
+  X,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -27,10 +29,12 @@ interface TaskDetailPanelProps {
   onDelete: () => void;
   onClose: () => void;
   onComplete: (completed: boolean) => void;
+  onExpand: () => void;
   onAddSubtask: () => void;
   onAddDependency: () => void;
   onRemoveDependency: (blockingTaskId: UUID, blockedTaskId: UUID) => void;
   onSubtaskClick: (taskId: string) => void;
+  isExpanded?: boolean;
 }
 
 /**
@@ -45,10 +49,12 @@ export function TaskDetailPanel({
   onDelete,
   onClose,
   onComplete,
+  onExpand,
   onAddSubtask,
   onAddDependency,
   onRemoveDependency,
-  onSubtaskClick
+  onSubtaskClick,
+  isExpanded = false
 }: TaskDetailPanelProps) {
   return (
     <div className="space-y-6">
@@ -70,6 +76,9 @@ export function TaskDetailPanel({
 
         {/* Action Buttons - Right */}
         <div className="flex gap-2">
+          <Button variant="outline" size="icon" onClick={onExpand} title={isExpanded ? "Collapse" : "Expand to full page"}>
+            {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </Button>
           <Button variant="outline" size="icon" onClick={onEdit}>
             <Edit className="h-4 w-4" />
           </Button>
