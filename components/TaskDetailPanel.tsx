@@ -1,6 +1,6 @@
 'use client';
 
-import { Task, TaskDependency, UUID } from '@/types';
+import { Task, UUID } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -251,7 +251,7 @@ export function TaskDetailPanel({
         <AlertDialogHeader>
           <AlertDialogTitle>Delete Task</AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to delete "{task.description}"?
+            Are you sure you want to delete &ldquo;{task.description}&rdquo;?
             {subtasks.length > 0 && (
               <span className="block mt-2 font-semibold text-destructive">
                 This task has {subtasks.length} subtask{subtasks.length > 1 ? 's' : ''} that will also be deleted.

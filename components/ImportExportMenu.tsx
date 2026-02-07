@@ -20,6 +20,7 @@ import { Download, Upload, FileJson } from 'lucide-react';
 import { LocalStorageAdapter } from '@/lib/storage';
 import { useDataStore } from '@/stores/dataStore';
 import { Toast } from '@/components/ui/toast';
+import { Project, Task, Section, TaskDependency, AppState } from '@/types';
 
 export function ImportExportMenu() {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -30,7 +31,12 @@ export function ImportExportMenu() {
     sections: number;
     dependencies: number;
   } | null>(null);
-  const [importData, setImportData] = useState<any>(null);
+  const [importData, setImportData] = useState<{
+    projects: Project[];
+    tasks: Task[];
+    sections: Section[];
+    dependencies: TaskDependency[];
+  } | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -99,8 +105,16 @@ export function ImportExportMenu() {
 
     try {
       if (mode === 'replace') {
-        // Replace all data - save directly to storage and reload
-        storage.save(importData);
+        // Replace all data - construct full AppState and save
+        const currentState = storage.load();
+        const newState = {
+          ...currentState,
+          projects: importData.projects,
+          tasks: importData.tasks,
+          sections: importData.sections,
+          dependencies: importData.dependencies,
+        };
+        storage.save(newState as AppState);
         setImportDialogOpen(false);
         setImportPreview(null);
         setImportData(null);
