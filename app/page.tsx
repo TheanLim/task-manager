@@ -48,6 +48,11 @@ function HomeContent() {
   const [editingProject, setEditingProject] = useState<string | null>(null);
   const [editingTask, setEditingTask] = useState<string | null>(null);
   const [taskDialogSectionId, setTaskDialogSectionId] = useState<string | null>(null);
+  const [taskPanelWidth, setTaskPanelWidth] = useState(384); // Default 384px (w-96)
+  const [isResizingTaskPanel, setIsResizingTaskPanel] = useState(false);
+
+  const minTaskPanelWidth = 300;
+  const maxTaskPanelWidth = 800;
 
   // Store hooks
   const {
@@ -136,6 +141,38 @@ function HomeContent() {
       handler.initialize(tasks);
     }
   }, [settings.timeManagementSystem, tasks]);
+
+  // Handle task panel resize
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizingTaskPanel) return;
+
+      // Calculate from the right edge of the window
+      const newWidth = window.innerWidth - e.clientX;
+      if (newWidth >= minTaskPanelWidth && newWidth <= maxTaskPanelWidth) {
+        setTaskPanelWidth(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingTaskPanel(false);
+    };
+
+    if (isResizingTaskPanel) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizingTaskPanel]);
+
+  const handleTaskPanelMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingTaskPanel(true);
+  };
 
   // Handlers
   const handleNewProject = () => {
@@ -427,25 +464,36 @@ function HomeContent() {
 
         {/* Task detail panel */}
         {selectedTask && !expandedFromUrl && (
-          <div className="w-full lg:w-96 border-t lg:border-t-0 lg:border-l p-6 overflow-y-auto">
-            <TaskDetailPanel
-              task={selectedTask}
-              subtasks={subtasks}
-              blockingTasks={blockingTasks}
-              blockedTasks={blockedTasks}
-              onEdit={handleTaskEdit}
-              onDelete={handleTaskDelete}
-              onClose={() => setSelectedTaskId(null)}
-              onComplete={(completed) => handleTaskComplete(selectedTask.id, completed)}
-              onExpand={handleTaskExpand}
-              onAddSubtask={() => {
-                // TODO: Implement add subtask
-                console.log('Add subtask');
-              }}
-              onAddDependency={handleAddDependency}
-              onRemoveDependency={handleRemoveDependency}
-              onSubtaskClick={handleTaskClick}
+          <div 
+            className="relative border-t lg:border-t-0 lg:border-l overflow-y-auto flex-shrink-0"
+            style={{ width: taskPanelWidth }}
+          >
+            {/* Resize handle */}
+            <div
+              className="absolute top-0 left-0 w-1 h-full cursor-col-resize hover:bg-primary/50 active:bg-primary transition-colors z-10"
+              onMouseDown={handleTaskPanelMouseDown}
             />
+            
+            <div className="p-6">
+              <TaskDetailPanel
+                task={selectedTask}
+                subtasks={subtasks}
+                blockingTasks={blockingTasks}
+                blockedTasks={blockedTasks}
+                onEdit={handleTaskEdit}
+                onDelete={handleTaskDelete}
+                onClose={() => setSelectedTaskId(null)}
+                onComplete={(completed) => handleTaskComplete(selectedTask.id, completed)}
+                onExpand={handleTaskExpand}
+                onAddSubtask={() => {
+                  // TODO: Implement add subtask
+                  console.log('Add subtask');
+                }}
+                onAddDependency={handleAddDependency}
+                onRemoveDependency={handleRemoveDependency}
+                onSubtaskClick={handleTaskClick}
+              />
+            </div>
           </div>
         )}
 
