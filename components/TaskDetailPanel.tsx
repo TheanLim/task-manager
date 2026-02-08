@@ -563,16 +563,17 @@ export function TaskDetailPanel({
 
                 {/* Right side: Due date and chevron */}
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  {/* Due date - always show calendar icon */}
+                  {/* Due date - show icon only when no date, show date only when set */}
                   <Popover>
                     <PopoverTrigger asChild>
                       <button
                         onClick={(e) => e.stopPropagation()}
                         className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
                       >
-                        <Calendar className="h-3 w-3" />
-                        {subtask.dueDate && (
+                        {subtask.dueDate ? (
                           <span>{format(new Date(subtask.dueDate), 'MMM d')}</span>
+                        ) : (
+                          <Calendar className="h-3 w-3" />
                         )}
                       </button>
                     </PopoverTrigger>

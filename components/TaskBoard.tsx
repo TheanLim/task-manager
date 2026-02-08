@@ -6,7 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
-import { Calendar, GripVertical, Plus } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { Calendar, GripVertical, Plus, ListTree, ChevronDown } from 'lucide-react';
 import { format } from 'date-fns';
 import {
   DndContext,
@@ -42,6 +44,7 @@ interface TaskBoardProps {
   onTaskComplete: (taskId: string, completed: boolean) => void;
   onTaskMove: (taskId: string, sectionId: string) => void;
   onAddTask: (sectionId: string) => void;
+  onAddSubtask?: (parentTaskId: string) => void;
 }
 
 // Droppable section component
@@ -110,12 +113,13 @@ function DraggableTaskCard({ task, children }: { task: Task; children: React.Rea
   );
 }
 
-export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTaskMove, onAddTask }: TaskBoardProps) {
+export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTaskMove, onAddTask, onAddSubtask }: TaskBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeType, setActiveType] = useState<'task' | 'section' | null>(null);
   const [isAddingSection, setIsAddingSection] = useState(false);
   const [newSectionName, setNewSectionName] = useState('');
-  const { updateTask, updateSection, deleteSection, addSection } = useDataStore();
+  const [expandedSubtasks, setExpandedSubtasks] = useState<Set<string>>(new Set());
+  const { updateTask, updateSection, deleteSection, addSection, getSubtasks } = useDataStore();
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -287,71 +291,206 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
       .sort((a, b) => a.order - b.order);
   };
 
-  const renderTaskCard = (task: Task) => (
-    <Card
-      key={task.id}
-      className="p-3 cursor-pointer transition-colors hover:bg-accent mb-2"
-    >
-      <div className="space-y-2">
-        {/* First row: drag handle, checkbox, task name, priority */}
-        <div className="flex items-start gap-2">
-          <div className="cursor-grab active:cursor-grabbing mt-0.5">
-            <GripVertical className="h-4 w-4 text-muted-foreground" />
-          </div>
-          
-          <div className="mt-0.5">
-            <Checkbox
-              checked={task.completed}
-              onCheckedChange={(checked) => {
-                onTaskComplete(task.id, checked === true);
-              }}
-              onClick={(e) => e.stopPropagation()}
-            />
-          </div>
-          
-          <div className="flex-1 min-w-0 flex items-center gap-2">
-            <div className="flex-1 min-w-0" onClick={() => onTaskClick(task.id)}>
-              <InlineEditable
-                value={task.description}
-                onSave={(newDescription) => updateTask(task.id, { description: newDescription })}
-                validate={validateTaskDescription}
-                placeholder="Task description"
-                displayClassName={`text-sm ${task.completed ? 'line-through text-muted-foreground' : ''}`}
-                inputClassName="text-sm w-full"
+  const toggleSubtasks = (taskId: string) => {
+    setExpandedSubtasks(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(taskId)) {
+        newSet.delete(taskId);
+      } else {
+        newSet.add(taskId);
+      }
+      return newSet;
+    });
+  };
+
+  const renderTaskCard = (task: Task) => {
+    const subtasks = getSubtasks(task.id);
+    const hasSubtasks = subtasks.length > 0;
+    const isExpanded = expandedSubtasks.has(task.id);
+
+    return (
+      <Card
+        key={task.id}
+        className="p-3 cursor-pointer transition-colors hover:bg-accent mb-2"
+      >
+        <div className="space-y-2">
+          {/* First row: drag handle, checkbox, task name, priority */}
+          <div className="flex items-start gap-2">
+            <div className="cursor-grab active:cursor-grabbing mt-0.5">
+              <GripVertical className="h-4 w-4 text-muted-foreground" />
+            </div>
+            
+            <div className="mt-0.5">
+              <Checkbox
+                checked={task.completed}
+                onCheckedChange={(checked) => {
+                  onTaskComplete(task.id, checked === true);
+                }}
+                onClick={(e) => e.stopPropagation()}
               />
             </div>
-            {task.priority !== Priority.NONE && (
-              <Badge variant={task.priority === Priority.HIGH ? 'destructive' : 'secondary'} className="text-xs flex-shrink-0">
-                {task.priority}
-              </Badge>
-            )}
-          </div>
-        </div>
-        
-        {/* Second row: due date and tags */}
-        {(task.dueDate || task.tags.length > 0) && (
-          <div className="flex items-center gap-2 flex-wrap ml-10">
-            {task.dueDate && (
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <Calendar className="h-3 w-3" />
-                <span>{format(new Date(task.dueDate), 'MMM d')}</span>
-              </div>
-            )}
             
-            {task.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {task.tags.map(tag => (
-                  <Badge key={tag} variant="outline" className="text-xs">
-                    {tag}
-                  </Badge>
-                ))}
+            <div className="flex-1 min-w-0 flex items-center gap-2">
+              <div className="flex-1 min-w-0" onClick={() => onTaskClick(task.id)}>
+                <InlineEditable
+                  value={task.description}
+                  onSave={(newDescription) => updateTask(task.id, { description: newDescription })}
+                  validate={validateTaskDescription}
+                  placeholder="Task description"
+                  displayClassName={`text-sm ${task.completed ? 'line-through text-muted-foreground' : ''}`}
+                  inputClassName="text-sm w-full"
+                />
               </div>
-            )}
+              {task.priority !== Priority.NONE && (
+                <Badge variant={task.priority === Priority.HIGH ? 'destructive' : 'secondary'} className="text-xs flex-shrink-0">
+                  {task.priority}
+                </Badge>
+              )}
+            </div>
           </div>
-        )}
-      </div>
-    </Card>
-  );
+          
+          {/* Second row: due date, tags, and subtask button */}
+          {(task.dueDate || task.tags.length > 0 || hasSubtasks) && (
+            <div className="flex items-center gap-2 flex-wrap ml-10">
+              {task.dueDate && (
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Calendar className="h-3 w-3" />
+                  <span>{format(new Date(task.dueDate), 'MMM d')}</span>
+                </div>
+              )}
+              
+              {task.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {task.tags.map(tag => (
+                    <Badge key={tag} variant="outline" className="text-xs">
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+
+              {/* Subtask button */}
+              {hasSubtasks && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleSubtasks(task.id);
+                  }}
+                  className="h-6 px-1.5 text-xs text-muted-foreground hover:text-foreground gap-0.5 ml-auto"
+                >
+                  <span>{subtasks.length}</span>
+                  <ListTree className="h-3 w-3" />
+                  <ChevronDown className={`h-3 w-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* Expanded subtasks list */}
+          {hasSubtasks && isExpanded && (
+            <div className="border-t border-b mt-2 -mx-3">
+              {subtasks.map(subtask => (
+                <div
+                  key={subtask.id}
+                  className="flex items-center gap-2 py-2 px-3 hover:bg-accent/50 border-b last:border-b-0"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Checkbox
+                    checked={subtask.completed}
+                    onCheckedChange={(checked) => {
+                      onTaskComplete(subtask.id, checked === true);
+                    }}
+                    className="flex-shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <InlineEditable
+                      value={subtask.description}
+                      onSave={(newDescription) => updateTask(subtask.id, { description: newDescription })}
+                      validate={validateTaskDescription}
+                      placeholder="Subtask description"
+                      displayClassName={`text-sm ${subtask.completed ? 'line-through text-muted-foreground' : ''}`}
+                      inputClassName="text-sm w-full"
+                    />
+                  </div>
+                  {subtask.dueDate ? (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-1 text-xs text-muted-foreground hover:text-foreground flex-shrink-0"
+                        >
+                          <span>{format(new Date(subtask.dueDate), 'MMM d')}</span>
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarComponent
+                          mode="single"
+                          selected={subtask.dueDate ? new Date(subtask.dueDate) : undefined}
+                          onSelect={(date) => {
+                            updateTask(subtask.id, { dueDate: date?.toISOString() || null });
+                          }}
+                        />
+                        {subtask.dueDate && (
+                          <div className="p-2 border-t">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="w-full"
+                              onClick={() => updateTask(subtask.id, { dueDate: null })}
+                            >
+                              Clear date
+                            </Button>
+                          </div>
+                        )}
+                      </PopoverContent>
+                    </Popover>
+                  ) : (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-1 text-xs text-muted-foreground hover:text-foreground flex-shrink-0"
+                        >
+                          <Calendar className="h-3 w-3" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarComponent
+                          mode="single"
+                          selected={undefined}
+                          onSelect={(date) => {
+                            updateTask(subtask.id, { dueDate: date?.toISOString() || null });
+                          }}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  )}
+                </div>
+              ))}
+              
+              {/* Add subtask row */}
+              {onAddSubtask && (
+                <div
+                  className="flex items-center gap-2 py-2 px-3 hover:bg-accent/50 cursor-pointer text-muted-foreground hover:text-foreground"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAddSubtask(task.id);
+                  }}
+                >
+                  <Plus className="h-4 w-4 ml-5" />
+                  <span className="text-sm">Add subtask...</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </Card>
+    );
+  };
 
   const activeTask = activeId && activeType === 'task' ? tasks.find(t => t.id === activeId) : null;
   const sortedSections = [...sections].sort((a, b) => a.order - b.order);
