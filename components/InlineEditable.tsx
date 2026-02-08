@@ -95,13 +95,13 @@ export function InlineEditable({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           className={`
-            w-full max-w-full rounded-md border-2 px-2 py-1
+            w-full max-w-full rounded-md border px-2 py-1
             bg-background text-foreground
-            border-primary
-            focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background
+            border-border
+            focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring
             placeholder:text-muted-foreground
             transition-colors
-            ${error ? 'border-destructive focus:ring-destructive' : ''}
+            ${error ? 'border-destructive focus:ring-destructive focus:border-destructive' : ''}
             ${inputClassName}
           `}
           aria-invalid={error ? 'true' : 'false'}
@@ -124,7 +124,7 @@ export function InlineEditable({
     <span
       onClick={() => setIsEditing(true)}
       className={`
-        inline-flex items-center cursor-text rounded px-1 -mx-1
+        ${value ? 'inline-flex' : 'flex'} items-center cursor-text rounded px-1 -mx-1
         max-w-full truncate
         transition-all duration-150
         hover:bg-accent/50 hover:text-accent-foreground hover:border hover:border-border
