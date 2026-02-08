@@ -12,6 +12,7 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { DependencyList } from '@/components/DependencyList';
+import { RichTextEditor } from '@/components/RichTextEditor';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -92,6 +93,12 @@ export function TaskDetailPanel({
   const [dragOverSubtaskId, setDragOverSubtaskId] = useState<string | null>(null);
   
   const { updateTask } = useDataStore();
+
+  // Sync notesValue when task changes
+  useEffect(() => {
+    setNotesValue(task.notes);
+    setIsEditingNotes(false);
+  }, [task.id, task.notes]);
 
   // Scroll to subtasks section when requested
   useEffect(() => {
@@ -449,39 +456,30 @@ export function TaskDetailPanel({
         <h3 className="mb-2 text-sm font-semibold">Notes</h3>
         {isEditingNotes ? (
           <div className="space-y-2">
-            <Textarea
+            <RichTextEditor
               value={notesValue}
-              onChange={(e) => setNotesValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                  e.preventDefault();
-                  handleSaveNotes();
-                } else if (e.key === 'Escape') {
-                  e.preventDefault();
-                  handleCancelNotes();
-                }
-              }}
-              placeholder="No notes"
-              className="min-h-[100px] text-sm"
-              autoFocus
+              onChange={setNotesValue}
+              placeholder="Add notes..."
             />
             <div className="flex gap-2">
               <Button size="sm" onClick={handleSaveNotes}>Save</Button>
               <Button size="sm" variant="outline" onClick={handleCancelNotes}>Cancel</Button>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Press Ctrl+Enter to save, Escape to cancel
-            </p>
           </div>
         ) : (
           <div
             onClick={() => setIsEditingNotes(true)}
-            className="cursor-text rounded px-2 py-1 -mx-2 hover:bg-accent transition-colors"
+            className="cursor-text rounded px-2 py-1 -mx-2 hover:bg-accent transition-colors min-h-[40px]"
           >
             {task.notes ? (
-              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{task.notes}</p>
+              <RichTextEditor
+                value={task.notes}
+                onChange={() => {}}
+                readOnly
+                className="quill-readonly-view"
+              />
             ) : (
-              <span className="text-muted-foreground italic text-sm">No notes</span>
+              <span className="text-muted-foreground italic text-sm">Click to add notes...</span>
             )}
           </div>
         )}
