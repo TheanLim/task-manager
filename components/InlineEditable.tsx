@@ -97,7 +97,7 @@ export function InlineEditable({
           className={`
             w-full max-w-full rounded-md border px-2 py-1
             bg-background text-foreground
-            border-border
+            border-gray-400 dark:border-gray-500
             focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring
             placeholder:text-muted-foreground
             transition-colors
@@ -127,7 +127,7 @@ export function InlineEditable({
         ${value ? 'inline-flex' : 'flex'} items-center cursor-text rounded px-1 -mx-1
         max-w-full truncate
         transition-all duration-150
-        hover:bg-accent/50 hover:text-accent-foreground hover:border hover:border-border
+        hover:bg-accent/50 hover:text-accent-foreground hover:border hover:border-gray-400 dark:hover:border-gray-500
         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2
         ${displayClassName}
         ${className}
