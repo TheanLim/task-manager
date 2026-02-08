@@ -32,16 +32,21 @@ import {
   ChevronsRight,
   Maximize2,
   Minimize2,
-  X
+  X,
+  GripVertical,
+  Check,
+  ChevronRight
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { InlineEditable } from '@/components/InlineEditable';
 import { validateTaskDescription } from '@/lib/validation';
 import { useDataStore } from '@/stores/dataStore';
+import { cn } from '@/lib/utils';
 
 interface TaskDetailPanelProps {
   task: Task;
+  parentTask?: Task | null;
   subtasks: Task[];
   blockingTasks: Task[];
   blockedTasks: Task[];
@@ -54,6 +59,7 @@ interface TaskDetailPanelProps {
   onRemoveDependency: (blockingTaskId: UUID, blockedTaskId: UUID) => void;
   onSubtaskClick: (taskId: string) => void;
   isExpanded?: boolean;
+  scrollToSubtasks?: boolean;
 }
 
 /**
@@ -61,6 +67,7 @@ interface TaskDetailPanelProps {
  */
 export function TaskDetailPanel({
   task,
+  parentTask,
   subtasks,
   blockingTasks,
   blockedTasks,
@@ -72,15 +79,28 @@ export function TaskDetailPanel({
   onAddDependency,
   onRemoveDependency,
   onSubtaskClick,
-  isExpanded = false
+  isExpanded = false,
+  scrollToSubtasks = false
 }: TaskDetailPanelProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isEditingTags, setIsEditingTags] = useState(false);
   const [tagInput, setTagInput] = useState('');
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [notesValue, setNotesValue] = useState(task.notes);
+  const subtasksRef = useRef<HTMLDivElement>(null);
+  const [draggedSubtaskId, setDraggedSubtaskId] = useState<string | null>(null);
+  const [dragOverSubtaskId, setDragOverSubtaskId] = useState<string | null>(null);
   
   const { updateTask } = useDataStore();
+
+  // Scroll to subtasks section when requested
+  useEffect(() => {
+    if (scrollToSubtasks && subtasksRef.current) {
+      setTimeout(() => {
+        subtasksRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    }
+  }, [scrollToSubtasks]);
 
   const getPriorityVariant = (priority: Priority): 'default' | 'destructive' | 'secondary' | 'outline' => {
     switch (priority) {
@@ -125,6 +145,57 @@ export function TaskDetailPanel({
   const handleConfirmDelete = () => {
     setShowDeleteDialog(false);
     onDelete();
+  };
+
+  // Drag and drop handlers for subtasks
+  const handleSubtaskDragStart = (e: React.DragEvent, subtaskId: string) => {
+    setDraggedSubtaskId(subtaskId);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleSubtaskDragOver = (e: React.DragEvent, subtaskId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (draggedSubtaskId && draggedSubtaskId !== subtaskId) {
+      setDragOverSubtaskId(subtaskId);
+    }
+  };
+
+  const handleSubtaskDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOverSubtaskId(null);
+  };
+
+  const handleSubtaskDrop = (e: React.DragEvent, targetSubtaskId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverSubtaskId(null);
+
+    if (!draggedSubtaskId || draggedSubtaskId === targetSubtaskId) {
+      setDraggedSubtaskId(null);
+      return;
+    }
+
+    // Find indices
+    const draggedIndex = subtasks.findIndex(s => s.id === draggedSubtaskId);
+    const targetIndex = subtasks.findIndex(s => s.id === targetSubtaskId);
+
+    if (draggedIndex === -1 || targetIndex === -1) {
+      setDraggedSubtaskId(null);
+      return;
+    }
+
+    // Reorder subtasks
+    const reorderedSubtasks = [...subtasks];
+    const [removed] = reorderedSubtasks.splice(draggedIndex, 1);
+    reorderedSubtasks.splice(targetIndex, 0, removed);
+
+    // Update order for all affected subtasks
+    reorderedSubtasks.forEach((subtask, index) => {
+      updateTask(subtask.id, { order: index });
+    });
+
+    setDraggedSubtaskId(null);
   };
 
   return (
@@ -197,6 +268,20 @@ export function TaskDetailPanel({
 
       {/* Header */}
       <div>
+        {/* Breadcrumb for subtasks */}
+        {parentTask && (
+          <div className="mb-2 text-xs text-muted-foreground">
+            <button
+              onClick={() => onSubtaskClick(parentTask.id)}
+              className="hover:text-foreground hover:underline transition-colors"
+            >
+              {parentTask.description}
+            </button>
+            <span className="mx-1">&gt;</span>
+            <span>{task.description}</span>
+          </div>
+        )}
+        
         <InlineEditable
           value={task.description}
           onSave={(newDescription) => {
@@ -404,42 +489,121 @@ export function TaskDetailPanel({
 
       {/* Subtasks */}
       <Separator />
-      <div>
+      <div ref={subtasksRef}>
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-sm font-semibold">Subtasks ({subtasks.length})</h3>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="outline" size="sm" onClick={onAddSubtask}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Subtask
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Add a new subtask</p>
-            </TooltipContent>
-          </Tooltip>
+          {task.parentTaskId === null && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="sm" onClick={onAddSubtask}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Subtask
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Add a new subtask</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
         </div>
         {subtasks.length === 0 ? (
           <p className="text-sm text-muted-foreground">No subtasks</p>
         ) : (
-          <div className="space-y-2">
-            {subtasks.map((subtask) => (
-              <Card
+          <div className="border-t border-b">
+            {subtasks.map((subtask, index) => (
+              <div
                 key={subtask.id}
-                className="cursor-pointer p-3 transition-colors hover:bg-accent"
+                className={cn(
+                  "group flex items-center gap-2 py-2 px-3 transition-colors hover:bg-accent cursor-pointer",
+                  index !== subtasks.length - 1 && "border-b",
+                  draggedSubtaskId === subtask.id && "opacity-50",
+                  dragOverSubtaskId === subtask.id && "ring-2 ring-primary"
+                )}
                 onClick={() => onSubtaskClick(subtask.id)}
+                draggable
+                onDragStart={(e) => handleSubtaskDragStart(e, subtask.id)}
+                onDragOver={(e) => handleSubtaskDragOver(e, subtask.id)}
+                onDragLeave={handleSubtaskDragLeave}
+                onDrop={(e) => handleSubtaskDrop(e, subtask.id)}
               >
-                <div className="flex items-center gap-2">
-                  {subtask.completed ? (
-                    <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-                  ) : (
-                    <div className="h-4 w-4 rounded-full border-2" />
-                  )}
-                  <span className={subtask.completed ? 'line-through text-muted-foreground' : ''}>
+                {/* Left side: Drag handle (on hover), checkbox, and task name */}
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  {/* Drag Handle - appears on hover */}
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground flex-shrink-0">
+                    <GripVertical className="h-4 w-4" />
+                  </div>
+                  
+                  {/* Checkbox */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      updateTask(subtask.id, { 
+                        completed: !subtask.completed,
+                        completedAt: !subtask.completed ? new Date().toISOString() : null
+                      });
+                    }}
+                    className={cn(
+                      "flex-shrink-0 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all",
+                      subtask.completed
+                        ? "bg-green-500 border-green-500"
+                        : "border-gray-300 dark:border-gray-600"
+                    )}
+                  >
+                    {subtask.completed && <Check className="h-3 w-3 text-white" />}
+                  </button>
+                  
+                  {/* Task name */}
+                  <span className={cn(
+                    "text-sm truncate",
+                    subtask.completed && "line-through text-muted-foreground"
+                  )}>
                     {subtask.description}
                   </span>
                 </div>
-              </Card>
+
+                {/* Right side: Due date and chevron */}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {/* Due date - always show calendar icon */}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        <Calendar className="h-3 w-3" />
+                        {subtask.dueDate && (
+                          <span>{format(new Date(subtask.dueDate), 'MMM d')}</span>
+                        )}
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="end" onClick={(e) => e.stopPropagation()}>
+                      <CalendarComponent
+                        mode="single"
+                        selected={subtask.dueDate ? new Date(subtask.dueDate) : undefined}
+                        onSelect={(date) => {
+                          updateTask(subtask.id, { dueDate: date?.toISOString() || null });
+                        }}
+                        initialFocus
+                      />
+                      {subtask.dueDate && (
+                        <div className="p-2 border-t">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-full"
+                            onClick={() => updateTask(subtask.id, { dueDate: null })}
+                          >
+                            Clear date
+                          </Button>
+                        </div>
+                      )}
+                    </PopoverContent>
+                  </Popover>
+                  
+                  {/* Chevron */}
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </div>
+              </div>
             ))}
           </div>
         )}

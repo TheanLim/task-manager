@@ -137,4 +137,100 @@ describe('TaskDialog', () => {
 
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
+
+  it('should start with empty fields when creating subtask', () => {
+    const onOpenChange = vi.fn();
+    const onSubmit = vi.fn();
+    const parentTask: Task = {
+      id: 'parent-1',
+      projectId: 'project-1',
+      parentTaskId: null,
+      sectionId: 'section-1',
+      columnId: null,
+      description: 'Parent Task',
+      notes: 'Parent notes',
+      assignee: 'Jane Doe',
+      priority: Priority.HIGH,
+      tags: ['urgent', 'backend'],
+      dueDate: new Date().toISOString(),
+      completed: false,
+      completedAt: null,
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    render(
+      <TaskDialog 
+        open={true} 
+        onOpenChange={onOpenChange} 
+        onSubmit={onSubmit} 
+        parentTask={parentTask}
+      />
+    );
+
+    // Verify all fields start empty (no inheritance)
+    expect(screen.getByLabelText(/description/i)).toHaveValue('');
+    expect(screen.getByLabelText(/notes/i)).toHaveValue('');
+    expect(screen.getByLabelText(/assignee/i)).toHaveValue('');
+    expect(screen.getByLabelText(/priority/i)).toHaveValue(Priority.NONE);
+    expect(screen.queryByText('urgent')).not.toBeInTheDocument();
+    expect(screen.queryByText('backend')).not.toBeInTheDocument();
+    expect(screen.queryByText(/pick a date/i)).toBeInTheDocument(); // Due date not set
+  });
+
+  it('should allow setting all fields when creating subtask', async () => {
+    const onOpenChange = vi.fn();
+    const onSubmit = vi.fn();
+    const parentTask: Task = {
+      id: 'parent-1',
+      projectId: 'project-1',
+      parentTaskId: null,
+      sectionId: 'section-1',
+      columnId: null,
+      description: 'Parent Task',
+      notes: 'Parent notes',
+      assignee: 'Jane Doe',
+      priority: Priority.HIGH,
+      tags: ['urgent'],
+      dueDate: null,
+      completed: false,
+      completedAt: null,
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    render(
+      <TaskDialog 
+        open={true} 
+        onOpenChange={onOpenChange} 
+        onSubmit={onSubmit} 
+        parentTask={parentTask}
+      />
+    );
+
+    // Set all fields independently
+    const descriptionInput = screen.getByLabelText(/description/i);
+    const assigneeInput = screen.getByLabelText(/assignee/i);
+    const prioritySelect = screen.getByLabelText(/priority/i);
+
+    fireEvent.change(descriptionInput, { target: { value: 'Subtask description' } });
+    fireEvent.change(assigneeInput, { target: { value: 'John Smith' } });
+    fireEvent.change(prioritySelect, { target: { value: Priority.MEDIUM } });
+
+    const submitButton = screen.getByText('Create Task');
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith({
+        description: 'Subtask description',
+        notes: '',
+        assignee: 'John Smith',
+        priority: Priority.MEDIUM,
+        tags: [],
+        dueDate: null
+      });
+    });
+  });
 });

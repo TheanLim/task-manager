@@ -210,8 +210,11 @@ export const useDataStore = create<DataStore>()(
       getTasksByProjectId: (projectId) => 
         get().tasks.filter(t => t.projectId === projectId && !t.parentTaskId),
       
-      getSubtasks: (parentId) => 
-        get().tasks.filter(t => t.parentTaskId === parentId),
+      getSubtasks: (parentId) => {
+        const subtasks = get().tasks.filter(t => t.parentTaskId === parentId);
+        // Sort by order to ensure correct display
+        return subtasks.sort((a, b) => a.order - b.order);
+      },
       
       getSectionsByProjectId: (projectId) => 
         get().sections.filter(s => s.projectId === projectId)

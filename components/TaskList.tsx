@@ -31,6 +31,8 @@ interface TaskListProps {
   onTaskComplete: (taskId: string, completed: boolean) => void;
   onAddTask: (sectionId: string) => void;
   onViewSubtasks?: (taskId: string) => void;
+  onSubtaskButtonClick?: (taskId: string) => void;
+  onAddSubtask?: (parentTaskId: string) => void;
   selectedTaskId?: string | null;
 }
 
@@ -46,7 +48,7 @@ interface ColumnWidths {
  * List view component for displaying tasks grouped by collapsible sections
  * with table-like task rows
  */
-export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTask, onViewSubtasks, selectedTaskId }: TaskListProps) {
+export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTask, onViewSubtasks, onSubtaskButtonClick, onAddSubtask, selectedTaskId }: TaskListProps) {
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverTaskId, setDragOverTaskId] = useState<string | null>(null);
   const [draggedSectionId, setDraggedSectionId] = useState<string | null>(null);
@@ -196,8 +198,9 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
     setDragOverTaskId(taskId);
   };
 
-  const handleTaskDragLeave = (e: React.DragEvent) => {
+  const handleTaskDragLeave = (e: React.DragEvent, taskId: string) => {
     e.preventDefault();
+    e.stopPropagation();
     setDragOverTaskId(null);
   };
 
@@ -219,6 +222,44 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
       return;
     }
 
+    // CRITICAL: Prevent mixing subtasks with top-level tasks or subtasks from different parents
+    // Both must be top-level tasks OR both must be subtasks of the same parent
+    if (draggedTask.parentTaskId !== targetTask.parentTaskId) {
+      setDraggedTaskId(null);
+      return;
+    }
+    
+    // Handle subtask reordering (both have the same parent)
+    if (draggedTask.parentTaskId && targetTask.parentTaskId) {
+      // Get all subtasks of the same parent, sorted by order
+      const parentSubtasks = tasks
+        .filter(t => t.parentTaskId === draggedTask.parentTaskId)
+        .sort((a, b) => a.order - b.order);
+
+      // Find indices
+      const draggedIndex = parentSubtasks.findIndex(t => t.id === draggedTaskId);
+      const targetIndex = parentSubtasks.findIndex(t => t.id === targetTaskId);
+
+      if (draggedIndex === -1 || targetIndex === -1) {
+        setDraggedTaskId(null);
+        return;
+      }
+
+      // Reorder subtasks
+      const reorderedSubtasks = [...parentSubtasks];
+      const [removed] = reorderedSubtasks.splice(draggedIndex, 1);
+      reorderedSubtasks.splice(targetIndex, 0, removed);
+
+      // Update order for all affected subtasks
+      reorderedSubtasks.forEach((subtask, index) => {
+        updateTask(subtask.id, { order: index });
+      });
+
+      setDraggedTaskId(null);
+      return;
+    }
+
+    // Handle top-level task reordering (both have no parent)
     // If moving to a different section, update the section and place at the target position
     if (draggedTask.sectionId !== targetTask.sectionId) {
       // Get all tasks in the target section, sorted by order
@@ -610,14 +651,17 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                       onComplete={handleTaskComplete}
                       onClick={onTaskClick}
                       onViewSubtasks={handleViewSubtasks}
+                      onSubtaskButtonClick={onSubtaskButtonClick}
+                      onAddSubtask={onAddSubtask}
                       draggable
-                      onDragStart={(e) => handleDragStart(e, task.id)}
-                      onDragOver={(e) => handleTaskDragOver(e, task.id)}
+                      onDragStart={handleDragStart}
+                      onDragOver={handleTaskDragOver}
                       onDragLeave={handleTaskDragLeave}
-                      onDrop={(e) => handleTaskDrop(e, task.id)}
-                      isDragging={draggedTaskId === task.id}
-                      isDragOver={dragOverTaskId === task.id}
+                      onDrop={handleTaskDrop}
+                      draggedTaskId={draggedTaskId}
+                      dragOverTaskId={dragOverTaskId}
                       isSelected={selectedTaskId === task.id}
+                      depth={0}
                     />
                   ))}
 
@@ -696,7 +740,10 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                     onComplete={handleTaskComplete}
                     onClick={onTaskClick}
                     onViewSubtasks={handleViewSubtasks}
+                    onSubtaskButtonClick={onSubtaskButtonClick}
+                    onAddSubtask={onAddSubtask}
                     isSelected={selectedTaskId === task.id}
+                    depth={0}
                   />
                 ))}
               </>

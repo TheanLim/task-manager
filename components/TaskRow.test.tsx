@@ -141,7 +141,7 @@ describe('TaskRow Component', () => {
   });
 
   describe('Task Interaction', () => {
-    it('should call onClick when task name is clicked', () => {
+    it('should enter edit mode when task name is clicked', () => {
       renderTaskRow({
         task: mockTask,
         onComplete: mockOnComplete,
@@ -152,7 +152,8 @@ describe('TaskRow Component', () => {
       const taskName = screen.getByText('Test task');
       fireEvent.click(taskName);
 
-      expect(mockOnClick).toHaveBeenCalledWith('task-1');
+      // Should show input field when editing
+      expect(screen.getByDisplayValue('Test task')).toBeInTheDocument();
     });
 
     it('should call onClick when Details button is clicked', () => {
@@ -373,8 +374,10 @@ describe('TaskRow Component', () => {
       });
 
       // Find the task name cell's inner div which has the padding
-      const taskNameCell = screen.getByText('Test task').closest('div');
-      expect(taskNameCell).toHaveStyle({ paddingLeft: '48px' }); // 2 * 24px
+      // The structure is: td > TooltipProvider > div[style] > ... > InlineEditable
+      // We need to find the div with the style attribute
+      const taskNameCell = screen.getByText('Test task').closest('div')?.parentElement;
+      expect(taskNameCell).toHaveStyle({ paddingLeft: '52px' }); // 2 * 24 + 4px
     });
 
     it('should not apply indentation when depth is 0', () => {
@@ -387,8 +390,10 @@ describe('TaskRow Component', () => {
       });
 
       // Find the task name cell's inner div which has the padding
-      const taskNameCell = screen.getByText('Test task').closest('div');
-      expect(taskNameCell).toHaveStyle({ paddingLeft: '0' });
+      // The structure is: td > TooltipProvider > div[style] > ... > InlineEditable
+      // We need to find the div with the style attribute
+      const taskNameCell = screen.getByText('Test task').closest('div')?.parentElement;
+      expect(taskNameCell).toHaveStyle({ paddingLeft: '4px' });
     });
   });
 });

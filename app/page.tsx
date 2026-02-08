@@ -45,9 +45,11 @@ function HomeContent() {
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [dependencyDialogOpen, setDependencyDialogOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [scrollToSubtasks, setScrollToSubtasks] = useState(false);
   const [editingProject, setEditingProject] = useState<string | null>(null);
   const [editingTask, setEditingTask] = useState<string | null>(null);
   const [taskDialogSectionId, setTaskDialogSectionId] = useState<string | null>(null);
+  const [taskDialogParentId, setTaskDialogParentId] = useState<string | null>(null);
   const [taskPanelWidth, setTaskPanelWidth] = useState(384); // Default 384px (w-96)
   const [isResizingTaskPanel, setIsResizingTaskPanel] = useState(false);
 
@@ -97,7 +99,8 @@ function HomeContent() {
   }, [projectIdFromUrl, getProjectById, settings.activeProjectId, setActiveProject, router]);
 
   const activeProject = projects.find(p => p.id === settings.activeProjectId);
-  const projectTasks = activeProject ? getTasksByProjectId(activeProject.id) : [];
+  // Get ALL tasks for the project (including subtasks) for drag/drop to work correctly
+  const projectTasks = activeProject ? tasks.filter(t => t.projectId === activeProject.id) : [];
   const projectSections = activeProject ? getSectionsByProjectId(activeProject.id) : [];
   const filteredTasks = useFilteredTasks(projectTasks);
 
@@ -196,10 +199,11 @@ function HomeContent() {
     }
   };
 
-  const handleNewTask = (sectionId?: string) => {
+  const handleNewTask = (sectionId?: string, parentTaskId?: string) => {
     if (!activeProject) return;
     setEditingTask(null);
     setTaskDialogSectionId(sectionId || null);
+    setTaskDialogParentId(parentTaskId || null);
     setTaskDialogOpen(true);
   };
 
@@ -216,32 +220,59 @@ function HomeContent() {
     if (editingTask) {
       updateTask(editingTask, data);
     } else {
+      // Calculate order based on whether this is a subtask or top-level task
+      const order = taskDialogParentId 
+        ? getSubtasks(taskDialogParentId).length  // Order within subtasks
+        : projectTasks.length;                     // Order within project
+      
       const newTask = {
         id: uuidv4(),
         projectId: activeProject.id,
-        parentTaskId: null,
+        parentTaskId: taskDialogParentId,  // Use state instead of hardcoded null
         sectionId: taskDialogSectionId || projectSections[0]?.id || null,
         ...data,
         completed: false,
         completedAt: null,
-        order: projectTasks.length,
+        order,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
       addTask(newTask);
     }
     setTaskDialogSectionId(null);
+    setTaskDialogParentId(null);  // Reset parent ID after creation
   };
 
   const handleTaskClick = (taskId: string) => {
     setSelectedTaskId(taskId);
+    setScrollToSubtasks(false); // Reset scroll flag on normal click
+  };
+
+  const handleSubtaskButtonClick = (taskId: string) => {
+    setSelectedTaskId(taskId);
+    setScrollToSubtasks(true); // Set scroll flag when clicking subtask button
   };
 
   const handleTaskComplete = (taskId: string, completed: boolean) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    
+    // Update the task itself
     updateTask(taskId, {
       completed,
       completedAt: completed ? new Date().toISOString() : null
     });
+    
+    // If this is a parent task (parentTaskId === null), cascade to subtasks
+    if (task.parentTaskId === null) {
+      const subtasks = getSubtasks(taskId);
+      subtasks.forEach(subtask => {
+        updateTask(subtask.id, {
+          completed,
+          completedAt: completed ? new Date().toISOString() : null
+        });
+      });
+    }
   };
 
   const handleTaskEdit = () => {
@@ -296,6 +327,7 @@ function HomeContent() {
   };
 
   const selectedTask = selectedTaskId ? tasks.find(t => t.id === selectedTaskId) : null;
+  const parentTask = selectedTask?.parentTaskId ? tasks.find(t => t.id === selectedTask.parentTaskId) : null;
   const subtasks = selectedTask ? getSubtasks(selectedTask.id) : [];
   
   // Get dependencies for selected task
@@ -423,6 +455,8 @@ function HomeContent() {
                         onTaskComplete={handleTaskComplete}
                         onAddTask={handleNewTask}
                         onViewSubtasks={handleTaskClick}
+                        onSubtaskButtonClick={handleSubtaskButtonClick}
+                        onAddSubtask={(parentTaskId) => handleNewTask(undefined, parentTaskId)}
                         selectedTaskId={selectedTaskId}
                       />
                     ),
@@ -477,6 +511,7 @@ function HomeContent() {
             <div className="p-6">
               <TaskDetailPanel
                 task={selectedTask}
+                parentTask={parentTask}
                 subtasks={subtasks}
                 blockingTasks={blockingTasks}
                 blockedTasks={blockedTasks}
@@ -485,12 +520,12 @@ function HomeContent() {
                 onComplete={(completed) => handleTaskComplete(selectedTask.id, completed)}
                 onExpand={handleTaskExpand}
                 onAddSubtask={() => {
-                  // TODO: Implement add subtask
-                  console.log('Add subtask');
+                  handleNewTask(selectedTask.sectionId ?? undefined, selectedTask.id);
                 }}
                 onAddDependency={handleAddDependency}
                 onRemoveDependency={handleRemoveDependency}
                 onSubtaskClick={handleTaskClick}
+                scrollToSubtasks={scrollToSubtasks}
               />
             </div>
           </div>
@@ -502,6 +537,7 @@ function HomeContent() {
             <div className="max-w-4xl mx-auto p-6">
               <TaskDetailPanel
                 task={selectedTask}
+                parentTask={parentTask}
                 subtasks={subtasks}
                 blockingTasks={blockingTasks}
                 blockedTasks={blockedTasks}
@@ -511,12 +547,12 @@ function HomeContent() {
                 onExpand={handleTaskCollapse}
                 isExpanded={true}
                 onAddSubtask={() => {
-                  // TODO: Implement add subtask
-                  console.log('Add subtask');
+                  handleNewTask(selectedTask.sectionId ?? undefined, selectedTask.id);
                 }}
                 onAddDependency={handleAddDependency}
                 onRemoveDependency={handleRemoveDependency}
                 onSubtaskClick={handleTaskClick}
+                scrollToSubtasks={scrollToSubtasks}
               />
             </div>
           </div>
@@ -536,6 +572,7 @@ function HomeContent() {
         onOpenChange={setTaskDialogOpen}
         onSubmit={handleTaskSubmit}
         task={editingTask ? tasks.find(t => t.id === editingTask) : null}
+        parentTask={taskDialogParentId ? tasks.find(t => t.id === taskDialogParentId) : null}
       />
 
       {selectedTask && (

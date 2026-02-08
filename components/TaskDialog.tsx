@@ -30,12 +30,13 @@ interface TaskDialogProps {
     dueDate: string | null;
   }) => void;
   task?: Task | null;
+  parentTask?: Task | null;
 }
 
 /**
  * Dialog for creating or editing tasks
  */
-export function TaskDialog({ open, onOpenChange, onSubmit, task }: TaskDialogProps) {
+export function TaskDialog({ open, onOpenChange, onSubmit, task, parentTask }: TaskDialogProps) {
   const [description, setDescription] = useState('');
   const [notes, setNotes] = useState('');
   const [assignee, setAssignee] = useState('');
@@ -50,6 +51,7 @@ export function TaskDialog({ open, onOpenChange, onSubmit, task }: TaskDialogPro
   useEffect(() => {
     if (open) {
       if (task) {
+        // Editing existing task
         setDescription(task.description);
         setNotes(task.notes);
         setAssignee(task.assignee);
@@ -57,6 +59,7 @@ export function TaskDialog({ open, onOpenChange, onSubmit, task }: TaskDialogPro
         setTags(task.tags);
         setDueDate(task.dueDate ? new Date(task.dueDate) : undefined);
       } else {
+        // Creating new task (top-level or subtask) - start with defaults
         setDescription('');
         setNotes('');
         setAssignee('');
@@ -68,7 +71,7 @@ export function TaskDialog({ open, onOpenChange, onSubmit, task }: TaskDialogPro
       setShowCalendar(false);
       setError(null);
     }
-  }, [open, task]);
+  }, [open, task, parentTask]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

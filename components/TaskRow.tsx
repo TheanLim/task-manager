@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronRight, ChevronDown, Check, Calendar, GripVertical, X } from 'lucide-react';
+import { ChevronRight, ChevronDown, Check, Calendar, GripVertical, X, ListTree } from 'lucide-react';
 import { Task, Priority } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -21,13 +21,15 @@ interface TaskRowProps {
   onComplete: (taskId: string) => void;
   onClick: (taskId: string) => void;
   onViewSubtasks: (taskId: string) => void;
+  onSubtaskButtonClick?: (taskId: string) => void;
+  onAddSubtask?: (parentTaskId: string) => void;
   draggable?: boolean;
-  onDragStart?: (e: React.DragEvent) => void;
-  onDragOver?: (e: React.DragEvent) => void;
-  onDragLeave?: (e: React.DragEvent) => void;
-  onDrop?: (e: React.DragEvent) => void;
-  isDragging?: boolean;
-  isDragOver?: boolean;
+  onDragStart?: (e: React.DragEvent, taskId: string) => void;
+  onDragOver?: (e: React.DragEvent, taskId: string) => void;
+  onDragLeave?: (e: React.DragEvent, taskId: string) => void;
+  onDrop?: (e: React.DragEvent, taskId: string) => void;
+  draggedTaskId?: string | null;
+  dragOverTaskId?: string | null;
   depth?: number;
   isSelected?: boolean;
 }
@@ -41,13 +43,15 @@ export function TaskRow({
   onComplete,
   onClick,
   onViewSubtasks,
+  onSubtaskButtonClick,
+  onAddSubtask,
   draggable = false,
   onDragStart,
   onDragOver,
   onDragLeave,
   onDrop,
-  isDragging = false,
-  isDragOver = false,
+  draggedTaskId = null,
+  dragOverTaskId = null,
   depth = 0,
   isSelected = false
 }: TaskRowProps) {
@@ -57,6 +61,10 @@ export function TaskRow({
   const { getSubtasks, updateTask } = useDataStore();
   const subtasks = getSubtasks(task.id);
   const hasSubtasks = subtasks.length > 0;
+
+  // Calculate isDragging and isDragOver based on task.id
+  const isDragging = draggedTaskId === task.id;
+  const isDragOver = dragOverTaskId === task.id;
 
   const getPriorityVariant = (priority: Priority): 'default' | 'destructive' | 'secondary' | 'outline' => {
     switch (priority) {
@@ -92,21 +100,23 @@ export function TaskRow({
           isDragging && "opacity-50",
           isDragOver && "ring-2 ring-primary"
         )}
-        draggable={draggable && depth === 0}
-        onDragStart={onDragStart}
-        onDragOver={onDragOver}
-        onDragLeave={onDragLeave}
-        onDrop={onDrop}
+        draggable={draggable}
+        onDragStart={onDragStart ? (e) => onDragStart(e, task.id) : undefined}
+        onDragOver={onDragOver ? (e) => onDragOver(e, task.id) : undefined}
+        onDragLeave={onDragLeave ? (e) => onDragLeave(e, task.id) : undefined}
+        onDrop={onDrop ? (e) => onDrop(e, task.id) : undefined}
       >
         {/* Task Name Column - contains drag handle, expand/collapse, checkbox, name, and chevron-right */}
-        <td className="p-1 border-r sticky left-0 bg-background group-hover:bg-accent z-10 relative transition-colors">
+        <td className="py-1 pr-1 border-r sticky left-0 bg-background group-hover:bg-accent z-10 relative transition-colors">
           <TooltipProvider>
-            <div className="flex items-center gap-2" style={{ paddingLeft: depth > 0 ? `${depth * 24}px` : 0 }}>
-              {/* Drag Handle - appears on hover */}
-              {draggable && depth === 0 && (
+            <div className="flex items-center gap-2" style={{ paddingLeft: depth > 0 ? `${depth * 24 + 4}px` : '4px' }}>
+              {/* Drag Handle - appears on hover for all draggable tasks */}
+              {draggable ? (
                 <div className="opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground flex-shrink-0">
                   <GripVertical className="h-4 w-4" />
                 </div>
+              ) : (
+                <div className="w-4 flex-shrink-0" />
               )}
               
               {/* Expand/Collapse Subtasks Button */}
@@ -147,7 +157,7 @@ export function TaskRow({
               </button>
 
               {/* Task Name */}
-              <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+              <div className="flex-1 min-w-0 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                 <InlineEditable
                   value={task.description}
                   onSave={(newDescription) => updateTask(task.id, { description: newDescription })}
@@ -159,6 +169,27 @@ export function TaskRow({
                   )}
                   inputClassName="w-full"
                 />
+                
+                {/* Subtask count button */}
+                {hasSubtasks && onSubtaskButtonClick && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSubtaskButtonClick(task.id);
+                        }}
+                        className="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors flex-shrink-0"
+                      >
+                        <span>{subtasks.length}</span>
+                        <ListTree className="h-3 w-3" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>View {subtasks.length} subtask{subtasks.length !== 1 ? 's' : ''}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
               </div>
 
               {/* Chevron Right - appears on hover, hidden when selected */}
@@ -350,10 +381,44 @@ export function TaskRow({
               onComplete={onComplete}
               onClick={onClick}
               onViewSubtasks={onViewSubtasks}
+              onSubtaskButtonClick={onSubtaskButtonClick}
+              onAddSubtask={onAddSubtask}
+              draggable={draggable}
+              onDragStart={onDragStart}
+              onDragOver={onDragOver}
+              onDragLeave={onDragLeave}
+              onDrop={onDrop}
+              draggedTaskId={draggedTaskId}
+              dragOverTaskId={dragOverTaskId}
               depth={depth + 1}
               isSelected={isSelected}
             />
           ))}
+          
+          {/* Add subtask row */}
+          {onAddSubtask && (
+            <tr 
+              className="border-b hover:bg-accent cursor-pointer transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddSubtask(task.id);
+              }}
+            >
+              <td className="py-1 pr-1 border-r sticky left-0 bg-background hover:bg-accent z-10 transition-colors">
+                <div className="flex items-center gap-2" style={{ paddingLeft: `${(depth + 1) * 24 + 4}px` }}>
+                  {/* Spacing to align with subtask content */}
+                  <div className="w-4 flex-shrink-0" /> {/* Drag handle space */}
+                  <div className="w-4 flex-shrink-0" /> {/* Expand/collapse space */}
+                  <div className="w-5 flex-shrink-0" /> {/* Checkbox space */}
+                  <span className="text-muted-foreground hover:text-foreground text-sm">Add subtask...</span>
+                </div>
+              </td>
+              <td className="border-r"></td>
+              <td className="border-r"></td>
+              <td className="border-r"></td>
+              <td></td>
+            </tr>
+          )}
         </>
       )}
     </>
