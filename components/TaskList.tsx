@@ -54,6 +54,7 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
   const [draggedSectionId, setDraggedSectionId] = useState<string | null>(null);
   const [dragOverSectionId, setDragOverSectionId] = useState<string | null>(null);
   const [sectionWasExpanded, setSectionWasExpanded] = useState<boolean>(false);
+  const [taskWasExpanded, setTaskWasExpanded] = useState<boolean>(false);
   const [isAddingSection, setIsAddingSection] = useState(false);
   const [newSectionName, setNewSectionName] = useState('');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -662,6 +663,8 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                       dragOverTaskId={dragOverTaskId}
                       isSelected={selectedTaskId === task.id}
                       depth={0}
+                      taskWasExpanded={taskWasExpanded}
+                      onSetTaskWasExpanded={setTaskWasExpanded}
                     />
                   ))}
 
@@ -744,6 +747,8 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                     onAddSubtask={onAddSubtask}
                     isSelected={selectedTaskId === task.id}
                     depth={0}
+                    taskWasExpanded={taskWasExpanded}
+                    onSetTaskWasExpanded={setTaskWasExpanded}
                   />
                 ))}
               </>

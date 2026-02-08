@@ -32,6 +32,8 @@ interface TaskRowProps {
   dragOverTaskId?: string | null;
   depth?: number;
   isSelected?: boolean;
+  taskWasExpanded?: boolean;
+  onSetTaskWasExpanded?: (wasExpanded: boolean) => void;
 }
 
 /**
@@ -53,7 +55,9 @@ export function TaskRow({
   draggedTaskId = null,
   dragOverTaskId = null,
   depth = 0,
-  isSelected = false
+  isSelected = false,
+  taskWasExpanded = false,
+  onSetTaskWasExpanded
 }: TaskRowProps) {
   const [subtasksExpanded, setSubtasksExpanded] = useState(false);
   const [isEditingTags, setIsEditingTags] = useState(false);
@@ -101,10 +105,31 @@ export function TaskRow({
           isDragOver && "ring-2 ring-primary"
         )}
         draggable={draggable}
-        onDragStart={onDragStart ? (e) => onDragStart(e, task.id) : undefined}
+        onDragStart={onDragStart ? (e) => {
+          // Remember if task was expanded and collapse it
+          if (hasSubtasks && subtasksExpanded) {
+            onSetTaskWasExpanded?.(true);
+            setSubtasksExpanded(false);
+          }
+          onDragStart(e, task.id);
+        } : undefined}
         onDragOver={onDragOver ? (e) => onDragOver(e, task.id) : undefined}
         onDragLeave={onDragLeave ? (e) => onDragLeave(e, task.id) : undefined}
-        onDrop={onDrop ? (e) => onDrop(e, task.id) : undefined}
+        onDrop={onDrop ? (e) => {
+          onDrop(e, task.id);
+          // Restore expanded state after successful drop
+          if (hasSubtasks && taskWasExpanded && draggedTaskId === task.id) {
+            setSubtasksExpanded(true);
+            onSetTaskWasExpanded?.(false);
+          }
+        } : undefined}
+        onDragEnd={(e) => {
+          // Restore expanded state if drag was cancelled
+          if (hasSubtasks && taskWasExpanded && draggedTaskId === task.id) {
+            setSubtasksExpanded(true);
+            onSetTaskWasExpanded?.(false);
+          }
+        }}
       >
         {/* Task Name Column - contains drag handle, expand/collapse, checkbox, name, and chevron-right */}
         <td className="py-1 pr-1 border-r sticky left-0 bg-background group-hover:bg-accent z-10 relative transition-colors">
@@ -396,6 +421,8 @@ export function TaskRow({
               dragOverTaskId={dragOverTaskId}
               depth={depth + 1}
               isSelected={isSelected}
+              taskWasExpanded={taskWasExpanded}
+              onSetTaskWasExpanded={onSetTaskWasExpanded}
             />
           ))}
           
