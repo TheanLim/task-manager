@@ -26,8 +26,8 @@ export function ProjectList({
   const router = useRouter();
 
   const handleProjectClick = (projectId: string) => {
-    // Update URL with project query parameter
-    router.push(`/?project=${projectId}`);
+    // Update URL with project query parameter and default to list view
+    router.push(`/?project=${projectId}&tab=list`);
     // Also call the callback for any additional logic
     onProjectSelect(projectId);
   };

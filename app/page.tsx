@@ -37,7 +37,7 @@ function HomeContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const projectIdFromUrl = searchParams.get('project');
-  const tabFromUrl = searchParams.get('tab') || 'overview';
+  const tabFromUrl = searchParams.get('tab') || 'list'; // Default to 'list' instead of 'overview'
   const taskIdFromUrl = searchParams.get('task');
   const expandedFromUrl = searchParams.get('expanded') === 'true';
 
