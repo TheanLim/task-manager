@@ -480,7 +480,6 @@ function HomeContent() {
                 subtasks={subtasks}
                 blockingTasks={blockingTasks}
                 blockedTasks={blockedTasks}
-                onEdit={handleTaskEdit}
                 onDelete={handleTaskDelete}
                 onClose={() => setSelectedTaskId(null)}
                 onComplete={(completed) => handleTaskComplete(selectedTask.id, completed)}
@@ -506,7 +505,6 @@ function HomeContent() {
                 subtasks={subtasks}
                 blockingTasks={blockingTasks}
                 blockedTasks={blockedTasks}
-                onEdit={handleTaskEdit}
                 onDelete={handleTaskDelete}
                 onClose={handleTaskCollapse}
                 onComplete={(completed) => handleTaskComplete(selectedTask.id, completed)}

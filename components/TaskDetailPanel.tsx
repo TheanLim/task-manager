@@ -38,13 +38,13 @@ import { format } from 'date-fns';
 import { useState } from 'react';
 import { InlineEditable } from '@/components/InlineEditable';
 import { validateTaskDescription } from '@/lib/validation';
+import { useDataStore } from '@/stores/dataStore';
 
 interface TaskDetailPanelProps {
   task: Task;
   subtasks: Task[];
   blockingTasks: Task[];
   blockedTasks: Task[];
-  onEdit: () => void;
   onDelete: () => void;
   onClose: () => void;
   onComplete: (completed: boolean) => void;
@@ -64,7 +64,6 @@ export function TaskDetailPanel({
   subtasks,
   blockingTasks,
   blockedTasks,
-  onEdit,
   onDelete,
   onClose,
   onComplete,
@@ -80,6 +79,8 @@ export function TaskDetailPanel({
   const [tagInput, setTagInput] = useState('');
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [notesValue, setNotesValue] = useState(task.notes);
+  
+  const { updateTask } = useDataStore();
 
   const getPriorityVariant = (priority: Priority): 'default' | 'destructive' | 'secondary' | 'outline' => {
     switch (priority) {
@@ -96,22 +97,18 @@ export function TaskDetailPanel({
 
   const handleAddTag = () => {
     if (tagInput.trim() && !task.tags.includes(tagInput.trim())) {
-      // Call onEdit to trigger update with new tags
-      task.tags = [...task.tags, tagInput.trim()];
-      onEdit();
+      updateTask(task.id, { tags: [...task.tags, tagInput.trim()] });
       setTagInput('');
     }
   };
 
   const handleRemoveTag = (tagToRemove: string) => {
-    task.tags = task.tags.filter(t => t !== tagToRemove);
-    onEdit();
+    updateTask(task.id, { tags: task.tags.filter(t => t !== tagToRemove) });
   };
 
   const handleSaveNotes = () => {
     if (notesValue !== task.notes) {
-      task.notes = notesValue;
-      onEdit();
+      updateTask(task.id, { notes: notesValue });
     }
     setIsEditingNotes(false);
   };
@@ -203,8 +200,7 @@ export function TaskDetailPanel({
         <InlineEditable
           value={task.description}
           onSave={(newDescription) => {
-            task.description = newDescription;
-            onEdit();
+            updateTask(task.id, { description: newDescription });
           }}
           validate={validateTaskDescription}
           placeholder="Task description"
@@ -228,8 +224,7 @@ export function TaskDetailPanel({
           <Select
             value={task.priority}
             onValueChange={(value) => {
-              task.priority = value as Priority;
-              onEdit();
+              updateTask(task.id, { priority: value as Priority });
             }}
           >
             <SelectTrigger className="h-7 w-32 border-0 shadow-none hover:bg-accent">
@@ -270,8 +265,7 @@ export function TaskDetailPanel({
                 mode="single"
                 selected={task.dueDate ? new Date(task.dueDate) : undefined}
                 onSelect={(date) => {
-                  task.dueDate = date?.toISOString() || null;
-                  onEdit();
+                  updateTask(task.id, { dueDate: date?.toISOString() || null });
                 }}
                 initialFocus
               />
@@ -282,8 +276,7 @@ export function TaskDetailPanel({
                     size="sm"
                     className="w-full"
                     onClick={() => {
-                      task.dueDate = null;
-                      onEdit();
+                      updateTask(task.id, { dueDate: null });
                     }}
                   >
                     Clear date
@@ -300,8 +293,7 @@ export function TaskDetailPanel({
           <InlineEditable
             value={task.assignee || ''}
             onSave={(newAssignee) => {
-              task.assignee = newAssignee || '';
-              onEdit();
+              updateTask(task.id, { assignee: newAssignee || '' });
             }}
             placeholder="No assignee"
             displayClassName="text-sm"
