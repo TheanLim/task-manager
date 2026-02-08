@@ -470,6 +470,7 @@ function HomeContent() {
                           updateTask(taskId, { sectionId });
                         }}
                         onAddTask={handleNewTask}
+                        onAddSubtask={(parentTaskId) => handleNewTask(undefined, parentTaskId)}
                       />
                     ),
                     calendar: (
