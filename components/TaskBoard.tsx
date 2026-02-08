@@ -394,14 +394,18 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
               {subtasks.map(subtask => (
                 <div
                   key={subtask.id}
-                  className="flex items-center gap-2 py-2 px-3 hover:bg-accent/50 border-b last:border-b-0"
-                  onClick={(e) => e.stopPropagation()}
+                  className="flex items-center gap-2 py-2 px-3 hover:bg-accent/50 border-b last:border-b-0 cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onTaskClick(subtask.id);
+                  }}
                 >
                   <Checkbox
                     checked={subtask.completed}
                     onCheckedChange={(checked) => {
                       onTaskComplete(subtask.id, checked === true);
                     }}
+                    onClick={(e) => e.stopPropagation()}
                     className="flex-shrink-0"
                   />
                   <div className="flex-1 min-w-0">
