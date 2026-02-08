@@ -1,11 +1,16 @@
 'use client';
 
-import { Task, UUID } from '@/types';
+import { Task, UUID, Priority } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { DependencyList } from '@/components/DependencyList';
 import {
   AlertDialog,
@@ -21,16 +26,18 @@ import {
   Calendar,
   Tag,
   User,
-  Edit,
   Trash2,
   Plus,
   CheckCircle2,
   ChevronsRight,
   Maximize2,
-  Minimize2
+  Minimize2,
+  X
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useState } from 'react';
+import { InlineEditable } from '@/components/InlineEditable';
+import { validateTaskDescription } from '@/lib/validation';
 
 interface TaskDetailPanelProps {
   task: Task;
@@ -50,7 +57,7 @@ interface TaskDetailPanelProps {
 }
 
 /**
- * Panel to display full task details
+ * Panel to display full task details with inline editing
  */
 export function TaskDetailPanel({
   task,
@@ -69,6 +76,50 @@ export function TaskDetailPanel({
   isExpanded = false
 }: TaskDetailPanelProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isEditingTags, setIsEditingTags] = useState(false);
+  const [tagInput, setTagInput] = useState('');
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [notesValue, setNotesValue] = useState(task.notes);
+
+  const getPriorityVariant = (priority: Priority): 'default' | 'destructive' | 'secondary' | 'outline' => {
+    switch (priority) {
+      case Priority.HIGH:
+        return 'destructive';
+      case Priority.MEDIUM:
+        return 'default';
+      case Priority.LOW:
+        return 'secondary';
+      default:
+        return 'outline';
+    }
+  };
+
+  const handleAddTag = () => {
+    if (tagInput.trim() && !task.tags.includes(tagInput.trim())) {
+      // Call onEdit to trigger update with new tags
+      task.tags = [...task.tags, tagInput.trim()];
+      onEdit();
+      setTagInput('');
+    }
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    task.tags = task.tags.filter(t => t !== tagToRemove);
+    onEdit();
+  };
+
+  const handleSaveNotes = () => {
+    if (notesValue !== task.notes) {
+      task.notes = notesValue;
+      onEdit();
+    }
+    setIsEditingNotes(false);
+  };
+
+  const handleCancelNotes = () => {
+    setNotesValue(task.notes);
+    setIsEditingNotes(false);
+  };
 
   const handleDeleteClick = () => {
     setShowDeleteDialog(true);
@@ -121,17 +172,6 @@ export function TaskDetailPanel({
             
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" onClick={onEdit}>
-                  <Edit className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Edit task</p>
-              </TooltipContent>
-            </Tooltip>
-            
-            <Tooltip>
-              <TooltipTrigger asChild>
                 <Button variant="outline" size="icon" onClick={handleDeleteClick}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -160,7 +200,17 @@ export function TaskDetailPanel({
 
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold">{task.description}</h2>
+        <InlineEditable
+          value={task.description}
+          onSave={(newDescription) => {
+            task.description = newDescription;
+            onEdit();
+          }}
+          validate={validateTaskDescription}
+          placeholder="Task description"
+          displayClassName="text-2xl font-bold"
+          inputClassName="text-2xl font-bold"
+        />
         {task.completed && task.completedAt && (
           <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
             <span>Completed {format(new Date(task.completedAt), 'PPP')}</span>
@@ -173,54 +223,192 @@ export function TaskDetailPanel({
       {/* Properties */}
       <div className="space-y-4">
         {/* Priority */}
-        {task.priority !== 'none' && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">Priority:</span>
-            <Badge>{task.priority}</Badge>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">Priority:</span>
+          <Select
+            value={task.priority}
+            onValueChange={(value) => {
+              task.priority = value as Priority;
+              onEdit();
+            }}
+          >
+            <SelectTrigger className="h-7 w-32 border-0 shadow-none hover:bg-accent">
+              <SelectValue>
+                {task.priority !== Priority.NONE ? (
+                  <Badge variant={getPriorityVariant(task.priority)} className="text-xs">
+                    {task.priority}
+                  </Badge>
+                ) : (
+                  <span className="text-xs text-muted-foreground italic">No priority</span>
+                )}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={Priority.NONE}>None</SelectItem>
+              <SelectItem value={Priority.LOW}>Low</SelectItem>
+              <SelectItem value={Priority.MEDIUM}>Medium</SelectItem>
+              <SelectItem value={Priority.HIGH}>High</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
         {/* Due Date */}
-        {task.dueDate && (
-          <div className="flex items-center gap-2 text-sm">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-            <span>Due {format(new Date(task.dueDate), 'PPP')}</span>
-          </div>
-        )}
+        <div className="flex items-center gap-2 text-sm">
+          <Calendar className="h-4 w-4 text-muted-foreground" />
+          <Popover>
+            <PopoverTrigger asChild>
+              <div className="cursor-pointer hover:bg-accent rounded px-2 py-1 -mx-2">
+                {task.dueDate ? (
+                  <span>Due {format(new Date(task.dueDate), 'PPP')}</span>
+                ) : (
+                  <span className="text-muted-foreground italic">No due date</span>
+                )}
+              </div>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <CalendarComponent
+                mode="single"
+                selected={task.dueDate ? new Date(task.dueDate) : undefined}
+                onSelect={(date) => {
+                  task.dueDate = date?.toISOString() || null;
+                  onEdit();
+                }}
+                initialFocus
+              />
+              {task.dueDate && (
+                <div className="p-2 border-t">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => {
+                      task.dueDate = null;
+                      onEdit();
+                    }}
+                  >
+                    Clear date
+                  </Button>
+                </div>
+              )}
+            </PopoverContent>
+          </Popover>
+        </div>
 
         {/* Assignee */}
-        {task.assignee && (
-          <div className="flex items-center gap-2 text-sm">
-            <User className="h-4 w-4 text-muted-foreground" />
-            <span>@{task.assignee}</span>
-          </div>
-        )}
+        <div className="flex items-center gap-2 text-sm">
+          <User className="h-4 w-4 text-muted-foreground" />
+          <InlineEditable
+            value={task.assignee || ''}
+            onSave={(newAssignee) => {
+              task.assignee = newAssignee || '';
+              onEdit();
+            }}
+            placeholder="No assignee"
+            displayClassName="text-sm"
+            inputClassName="text-sm"
+          />
+        </div>
 
         {/* Tags */}
-        {task.tags.length > 0 && (
-          <div className="flex items-start gap-2">
-            <Tag className="h-4 w-4 text-muted-foreground mt-0.5" />
-            <div className="flex flex-wrap gap-2">
-              {task.tags.map((tag) => (
-                <Badge key={tag} variant="secondary">
-                  {tag}
-                </Badge>
-              ))}
-            </div>
-          </div>
-        )}
+        <div className="flex items-start gap-2">
+          <Tag className="h-4 w-4 text-muted-foreground mt-0.5" />
+          <Popover open={isEditingTags} onOpenChange={setIsEditingTags}>
+            <PopoverTrigger asChild>
+              <div className="flex flex-wrap gap-2 cursor-pointer hover:bg-accent rounded px-2 py-1 -mx-2 min-h-[28px]">
+                {task.tags.length > 0 ? (
+                  task.tags.map((tag) => (
+                    <Badge key={tag} variant="secondary">
+                      {tag}
+                    </Badge>
+                  ))
+                ) : (
+                  <span className="text-muted-foreground italic text-sm">No tags</span>
+                )}
+              </div>
+            </PopoverTrigger>
+            <PopoverContent className="w-64" align="start">
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <Input
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddTag();
+                      }
+                    }}
+                    placeholder="Add tag..."
+                    className="h-8 text-sm"
+                  />
+                  <Button size="sm" onClick={handleAddTag} disabled={!tagInput.trim()}>
+                    Add
+                  </Button>
+                </div>
+                {task.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {task.tags.map(tag => (
+                      <Badge key={tag} variant="outline" className="text-xs">
+                        {tag}
+                        <button
+                          onClick={() => handleRemoveTag(tag)}
+                          className="ml-1 hover:text-destructive"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
       </div>
 
       {/* Notes */}
-      {task.notes && (
-        <>
-          <Separator />
-          <div>
-            <h3 className="mb-2 text-sm font-semibold">Notes</h3>
-            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{task.notes}</p>
+      <Separator />
+      <div>
+        <h3 className="mb-2 text-sm font-semibold">Notes</h3>
+        {isEditingNotes ? (
+          <div className="space-y-2">
+            <Textarea
+              value={notesValue}
+              onChange={(e) => setNotesValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                  e.preventDefault();
+                  handleSaveNotes();
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  handleCancelNotes();
+                }
+              }}
+              placeholder="No notes"
+              className="min-h-[100px] text-sm"
+              autoFocus
+            />
+            <div className="flex gap-2">
+              <Button size="sm" onClick={handleSaveNotes}>Save</Button>
+              <Button size="sm" variant="outline" onClick={handleCancelNotes}>Cancel</Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Press Ctrl+Enter to save, Escape to cancel
+            </p>
           </div>
-        </>
-      )}
+        ) : (
+          <div
+            onClick={() => setIsEditingNotes(true)}
+            className="cursor-text rounded px-2 py-1 -mx-2 hover:bg-accent transition-colors"
+          >
+            {task.notes ? (
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{task.notes}</p>
+            ) : (
+              <span className="text-muted-foreground italic text-sm">No notes</span>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Subtasks */}
       <Separator />
