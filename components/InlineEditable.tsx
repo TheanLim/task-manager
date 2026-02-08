@@ -124,10 +124,10 @@ export function InlineEditable({
     <span
       onClick={() => setIsEditing(true)}
       className={`
-        inline-block cursor-text rounded px-1 -mx-1
+        inline-flex items-center cursor-text rounded px-1 -mx-1
         max-w-full truncate
-        transition-colors duration-150
-        hover:bg-accent/50 hover:text-accent-foreground
+        transition-all duration-150
+        hover:bg-accent/50 hover:text-accent-foreground hover:border hover:border-border
         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2
         ${displayClassName}
         ${className}
