@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'export',
-  // basePath: '/task-manager', // Commented out for local development
+  basePath: '/task-manager',
   images: {
     unoptimized: true,
   },
