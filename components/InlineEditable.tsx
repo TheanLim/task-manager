@@ -11,6 +11,7 @@ interface InlineEditableProps {
   className?: string;
   displayClassName?: string;
   inputClassName?: string;
+  displayElement?: React.ReactNode;
 }
 
 export function InlineEditable({
@@ -21,6 +22,7 @@ export function InlineEditable({
   className = '',
   displayClassName = '',
   inputClassName = '',
+  displayElement,
 }: InlineEditableProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(value);
@@ -140,7 +142,13 @@ export function InlineEditable({
         }
       }}
     >
-      {value || <span className="text-muted-foreground italic">{placeholder}</span>}
+      {value ? (
+        value
+      ) : displayElement ? (
+        displayElement
+      ) : (
+        <span className="text-muted-foreground italic">{placeholder}</span>
+      )}
     </span>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronRight, ChevronDown, Check, Calendar, GripVertical, X, ListTree } from 'lucide-react';
+import { ChevronRight, ChevronDown, Check, Calendar, GripVertical, X, ListTree, User } from 'lucide-react';
 import { Task, Priority } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -228,12 +228,9 @@ export function TaskRow({
             <PopoverTrigger asChild>
               <div className="flex items-center gap-1 hover:bg-accent rounded px-1 py-0.5">
                 {task.dueDate ? (
-                  <>
-                    <Calendar className="h-3 w-3" />
-                    <span>{format(new Date(task.dueDate), 'MMM d')}</span>
-                  </>
+                  <span>{format(new Date(task.dueDate), 'MMM d')}</span>
                 ) : (
-                  <span className="text-muted-foreground/50">Set date</span>
+                  <Calendar className="h-3 w-3 text-muted-foreground/50" />
                 )}
               </div>
             </PopoverTrigger>
@@ -296,13 +293,20 @@ export function TaskRow({
           className="p-1 border-r text-sm text-muted-foreground truncate cursor-pointer"
           onClick={(e) => e.stopPropagation()}
         >
-          <InlineEditable
-            value={task.assignee || ''}
-            onSave={(newAssignee) => updateTask(task.id, { assignee: newAssignee || undefined })}
-            placeholder="Assignee"
-            displayClassName="truncate text-sm"
-            inputClassName="w-full text-sm"
-          />
+          <div className="hover:bg-accent rounded px-1 py-0.5">
+            <InlineEditable
+              value={task.assignee || ''}
+              onSave={(newAssignee) => updateTask(task.id, { assignee: newAssignee || undefined })}
+              placeholder="Assignee"
+              displayClassName="truncate text-sm"
+              inputClassName="w-full text-sm"
+              displayElement={
+                task.assignee ? undefined : (
+                  <User className="h-3 w-3 text-muted-foreground/50" />
+                )
+              }
+            />
+          </div>
         </td>
 
         {/* Tags Column */}
