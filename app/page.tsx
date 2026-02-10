@@ -390,7 +390,7 @@ function HomeContent() {
       } else {
         // Creating a task in global view (unlinked)
         projectId = null;
-        sectionId = null;
+        sectionId = taskDialogSectionId; // Use the section if provided
       }
       
       // Calculate order based on whether this is a subtask or top-level task
@@ -580,7 +580,7 @@ function HomeContent() {
                 <GlobalTasksView
                   onTaskClick={handleTaskClick}
                   onTaskComplete={handleTaskComplete}
-                  onAddTask={() => handleNewTask()}
+                  onAddTask={(sectionId) => handleNewTask(sectionId)}
                   onViewSubtasks={handleTaskClick}
                   onSubtaskButtonClick={handleSubtaskButtonClick}
                   onAddSubtask={(parentTaskId) => handleNewTask(undefined, parentTaskId)}

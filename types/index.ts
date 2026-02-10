@@ -39,7 +39,7 @@ export interface Project {
 // Section (unified for both list and board views)
 export interface Section {
   id: UUID;
-  projectId: UUID;
+  projectId: UUID | null; // null for unlinked task sections in global view
   name: string;
   order: number;
   collapsed: boolean; // For list view collapsible state

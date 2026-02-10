@@ -170,8 +170,11 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
   };
 
   const handleAddSection = () => {
-    const projectId = sections[0]?.projectId;
-    if (!projectId || !newSectionName.trim()) return;
+    if (!newSectionName.trim()) return;
+
+    // For global view, use null projectId for unlinked task sections
+    // For project view, use the projectId from existing sections
+    const projectId = sections[0]?.projectId || null;
 
     const newSection = {
       id: uuidv4(),

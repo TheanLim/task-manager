@@ -10,7 +10,7 @@ import { Task, Section } from '@/types';
 interface GlobalTasksViewProps {
   onTaskClick: (taskId: string) => void;
   onTaskComplete: (taskId: string, completed: boolean) => void;
-  onAddTask: () => void;
+  onAddTask: (sectionId?: string) => void;
   onViewSubtasks?: (taskId: string) => void;
   onSubtaskButtonClick?: (taskId: string) => void;
   onAddSubtask?: (parentTaskId: string) => void;
@@ -51,10 +51,7 @@ export function GlobalTasksView({
   const { projectTasks, unlinkedTasks, unlinkedSections } = useMemo(() => {
     const projectTasks = tasks.filter(t => t.projectId !== null);
     const unlinkedTasks = tasks.filter(t => t.projectId === null);
-    const unlinkedSections = sections.filter(s => {
-      // A section belongs to unlinked tasks if any unlinked task uses it
-      return unlinkedTasks.some(t => t.sectionId === s.id);
-    });
+    const unlinkedSections = sections.filter(s => s.projectId === null);
     
     return { projectTasks, unlinkedTasks, unlinkedSections };
   }, [tasks, sections]);
@@ -62,7 +59,7 @@ export function GlobalTasksView({
   // Create virtual "From Projects" section
   const virtualFromProjectsSection: Section = useMemo(() => ({
     id: FROM_PROJECTS_SECTION_ID,
-    projectId: FROM_PROJECTS_SECTION_ID,
+    projectId: null, // Use null so new sections inherit the correct projectId
     name: 'From Projects',
     order: -1, // Show first
     collapsed: false,

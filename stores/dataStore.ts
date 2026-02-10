@@ -40,7 +40,8 @@ interface DataStore {
   getProjectById: (id: UUID) => Project | undefined;
   getTasksByProjectId: (projectId: UUID) => Task[];
   getSubtasks: (parentId: UUID) => Task[];
-  getSectionsByProjectId: (projectId: UUID) => Section[];
+  getSectionsByProjectId: (projectId: UUID | null) => Section[];
+  getUnlinkedSections: () => Section[];
 }
 
 export const useDataStore = create<DataStore>()(
@@ -217,7 +218,10 @@ export const useDataStore = create<DataStore>()(
       },
       
       getSectionsByProjectId: (projectId) => 
-        get().sections.filter(s => s.projectId === projectId)
+        get().sections.filter(s => s.projectId === projectId),
+      
+      getUnlinkedSections: () =>
+        get().sections.filter(s => s.projectId === null)
     }),
     {
       name: 'task-management-data',
