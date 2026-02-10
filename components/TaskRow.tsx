@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ChevronRight, ChevronDown, Check, Calendar, GripVertical, X, ListTree, User, FolderTree, CornerDownRight } from 'lucide-react';
 import { Task, Priority } from '@/types';
 import { Badge } from '@/components/ui/badge';
@@ -81,6 +81,13 @@ export function TaskRow({
   const { getSubtasks, updateTask } = useDataStore();
   const subtasks = getSubtasks(task.id);
   const hasSubtasks = subtasks.length > 0;
+
+  // Collapse subtasks when switching to flat mode
+  useEffect(() => {
+    if (flatMode && subtasksExpanded) {
+      setSubtasksExpanded(false);
+    }
+  }, [flatMode]);
 
   // Calculate isDragging and isDragOver based on task.id
   const isDragging = draggedTaskId === task.id;
