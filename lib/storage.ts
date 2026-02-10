@@ -367,7 +367,7 @@ export class LocalStorageAdapter implements StorageAdapter {
     return tasks.every(t => 
       t && typeof t === 'object' &&
       typeof t.id === 'string' &&
-      typeof t.projectId === 'string' &&
+      (typeof t.projectId === 'string' || t.projectId === null) &&
       (t.parentTaskId === null || typeof t.parentTaskId === 'string') &&
       (t.sectionId === null || typeof t.sectionId === 'string') &&
       typeof t.description === 'string' &&
@@ -390,7 +390,7 @@ export class LocalStorageAdapter implements StorageAdapter {
     return sections.every(s => 
       s && typeof s === 'object' &&
       typeof s.id === 'string' &&
-      typeof s.projectId === 'string' &&
+      (typeof s.projectId === 'string' || s.projectId === null) &&
       typeof s.name === 'string' &&
       typeof s.order === 'number' &&
       typeof s.collapsed === 'boolean' &&
