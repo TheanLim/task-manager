@@ -50,7 +50,7 @@ export interface Section {
 // Task
 export interface Task {
   id: UUID;
-  projectId: UUID;
+  projectId: UUID | null; // null for unlinked tasks
   parentTaskId: UUID | null; // null for top-level tasks
   sectionId: UUID | null; // Unified reference for both list and board views
   description: string;

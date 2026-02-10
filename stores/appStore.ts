@@ -6,6 +6,7 @@ import { AppSettings, TimeManagementSystem, UUID } from '@/types';
 interface AppStore {
   settings: AppSettings;
   projectTabs: Record<UUID, string>; // Map of projectId to active tab
+  globalTasksDisplayMode: 'nested' | 'flat'; // Display mode for global tasks view
   
   setActiveProject: (projectId: UUID | null) => void;
   setTimeManagementSystem: (system: TimeManagementSystem) => void;
@@ -13,6 +14,7 @@ interface AppStore {
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
   setProjectTab: (projectId: UUID, tab: string) => void;
   getProjectTab: (projectId: UUID) => string;
+  setGlobalTasksDisplayMode: (mode: 'nested' | 'flat') => void;
 }
 
 export const useAppStore = create<AppStore>()(
@@ -25,6 +27,7 @@ export const useAppStore = create<AppStore>()(
         theme: 'system'
       },
       projectTabs: {},
+      globalTasksDisplayMode: 'nested',
       
       setActiveProject: (projectId) => set((state) => ({
         settings: { ...state.settings, activeProjectId: projectId }
@@ -48,7 +51,9 @@ export const useAppStore = create<AppStore>()(
       
       getProjectTab: (projectId) => {
         return get().projectTabs[projectId] || 'overview';
-      }
+      },
+      
+      setGlobalTasksDisplayMode: (mode) => set({ globalTasksDisplayMode: mode })
     }),
     {
       name: 'task-management-settings',

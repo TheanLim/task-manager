@@ -17,6 +17,8 @@ import { TMSSelector } from '@/components/TMSSelector';
 import { DITView } from '@/components/DITView';
 import { AF4View } from '@/components/AF4View';
 import { FVPView } from '@/components/FVPView';
+import { GlobalTasksView } from '@/components/GlobalTasksView';
+import { GlobalTasksHeader } from '@/components/GlobalTasksHeader';
 import { InlineEditable } from '@/components/InlineEditable';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
@@ -42,9 +44,12 @@ function HomeContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const projectIdFromUrl = searchParams.get('project');
+  const viewFromUrl = searchParams.get('view'); // NEW - check for global view
   const tabFromUrl = searchParams.get('tab') || 'list'; // Default to 'list' instead of 'overview'
   const taskIdFromUrl = searchParams.get('task');
   const expandedFromUrl = searchParams.get('expanded') === 'true';
+  
+  const isGlobalView = viewFromUrl === 'tasks'; // NEW - determine if we're in global view
 
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
@@ -347,7 +352,8 @@ function HomeContent() {
   };
 
   const handleNewTask = (sectionId?: string, parentTaskId?: string) => {
-    if (!activeProject) return;
+    // Allow task creation in global view (without active project)
+    if (!activeProject && !isGlobalView) return;
     setEditingTask(null);
     setTaskDialogSectionId(sectionId || null);
     setTaskDialogParentId(parentTaskId || null);
@@ -362,21 +368,41 @@ function HomeContent() {
     tags: string[];
     dueDate: string | null;
   }) => {
-    if (!activeProject) return;
+    // Allow task creation in global view (creates unlinked task)
+    if (!activeProject && !isGlobalView) return;
 
     if (editingTask) {
       updateTask(editingTask, data);
     } else {
+      // Determine projectId and sectionId
+      let projectId: string | null;
+      let sectionId: string | null;
+      
+      if (taskDialogParentId) {
+        // Creating a subtask - inherit parent's project and section
+        const parentTask = tasks.find(t => t.id === taskDialogParentId);
+        projectId = parentTask?.projectId || null;
+        sectionId = parentTask?.sectionId || null;
+      } else if (activeProject) {
+        // Creating a task in project view
+        projectId = activeProject.id;
+        sectionId = taskDialogSectionId || projectSections[0]?.id || null;
+      } else {
+        // Creating a task in global view (unlinked)
+        projectId = null;
+        sectionId = null;
+      }
+      
       // Calculate order based on whether this is a subtask or top-level task
       const order = taskDialogParentId 
         ? getSubtasks(taskDialogParentId).length  // Order within subtasks
-        : projectTasks.length;                     // Order within project
+        : (activeProject ? projectTasks.length : tasks.length); // Order within project or all tasks
       
       const newTask = {
         id: uuidv4(),
-        projectId: activeProject.id,
-        parentTaskId: taskDialogParentId,  // Use state instead of hardcoded null
-        sectionId: taskDialogSectionId || projectSections[0]?.id || null,
+        projectId,
+        parentTaskId: taskDialogParentId,
+        sectionId,
         ...data,
         completed: false,
         completedAt: null,
@@ -507,7 +533,7 @@ function HomeContent() {
           <div className="flex items-center gap-2 flex-wrap shrink-0 ml-auto">
             <ImportExportMenu />
             <ThemeToggle />
-            {activeProject && (
+            {(activeProject || isGlobalView) && (
               <Button onClick={() => handleNewTask()} size="sm" className="sm:size-default">
                 <Plus className="mr-0 sm:mr-2 h-4 w-4" />
                 <span className="hidden sm:inline">New Task</span>
@@ -542,7 +568,27 @@ function HomeContent() {
             }
           }}
         >
-          {activeProject ? (
+          {isGlobalView ? (
+            <>
+              {/* Global Tasks View */}
+              <div className="flex-shrink-0 mb-4">
+                <GlobalTasksHeader onAddTask={() => handleNewTask()} />
+              </div>
+
+              {/* Scrollable Content Area */}
+              <div className="flex-1 overflow-auto">
+                <GlobalTasksView
+                  onTaskClick={handleTaskClick}
+                  onTaskComplete={handleTaskComplete}
+                  onAddTask={() => handleNewTask()}
+                  onViewSubtasks={handleTaskClick}
+                  onSubtaskButtonClick={handleSubtaskButtonClick}
+                  onAddSubtask={(parentTaskId) => handleNewTask(undefined, parentTaskId)}
+                  selectedTaskId={selectedTaskId}
+                />
+              </div>
+            </>
+          ) : activeProject ? (
             <>
               {/* Sticky Header: Project Name and Share Button */}
               <div className="flex-shrink-0 mb-4 flex items-center gap-4">

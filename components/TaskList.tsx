@@ -34,6 +34,8 @@ interface TaskListProps {
   onSubtaskButtonClick?: (taskId: string) => void;
   onAddSubtask?: (parentTaskId: string) => void;
   selectedTaskId?: string | null;
+  showProjectColumn?: boolean; // NEW - show project column in global view
+  flatMode?: boolean; // NEW - flat display mode (no hierarchy)
 }
 
 interface ColumnWidths {
@@ -42,13 +44,14 @@ interface ColumnWidths {
   priority: number;
   assignee: number;
   tags: number;
+  project?: number; // NEW - project column width
 }
 
 /**
  * List view component for displaying tasks grouped by collapsible sections
  * with table-like task rows
  */
-export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTask, onViewSubtasks, onSubtaskButtonClick, onAddSubtask, selectedTaskId }: TaskListProps) {
+export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTask, onViewSubtasks, onSubtaskButtonClick, onAddSubtask, selectedTaskId, showProjectColumn = false, flatMode = false }: TaskListProps) {
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverTaskId, setDragOverTaskId] = useState<string | null>(null);
   const [draggedSectionId, setDraggedSectionId] = useState<string | null>(null);
@@ -59,7 +62,14 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
   const [newSectionName, setNewSectionName] = useState('');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [sectionToDelete, setSectionToDelete] = useState<string | null>(null);
-  const { updateTask, updateSection, deleteSection, addSection } = useDataStore();
+  const { updateTask, updateSection, deleteSection, addSection, projects } = useDataStore();
+
+  // Helper function to get project name for a task
+  const getProjectName = (task: Task): string => {
+    if (!task.projectId) return 'No Project';
+    const project = projects.find(p => p.id === task.projectId);
+    return project?.name || 'Unknown Project';
+  };
 
   // Calculate minimum column widths based on content
   const calculateMinWidths = (): ColumnWidths => {
@@ -69,7 +79,8 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
       dueDate: 100, // Minimum for date display
       priority: 80, // Minimum for priority badge
       assignee: 100, // Minimum for assignee name
-      tags: 120 // Minimum for tags
+      tags: 120, // Minimum for tags
+      ...(showProjectColumn && { project: 120 }) // Minimum for project name
     };
 
     // Calculate actual content widths (rough estimation)
@@ -102,12 +113,13 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
     dueDate: Math.max(128, minColumnWidths.dueDate),
     priority: Math.max(96, minColumnWidths.priority),
     assignee: Math.max(128, minColumnWidths.assignee),
-    tags: Math.max(160, minColumnWidths.tags)
+    tags: Math.max(160, minColumnWidths.tags),
+    ...(showProjectColumn && { project: Math.max(128, minColumnWidths.project || 120) })
   });
 
   const handleColumnResize = (column: keyof ColumnWidths, width: number) => {
     // Enforce minimum width based on content
-    const minWidth = minColumnWidths[column];
+    const minWidth = minColumnWidths[column] || 100; // Default minimum if undefined
     const constrainedWidth = Math.max(minWidth, width);
     
     setColumnWidths(prev => ({
@@ -422,9 +434,17 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
 
   // Group tasks by section and sort by order
   const tasksBySection = sections.reduce((acc, section) => {
-    acc[section.id] = tasks
-      .filter(t => t.sectionId === section.id && !t.parentTaskId)
-      .sort((a, b) => a.order - b.order);
+    if (flatMode) {
+      // In flat mode, get all tasks for this section (including subtasks that were flattened)
+      // and maintain the order they were passed in
+      const sectionTasks = tasks.filter(t => t.sectionId === section.id);
+      acc[section.id] = sectionTasks;
+    } else {
+      // In nested mode, only get top-level tasks
+      acc[section.id] = tasks
+        .filter(t => t.sectionId === section.id && !t.parentTaskId)
+        .sort((a, b) => a.order - b.order);
+    }
     return acc;
   }, {} as Record<string, Task[]>);
 
@@ -453,6 +473,7 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
             <col style={{ width: columnWidths.priority }} />
             <col style={{ width: columnWidths.assignee }} />
             <col style={{ width: columnWidths.tags }} />
+            {showProjectColumn && <col style={{ width: columnWidths.project }} />}
           </colgroup>
 
           {/* Frozen Column Header */}
@@ -568,6 +589,30 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                   }}
                 />
               </th>
+              {showProjectColumn && (
+                <th className="p-2 text-left text-sm font-medium relative bg-muted/50">
+                  Project
+                  <div
+                    className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/50 active:bg-primary"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      const startX = e.clientX;
+                      const startWidth = columnWidths.project || 128;
+                      const handleMouseMove = (moveEvent: MouseEvent) => {
+                        const diff = moveEvent.clientX - startX;
+                        const newWidth = Math.max(minColumnWidths.project || 120, startWidth + diff);
+                        handleColumnResize('project', newWidth);
+                      };
+                      const handleMouseUp = () => {
+                        document.removeEventListener('mousemove', handleMouseMove);
+                        document.removeEventListener('mouseup', handleMouseUp);
+                      };
+                      document.addEventListener('mousemove', handleMouseMove);
+                      document.addEventListener('mouseup', handleMouseUp);
+                    }}
+                  />
+                </th>
+              )}
             </tr>
           </thead>
 
@@ -642,6 +687,7 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                     <td className="bg-background"></td>
                     <td className="bg-background"></td>
                     <td className="bg-background"></td>
+                    {showProjectColumn && <td className="bg-background"></td>}
                   </tr>
 
                   {/* Section Tasks */}
@@ -665,6 +711,9 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                       depth={0}
                       taskWasExpanded={taskWasExpanded}
                       onSetTaskWasExpanded={setTaskWasExpanded}
+                      showProjectColumn={showProjectColumn}
+                      projectName={showProjectColumn ? getProjectName(task) : undefined}
+                      flatMode={flatMode}
                     />
                   ))}
 
@@ -718,6 +767,7 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                       <td></td>
                       <td></td>
                       <td></td>
+                      {showProjectColumn && <td></td>}
                     </tr>
                   )}
                 </React.Fragment>
@@ -735,6 +785,7 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                   <td className="border-r bg-muted/50"></td>
                   <td className="border-r bg-muted/50"></td>
                   <td className="bg-muted/50"></td>
+                  {showProjectColumn && <td className="bg-muted/50"></td>}
                 </tr>
                 {unsectionedTasks.map(task => (
                   <TaskRow
@@ -745,10 +796,20 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                     onViewSubtasks={handleViewSubtasks}
                     onSubtaskButtonClick={onSubtaskButtonClick}
                     onAddSubtask={onAddSubtask}
+                    draggable
+                    onDragStart={handleDragStart}
+                    onDragOver={handleTaskDragOver}
+                    onDragLeave={handleTaskDragLeave}
+                    onDrop={handleTaskDrop}
+                    draggedTaskId={draggedTaskId}
+                    dragOverTaskId={dragOverTaskId}
                     isSelected={selectedTaskId === task.id}
                     depth={0}
                     taskWasExpanded={taskWasExpanded}
                     onSetTaskWasExpanded={setTaskWasExpanded}
+                    showProjectColumn={showProjectColumn}
+                    projectName={showProjectColumn ? getProjectName(task) : undefined}
+                    flatMode={flatMode}
                   />
                 ))}
               </>

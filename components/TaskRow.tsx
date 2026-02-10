@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronRight, ChevronDown, Check, Calendar, GripVertical, X, ListTree, User } from 'lucide-react';
+import { ChevronRight, ChevronDown, Check, Calendar, GripVertical, X, ListTree, User, FolderTree, CornerDownRight } from 'lucide-react';
 import { Task, Priority } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,14 @@ import { format } from 'date-fns';
 import { useDataStore } from '@/stores/dataStore';
 import { InlineEditable } from '@/components/InlineEditable';
 import { validateTaskDescription } from '@/lib/validation';
+
+// Extended task type with flat mode metadata
+interface TaskWithFlatMetadata extends Task {
+  _flatModeParentName?: string;
+  _flatModeParentId?: string;
+  _flatModeHasSubtasks?: boolean;
+  _flatModeSubtaskCount?: number;
+}
 
 interface TaskRowProps {
   task: Task;
@@ -34,6 +42,9 @@ interface TaskRowProps {
   isSelected?: boolean;
   taskWasExpanded?: boolean;
   onSetTaskWasExpanded?: (wasExpanded: boolean) => void;
+  showProjectColumn?: boolean; // NEW - show project column
+  projectName?: string; // NEW - project name to display
+  flatMode?: boolean; // NEW - flat display mode
 }
 
 /**
@@ -57,7 +68,10 @@ export function TaskRow({
   depth = 0,
   isSelected = false,
   taskWasExpanded = false,
-  onSetTaskWasExpanded
+  onSetTaskWasExpanded,
+  showProjectColumn = false,
+  projectName,
+  flatMode = false
 }: TaskRowProps) {
   const [subtasksExpanded, setSubtasksExpanded] = useState(false);
   const [isEditingTags, setIsEditingTags] = useState(false);
@@ -98,6 +112,7 @@ export function TaskRow({
     <>
       {/* Main Task Row */}
       <tr
+        data-task-id={task.id}
         className={cn(
           "border-b hover:bg-accent group transition-colors",
           task.completed && "opacity-60",
@@ -144,24 +159,54 @@ export function TaskRow({
                 <div className="w-4 flex-shrink-0" />
               )}
               
-              {/* Expand/Collapse Subtasks Button */}
-              {hasSubtasks ? (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSubtasksExpanded(!subtasksExpanded);
-                  }}
-                  className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors"
-                  aria-label={subtasksExpanded ? 'Collapse subtasks' : 'Expand subtasks'}
-                >
-                  {subtasksExpanded ? (
-                    <ChevronDown className="h-4 w-4" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4" />
-                  )}
-                </button>
+              {/* Expand/Collapse Subtasks Button or Flat Mode Indicator */}
+              {flatMode ? (
+                // Flat mode: Show indicator icons instead of expand/collapse
+                (task as TaskWithFlatMetadata)._flatModeHasSubtasks ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex-shrink-0 text-muted-foreground">
+                        <FolderTree className="h-4 w-4" />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Has {(task as TaskWithFlatMetadata)._flatModeSubtaskCount} subtask{(task as TaskWithFlatMetadata)._flatModeSubtaskCount !== 1 ? 's' : ''}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                ) : (task as TaskWithFlatMetadata)._flatModeParentName ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex-shrink-0 text-muted-foreground">
+                        <CornerDownRight className="h-4 w-4" />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Subtask of: {(task as TaskWithFlatMetadata)._flatModeParentName}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <div className="w-4 flex-shrink-0" />
+                )
               ) : (
-                <div className="w-4 flex-shrink-0" />
+                // Nested mode: Show expand/collapse button
+                hasSubtasks ? (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSubtasksExpanded(!subtasksExpanded);
+                    }}
+                    className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                    aria-label={subtasksExpanded ? 'Collapse subtasks' : 'Expand subtasks'}
+                  >
+                    {subtasksExpanded ? (
+                      <ChevronDown className="h-4 w-4" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4" />
+                    )}
+                  </button>
+                ) : (
+                  <div className="w-4 flex-shrink-0" />
+                )
               )}
 
               {/* Completion Checkbox */}
@@ -193,8 +238,52 @@ export function TaskRow({
                   )}
                 />
                 
-                {/* Subtask count button */}
-                {hasSubtasks && onSubtaskButtonClick && (
+                {/* Flat mode: Show parent task name badge for subtasks */}
+                {flatMode && (task as TaskWithFlatMetadata)._flatModeParentName && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge 
+                        variant="outline" 
+                        className="text-xs text-muted-foreground cursor-pointer hover:bg-accent transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const parentId = (task as TaskWithFlatMetadata)._flatModeParentId;
+                          if (parentId) {
+                            // Find the parent task row and scroll to it
+                            const parentRow = document.querySelector(`[data-task-id="${parentId}"]`) as HTMLElement;
+                            if (parentRow) {
+                              parentRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              
+                              // Add highlight to the row and its sticky column
+                              parentRow.classList.add('!bg-primary/20');
+                              const stickyCol = parentRow.querySelector('td.sticky') as HTMLElement;
+                              if (stickyCol) {
+                                stickyCol.classList.add('!bg-primary/20');
+                              }
+                              
+                              // Remove highlight after 2 seconds
+                              setTimeout(() => {
+                                parentRow.classList.remove('!bg-primary/20');
+                                if (stickyCol) {
+                                  stickyCol.classList.remove('!bg-primary/20');
+                                }
+                              }, 2000);
+                            }
+                          }
+                        }}
+                      >
+                        <CornerDownRight className="h-3 w-3 mr-1" />
+                        {(task as TaskWithFlatMetadata)._flatModeParentName}
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Click to jump to parent task</p>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+                
+                {/* Subtask count button (nested mode only) */}
+                {!flatMode && hasSubtasks && onSubtaskButtonClick && (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button
@@ -212,6 +301,14 @@ export function TaskRow({
                       <p>View {subtasks.length} subtask{subtasks.length !== 1 ? 's' : ''}</p>
                     </TooltipContent>
                   </Tooltip>
+                )}
+                
+                {/* Flat mode: Show subtask count badge for parent tasks */}
+                {flatMode && (task as TaskWithFlatMetadata)._flatModeHasSubtasks && (
+                  <Badge variant="secondary" className="text-xs">
+                    <FolderTree className="h-3 w-3 mr-1" />
+                    {(task as TaskWithFlatMetadata)._flatModeSubtaskCount} subtask{(task as TaskWithFlatMetadata)._flatModeSubtaskCount !== 1 ? 's' : ''}
+                  </Badge>
                 )}
               </div>
 
@@ -396,6 +493,15 @@ export function TaskRow({
             </PopoverContent>
           </Popover>
         </td>
+
+        {/* Project Column */}
+        {showProjectColumn && (
+          <td className="p-1 text-sm text-muted-foreground truncate">
+            <div className="px-1 py-0.5 truncate">
+              {projectName || 'No Project'}
+            </div>
+          </td>
+        )}
       </tr>
 
       {/* Subtasks (if expanded) */}
@@ -421,6 +527,9 @@ export function TaskRow({
               isSelected={isSelected}
               taskWasExpanded={taskWasExpanded}
               onSetTaskWasExpanded={onSetTaskWasExpanded}
+              showProjectColumn={showProjectColumn}
+              projectName={projectName}
+              flatMode={flatMode}
             />
           ))}
           
@@ -446,6 +555,7 @@ export function TaskRow({
               <td className="border-r"></td>
               <td className="border-r"></td>
               <td></td>
+              {showProjectColumn && <td></td>}
             </tr>
           )}
         </>

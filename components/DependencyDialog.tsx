@@ -41,7 +41,8 @@ export function DependencyDialog({
   const [selectedTaskId, setSelectedTaskId] = useState<UUID | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const projectTasks = getTasksByProjectId(task.projectId);
+  // Get tasks from the same project, or all tasks if task has no project
+  const projectTasks = task.projectId ? getTasksByProjectId(task.projectId) : tasks.filter(t => !t.projectId);
   
   // Filter out the current task and already connected tasks
   const existingBlockingIds = dependencies
