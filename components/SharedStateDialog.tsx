@@ -106,7 +106,7 @@ export function SharedStateDialog({
                 <strong>Merge:</strong> Keep your current data and add the shared data.
               </p>
               <p>
-                <strong>Cancel:</strong> Don't load the shared data.
+                <strong>Cancel:</strong> Don&apos;t load the shared data.
               </p>
             </div>
           )}

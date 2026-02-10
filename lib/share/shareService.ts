@@ -1,5 +1,6 @@
 import { AppState } from '@/types';
 import { LocalStorageAdapter } from '@/lib/storage';
+import { TimeManagementSystem } from '@/types';
 
 // LZMA global object interface (when loading lzma_worker.js directly)
 interface LZMAGlobal {
@@ -416,7 +417,7 @@ export class ShareService {
           sections: [],
           dependencies: [],
           tmsState: {
-            activeSystem: 'none' as const,
+            activeSystem: TimeManagementSystem.NONE,
             dit: {
               todayTasks: [],
               tomorrowTasks: [],
@@ -434,7 +435,7 @@ export class ShareService {
           },
           settings: {
             activeProjectId: null,
-            timeManagementSystem: 'none' as const,
+            timeManagementSystem: TimeManagementSystem.NONE,
             showOnlyActionableTasks: false,
             theme: 'system' as const
           },

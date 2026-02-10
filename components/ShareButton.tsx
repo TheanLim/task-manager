@@ -16,6 +16,7 @@ import { ShareService } from '@/lib/share/shareService';
 import { useDataStore } from '@/stores/dataStore';
 import { useAppStore } from '@/stores/appStore';
 import { useTMSStore } from '@/stores/tmsStore';
+import { TMSState, Task } from '@/types';
 
 export interface ShareButtonProps {
   projectId?: string;
@@ -48,8 +49,8 @@ export function ShareButton({
     onShowToast?.(message, type);
   };
   
-  const filterTMSForProject = (tmsState: any, projectTasks: any[]) => {
-    const taskIds = new Set(projectTasks.map((t: any) => t.id));
+  const filterTMSForProject = (tmsState: TMSState, projectTasks: Task[]) => {
+    const taskIds = new Set(projectTasks.map((t: Task) => t.id));
     
     return {
       activeSystem: tmsState.activeSystem,
