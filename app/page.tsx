@@ -545,7 +545,7 @@ function HomeContent() {
           {activeProject ? (
             <>
               {/* Sticky Header: Project Name and Share Button */}
-              <div className="flex-shrink-0 mb-4 flex items-center justify-between gap-4">
+              <div className="flex-shrink-0 mb-4 flex items-center gap-4">
                 <InlineEditable
                   value={activeProject.name}
                   onSave={(newName) => updateProject(activeProject.id, { name: newName })}
@@ -554,12 +554,14 @@ function HomeContent() {
                   displayClassName="text-2xl font-bold"
                   className="text-2xl font-bold"
                 />
-                <ShareButton 
-                  variant="button"
-                  projectId={activeProject.id}
-                  projectName={activeProject.name}
-                  onShowToast={(message, type) => setLoadingToast({ message, type })}
-                />
+                <div className="ml-auto">
+                  <ShareButton 
+                    variant="button"
+                    projectId={activeProject.id}
+                    projectName={activeProject.name}
+                    onShowToast={(message, type) => setLoadingToast({ message, type })}
+                  />
+                </div>
               </div>
 
               {/* Scrollable Content Area */}

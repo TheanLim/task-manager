@@ -27,7 +27,7 @@ export function InlineEditable({
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(value);
   const [error, setError] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const editRef = useRef<HTMLSpanElement>(null);
 
   // Update editValue when value prop changes
   useEffect(() => {
@@ -36,14 +36,19 @@ export function InlineEditable({
 
   // Focus and select text when entering edit mode
   useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
+    if (isEditing && editRef.current) {
+      editRef.current.focus();
+      // Select all text
+      const range = document.createRange();
+      range.selectNodeContents(editRef.current);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
     }
   }, [isEditing]);
 
   const handleSave = () => {
-    const trimmedValue = editValue.trim();
+    const trimmedValue = (editRef.current?.textContent || '').trim();
 
     // Validate
     if (validate) {
@@ -85,28 +90,27 @@ export function InlineEditable({
 
   if (isEditing) {
     return (
-      <div className={className}>
-        <input
-          ref={inputRef}
-          type="text"
-          value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
+      <span className={`inline-flex flex-col ${className}`}>
+        <span
+          ref={editRef}
+          contentEditable
+          suppressContentEditableWarning
           onBlur={handleSave}
           onKeyDown={handleKeyDown}
-          placeholder={placeholder}
           className={`
-            w-full max-w-full rounded-md border px-2 py-1
-            bg-background text-foreground
+            inline-block min-w-[50px] rounded border px-1 -mx-1 outline-none
+            bg-background text-foreground whitespace-nowrap
             border-gray-400 dark:border-gray-500
-            focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring
-            placeholder:text-muted-foreground
-            transition-colors
-            ${error ? 'border-destructive focus:ring-destructive focus:border-destructive' : ''}
+            ${error ? 'border-destructive' : ''}
+            ${displayClassName}
             ${inputClassName}
           `}
+          role="textbox"
           aria-invalid={error ? 'true' : 'false'}
           aria-describedby={error ? 'inline-edit-error' : undefined}
-        />
+        >
+          {editValue}
+        </span>
         {error && (
           <span
             id="inline-edit-error"
@@ -116,7 +120,7 @@ export function InlineEditable({
             {error}
           </span>
         )}
-      </div>
+      </span>
     );
   }
 
@@ -125,7 +129,6 @@ export function InlineEditable({
       onClick={() => setIsEditing(true)}
       className={`
         ${value ? 'inline-flex' : 'flex'} items-center cursor-text rounded px-1 -mx-1
-        max-w-full truncate
         transition-all duration-150
         hover:bg-accent/50 hover:text-accent-foreground hover:border hover:border-gray-400 dark:hover:border-gray-500
         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2

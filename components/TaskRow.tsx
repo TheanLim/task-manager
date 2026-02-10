@@ -182,17 +182,15 @@ export function TaskRow({
               </button>
 
               {/* Task Name */}
-              <div className="flex-1 min-w-0 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+              <div className="flex-1 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                 <InlineEditable
                   value={task.description}
                   onSave={(newDescription) => updateTask(task.id, { description: newDescription })}
                   validate={validateTaskDescription}
                   placeholder="Task description"
                   displayClassName={cn(
-                    "truncate",
                     task.completed && "line-through text-muted-foreground"
                   )}
-                  inputClassName="w-full"
                 />
                 
                 {/* Subtask count button */}
