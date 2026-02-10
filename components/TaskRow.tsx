@@ -44,6 +44,7 @@ interface TaskRowProps {
   onSetTaskWasExpanded?: (wasExpanded: boolean) => void;
   showProjectColumn?: boolean; // NEW - show project column
   projectName?: string; // NEW - project name to display
+  onProjectClick?: (projectId: string) => void; // NEW - handler for project click
   flatMode?: boolean; // NEW - flat display mode
 }
 
@@ -71,6 +72,7 @@ export function TaskRow({
   onSetTaskWasExpanded,
   showProjectColumn = false,
   projectName,
+  onProjectClick,
   flatMode = false
 }: TaskRowProps) {
   const [subtasksExpanded, setSubtasksExpanded] = useState(false);
@@ -431,7 +433,7 @@ export function TaskRow({
 
         {/* Tags Column */}
         <td 
-          className="p-1 cursor-pointer"
+          className="p-1 border-r cursor-pointer"
           onClick={(e) => e.stopPropagation()}
         >
           <Popover open={isEditingTags} onOpenChange={setIsEditingTags}>
@@ -496,8 +498,19 @@ export function TaskRow({
 
         {/* Project Column */}
         {showProjectColumn && (
-          <td className="p-1 text-sm text-muted-foreground truncate">
-            <div className="px-1 py-0.5 truncate">
+          <td 
+            className="p-1 text-sm text-muted-foreground truncate cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (task.projectId && onProjectClick) {
+                onProjectClick(task.projectId);
+              }
+            }}
+          >
+            <div className={cn(
+              "px-1 py-0.5 truncate rounded",
+              task.projectId && "hover:bg-accent hover:text-foreground transition-colors"
+            )}>
               {projectName || 'No Project'}
             </div>
           </td>
@@ -529,6 +542,7 @@ export function TaskRow({
               onSetTaskWasExpanded={onSetTaskWasExpanded}
               showProjectColumn={showProjectColumn}
               projectName={projectName}
+              onProjectClick={onProjectClick}
               flatMode={flatMode}
             />
           ))}
@@ -554,7 +568,7 @@ export function TaskRow({
               <td className="border-r"></td>
               <td className="border-r"></td>
               <td className="border-r"></td>
-              <td></td>
+              <td className="border-r"></td>
               {showProjectColumn && <td></td>}
             </tr>
           )}

@@ -5,7 +5,7 @@ import { TaskList } from '@/components/TaskList';
 import { useDataStore } from '@/stores/dataStore';
 import { useAppStore } from '@/stores/appStore';
 import { Circle } from 'lucide-react';
-import { Task } from '@/types';
+import { Task, Section } from '@/types';
 
 interface GlobalTasksViewProps {
   onTaskClick: (taskId: string) => void;
@@ -15,6 +15,7 @@ interface GlobalTasksViewProps {
   onSubtaskButtonClick?: (taskId: string) => void;
   onAddSubtask?: (parentTaskId: string) => void;
   selectedTaskId?: string | null;
+  onProjectClick?: (projectId: string) => void;
 }
 
 // Extended task type with flat mode metadata
@@ -25,10 +26,13 @@ export interface TaskWithMetadata extends Task {
   _flatModeSubtaskCount?: number;
 }
 
+// Virtual section ID for tasks from projects
+const FROM_PROJECTS_SECTION_ID = '__from_projects__';
+
 /**
  * Global Tasks View component - displays all tasks from all projects
- * Reuses existing TaskList component with project column enabled
- * Supports nested (default) and flat display modes
+ * Groups project tasks into "From Projects" section
+ * Unlinked tasks can have their own sections
  */
 export function GlobalTasksView({
   onTaskClick,
@@ -37,21 +41,54 @@ export function GlobalTasksView({
   onViewSubtasks,
   onSubtaskButtonClick,
   onAddSubtask,
-  selectedTaskId
+  selectedTaskId,
+  onProjectClick
 }: GlobalTasksViewProps) {
   const { tasks, sections } = useDataStore();
   const { globalTasksDisplayMode } = useAppStore();
 
-  // Process tasks based on display mode
-  const displayTasks = useMemo(() => {
+  // Separate tasks: those with projects vs unlinked tasks
+  const { projectTasks, unlinkedTasks, unlinkedSections } = useMemo(() => {
+    const projectTasks = tasks.filter(t => t.projectId !== null);
+    const unlinkedTasks = tasks.filter(t => t.projectId === null);
+    const unlinkedSections = sections.filter(s => {
+      // A section belongs to unlinked tasks if any unlinked task uses it
+      return unlinkedTasks.some(t => t.sectionId === s.id);
+    });
+    
+    return { projectTasks, unlinkedTasks, unlinkedSections };
+  }, [tasks, sections]);
+
+  // Create virtual "From Projects" section
+  const virtualFromProjectsSection: Section = useMemo(() => ({
+    id: FROM_PROJECTS_SECTION_ID,
+    projectId: FROM_PROJECTS_SECTION_ID,
+    name: 'From Projects',
+    order: -1, // Show first
+    collapsed: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  }), []);
+
+  // Process tasks and sections based on display mode
+  const { displayTasks, displaySections } = useMemo(() => {
+    // Assign all project tasks to the virtual "From Projects" section
+    const tasksWithVirtualSection = projectTasks.map(task => ({
+      ...task,
+      sectionId: FROM_PROJECTS_SECTION_ID
+    }));
+    
+    // Combine with unlinked tasks (keep their original sections)
+    const allTasks = [...tasksWithVirtualSection, ...unlinkedTasks];
+    
+    // Create sections list: virtual section + unlinked sections
+    const allSections = [virtualFromProjectsSection, ...unlinkedSections];
+
     if (globalTasksDisplayMode === 'flat') {
-      // Flat mode: Flatten parent-child relationships but keep section grouping
-      // Within each section, show parent followed immediately by its subtasks
-      
+      // Flat mode: Flatten parent-child relationships
       const subtasksByParent = new Map<string, Task[]>();
       
-      // Group subtasks by their parent
-      tasks.forEach(task => {
+      allTasks.forEach(task => {
         if (task.parentTaskId) {
           if (!subtasksByParent.has(task.parentTaskId)) {
             subtasksByParent.set(task.parentTaskId, []);
@@ -60,40 +97,32 @@ export function GlobalTasksView({
         }
       });
       
-      // Sort subtasks by their order
       subtasksByParent.forEach((subtasks) => {
         subtasks.sort((a, b) => a.order - b.order);
       });
       
-      // Build final ordered list, section by section
       const orderedTasks: TaskWithMetadata[] = [];
       
-      // Process each section in order
-      const sortedSections = [...sections].sort((a, b) => a.order - b.order);
-      
-      sortedSections.forEach(section => {
-        // Get parent tasks in this section, sorted by order
-        const sectionParents = tasks
+      allSections.forEach(section => {
+        const sectionParents = allTasks
           .filter(t => t.sectionId === section.id && !t.parentTaskId)
           .sort((a, b) => a.order - b.order);
         
-        // For each parent, add it followed by its subtasks
         sectionParents.forEach(parentTask => {
           const subtasks = subtasksByParent.get(parentTask.id) || [];
           
-          // Add parent task with metadata
           orderedTasks.push({
             ...parentTask,
-            parentTaskId: null, // Clear parent to prevent nesting in UI
+            parentTaskId: null,
             _flatModeHasSubtasks: subtasks.length > 0,
             _flatModeSubtaskCount: subtasks.length
           });
           
-          // Add its subtasks immediately after the parent
           subtasks.forEach(subtask => {
             orderedTasks.push({
               ...subtask,
-              parentTaskId: null, // Clear parent to prevent nesting in UI
+              parentTaskId: null,
+              sectionId: parentTask.sectionId,
               _flatModeParentName: parentTask.description,
               _flatModeParentId: parentTask.id
             });
@@ -101,37 +130,12 @@ export function GlobalTasksView({
         });
       });
       
-      // Add unsectioned parent tasks and their subtasks
-      const unsectionedParents = tasks
-        .filter(t => !t.sectionId && !t.parentTaskId)
-        .sort((a, b) => a.order - b.order);
-      
-      unsectionedParents.forEach(parentTask => {
-        const subtasks = subtasksByParent.get(parentTask.id) || [];
-        
-        orderedTasks.push({
-          ...parentTask,
-          parentTaskId: null,
-          _flatModeHasSubtasks: subtasks.length > 0,
-          _flatModeSubtaskCount: subtasks.length
-        });
-        
-        subtasks.forEach(subtask => {
-          orderedTasks.push({
-            ...subtask,
-            parentTaskId: null,
-            _flatModeParentName: parentTask.description,
-            _flatModeParentId: parentTask.id
-          });
-        });
-      });
-      
-      return orderedTasks;
+      return { displayTasks: orderedTasks, displaySections: allSections };
     }
     
     // Nested mode: Show tasks with their natural hierarchy
-    return tasks;
-  }, [tasks, globalTasksDisplayMode, sections]);
+    return { displayTasks: allTasks, displaySections: allSections };
+  }, [projectTasks, unlinkedTasks, unlinkedSections, virtualFromProjectsSection, globalTasksDisplayMode]);
 
   // Empty state
   if (tasks.length === 0) {
@@ -147,15 +151,16 @@ export function GlobalTasksView({
   return (
     <TaskList
       tasks={displayTasks}
-      sections={sections}
+      sections={displaySections}
       onTaskClick={onTaskClick}
       onTaskComplete={onTaskComplete}
       onAddTask={onAddTask}
       onViewSubtasks={onViewSubtasks}
       onSubtaskButtonClick={onSubtaskButtonClick}
-      onAddSubtask={globalTasksDisplayMode === 'nested' ? onAddSubtask : undefined} // Disable subtask creation in flat mode
+      onAddSubtask={globalTasksDisplayMode === 'nested' ? onAddSubtask : undefined}
       selectedTaskId={selectedTaskId}
       showProjectColumn={true}
+      onProjectClick={onProjectClick}
       flatMode={globalTasksDisplayMode === 'flat'}
     />
   );

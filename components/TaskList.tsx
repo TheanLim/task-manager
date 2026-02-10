@@ -35,6 +35,7 @@ interface TaskListProps {
   onAddSubtask?: (parentTaskId: string) => void;
   selectedTaskId?: string | null;
   showProjectColumn?: boolean; // NEW - show project column in global view
+  onProjectClick?: (projectId: string) => void; // NEW - handler for project click
   flatMode?: boolean; // NEW - flat display mode (no hierarchy)
 }
 
@@ -51,7 +52,7 @@ interface ColumnWidths {
  * List view component for displaying tasks grouped by collapsible sections
  * with table-like task rows
  */
-export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTask, onViewSubtasks, onSubtaskButtonClick, onAddSubtask, selectedTaskId, showProjectColumn = false, flatMode = false }: TaskListProps) {
+export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTask, onViewSubtasks, onSubtaskButtonClick, onAddSubtask, selectedTaskId, showProjectColumn = false, onProjectClick, flatMode = false }: TaskListProps) {
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverTaskId, setDragOverTaskId] = useState<string | null>(null);
   const [draggedSectionId, setDraggedSectionId] = useState<string | null>(null);
@@ -567,7 +568,7 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                   }}
                 />
               </th>
-              <th className="p-2 text-left text-sm font-medium relative bg-muted/50">
+              <th className="p-2 text-left text-sm font-medium border-r relative bg-muted/50">
                 Tags
                 <div
                   className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/50 active:bg-primary"
@@ -713,6 +714,7 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                       onSetTaskWasExpanded={setTaskWasExpanded}
                       showProjectColumn={showProjectColumn}
                       projectName={showProjectColumn ? getProjectName(task) : undefined}
+                      onProjectClick={onProjectClick}
                       flatMode={flatMode}
                     />
                   ))}
@@ -809,6 +811,7 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                     onSetTaskWasExpanded={setTaskWasExpanded}
                     showProjectColumn={showProjectColumn}
                     projectName={showProjectColumn ? getProjectName(task) : undefined}
+                    onProjectClick={onProjectClick}
                     flatMode={flatMode}
                   />
                 ))}

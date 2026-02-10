@@ -585,6 +585,7 @@ function HomeContent() {
                   onSubtaskButtonClick={handleSubtaskButtonClick}
                   onAddSubtask={(parentTaskId) => handleNewTask(undefined, parentTaskId)}
                   selectedTaskId={selectedTaskId}
+                  onProjectClick={(projectId) => router.push(`/?project=${projectId}&tab=list`)}
                 />
               </div>
             </>
