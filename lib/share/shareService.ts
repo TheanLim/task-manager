@@ -113,7 +113,9 @@ export class ShareService {
       }
 
       const script = document.createElement('script');
-      script.src = '/lzma_worker.js';
+      // Use relative path that works with basePath
+      const basePath = document.querySelector('base')?.getAttribute('href') || '';
+      script.src = `${basePath}lzma_worker.js`.replace('//', '/');
       script.async = true;
       
       script.onload = () => {
