@@ -19,8 +19,11 @@ import {
 import { Download, Upload, FileJson } from 'lucide-react';
 import { LocalStorageAdapter } from '@/lib/storage';
 import { useDataStore } from '@/stores/dataStore';
+import { useAppStore } from '@/stores/appStore';
+import { useTMSStore } from '@/stores/tmsStore';
 import { Toast } from '@/components/ui/toast';
 import { Project, Task, Section, TaskDependency, AppState } from '@/types';
+import { ShareButton } from '@/components/ShareButton';
 
 export function ImportExportMenu() {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -37,16 +40,30 @@ export function ImportExportMenu() {
     sections: Section[];
     dependencies: TaskDependency[];
   } | null>(null);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const dataStore = useDataStore();
+  const appStore = useAppStore();
+  const tmsStore = useTMSStore();
 
   const storage = new LocalStorageAdapter();
 
   const handleExport = () => {
     try {
-      const json = storage.exportToJSON();
+      // Get current state directly from Zustand stores (in-memory state)
+      const state = {
+        projects: dataStore.projects,
+        tasks: dataStore.tasks,
+        sections: dataStore.sections,
+        dependencies: dataStore.dependencies,
+        tmsState: tmsStore.state,
+        settings: appStore.settings,
+        version: '1.0.0',
+        exportedAt: new Date().toISOString()
+      };
+      
+      const json = JSON.stringify(state, null, 2);
       const blob = new Blob([json], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -121,25 +138,72 @@ export function ImportExportMenu() {
         setToast({ message: 'Data imported successfully! Reloading...', type: 'success' });
         setTimeout(() => window.location.reload(), 1000);
       } else {
-        // Merge data - add items directly without creating default sections
-        // We need to manually merge the arrays to avoid duplicate sections
+        // Merge data - filter out duplicates by ID
         const currentProjects = dataStore.projects;
         const currentTasks = dataStore.tasks;
         const currentSections = dataStore.sections;
         const currentDependencies = dataStore.dependencies;
         
+        // Deduplicate existing data first
+        const uniqueProjects = Array.from(new Map(currentProjects.map(p => [p.id, p])).values());
+        const uniqueTasks = Array.from(new Map(currentTasks.map(t => [t.id, t])).values());
+        const uniqueSections = Array.from(new Map(currentSections.map(s => [s.id, s])).values());
+        const uniqueDependencies = Array.from(new Map(currentDependencies.map(d => [d.id, d])).values());
+        
+        // Filter out duplicates from imported data
+        const existingProjectIds = new Set(uniqueProjects.map(p => p.id));
+        const existingTaskIds = new Set(uniqueTasks.map(t => t.id));
+        const existingSectionIds = new Set(uniqueSections.map(s => s.id));
+        const existingDependencyIds = new Set(uniqueDependencies.map(d => d.id));
+        
+        const newProjects = importData.projects.filter(p => !existingProjectIds.has(p.id));
+        const newTasks = importData.tasks.filter(t => !existingTaskIds.has(t.id));
+        const newSections = importData.sections.filter(s => !existingSectionIds.has(s.id));
+        const newDependencies = importData.dependencies.filter(d => !existingDependencyIds.has(d.id));
+        
         // Use Zustand's internal setState to merge data
         useDataStore.setState({
-          projects: [...currentProjects, ...importData.projects],
-          tasks: [...currentTasks, ...importData.tasks],
-          sections: [...currentSections, ...importData.sections],
-          dependencies: [...currentDependencies, ...importData.dependencies]
+          projects: [...uniqueProjects, ...newProjects],
+          tasks: [...uniqueTasks, ...newTasks],
+          sections: [...uniqueSections, ...newSections],
+          dependencies: [...uniqueDependencies, ...newDependencies]
         });
+        
+        const addedCount = newProjects.length + newTasks.length + newSections.length + newDependencies.length;
+        const skippedCount = 
+          (importData.projects.length - newProjects.length) +
+          (importData.tasks.length - newTasks.length) +
+          (importData.sections.length - newSections.length) +
+          (importData.dependencies.length - newDependencies.length);
+        
+        const cleanedCount = 
+          (currentProjects.length - uniqueProjects.length) +
+          (currentTasks.length - uniqueTasks.length) +
+          (currentSections.length - uniqueSections.length) +
+          (currentDependencies.length - uniqueDependencies.length);
         
         setImportDialogOpen(false);
         setImportPreview(null);
         setImportData(null);
-        setToast({ message: 'Data merged successfully!', type: 'success' });
+        
+        if (cleanedCount > 0 && skippedCount > 0) {
+          setToast({ 
+            message: `Merged ${addedCount} items (${skippedCount} duplicates skipped, ${cleanedCount} existing duplicates cleaned)`, 
+            type: 'info' 
+          });
+        } else if (cleanedCount > 0) {
+          setToast({ 
+            message: `Merged ${addedCount} items (${cleanedCount} existing duplicates cleaned)`, 
+            type: 'info' 
+          });
+        } else if (skippedCount > 0) {
+          setToast({ 
+            message: `Merged ${addedCount} items (${skippedCount} duplicates skipped)`, 
+            type: 'info' 
+          });
+        } else {
+          setToast({ message: 'Data merged successfully!', type: 'success' });
+        }
       }
     } catch (error) {
       console.error('Import failed:', error);
@@ -165,6 +229,9 @@ export function ImportExportMenu() {
             <Upload className="mr-2 h-4 w-4" />
             Import Data
           </DropdownMenuItem>
+          <ShareButton 
+            onShowToast={(message, type) => setToast({ message, type })}
+          />
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -236,6 +303,7 @@ export function ImportExportMenu() {
         <Toast
           message={toast.message}
           type={toast.type}
+          duration={5000}
           onClose={() => setToast(null)}
         />
       )}
