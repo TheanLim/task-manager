@@ -13,6 +13,9 @@ vi.mock('next/navigation', () => ({
     back: vi.fn(),
     forward: vi.fn(),
     refresh: vi.fn()
+  }),
+  useSearchParams: () => ({
+    get: vi.fn(() => null)
   })
 }));
 
@@ -72,7 +75,8 @@ describe('ProjectList', () => {
 
     expect(screen.getByText('Test Project 1')).toBeInTheDocument();
     expect(screen.getByText('Test Project 2')).toBeInTheDocument();
-    expect(screen.getByText('First test project')).toBeInTheDocument();
+    expect(screen.getByText('All Tasks')).toBeInTheDocument(); // New Tasks section
+    expect(screen.getByText('Projects')).toBeInTheDocument(); // Projects header
   });
 
   it('should call onProjectSelect when project is clicked', () => {
@@ -90,7 +94,7 @@ describe('ProjectList', () => {
 
     fireEvent.click(screen.getByText('Test Project 1'));
     expect(onProjectSelect).toHaveBeenCalledWith('project-1');
-    expect(mockPush).toHaveBeenCalledWith('/?project=project-1');
+    expect(mockPush).toHaveBeenCalledWith('/?project=project-1&tab=list');
   });
 
   it('should call onNewProject when create button is clicked', () => {
