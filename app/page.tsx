@@ -529,7 +529,7 @@ function HomeContent() {
 
         {/* Main content */}
         <div 
-          className="flex-1 min-w-0"
+          className="flex-1 min-w-0 flex flex-col h-full overflow-hidden"
           onClick={(e) => {
             // Close task detail panel when clicking in main content area
             // but not when clicking on interactive elements (buttons, cards, etc.)
@@ -544,8 +544,8 @@ function HomeContent() {
         >
           {activeProject ? (
             <>
-              {/* Project Name and Share Button */}
-              <div className="mb-4 flex items-center justify-between gap-4">
+              {/* Sticky Header: Project Name and Share Button */}
+              <div className="flex-shrink-0 mb-4 flex items-center justify-between gap-4">
                 <InlineEditable
                   value={activeProject.name}
                   onSave={(newName) => updateProject(activeProject.id, { name: newName })}
@@ -562,7 +562,8 @@ function HomeContent() {
                 />
               </div>
 
-              {settings.timeManagementSystem === TimeManagementSystem.DIT && (
+              {/* Scrollable Content Area */}
+              <div className="flex-1 overflow-auto">{settings.timeManagementSystem === TimeManagementSystem.DIT && (
                 <DITView
                   tasks={filteredTasks}
                   onTaskClick={handleTaskClick}
@@ -636,6 +637,7 @@ function HomeContent() {
                   }}
                 </ProjectTabs>
               )}
+              </div>
             </>
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-center">
