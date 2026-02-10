@@ -450,7 +450,9 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
   }, {} as Record<string, Task[]>);
 
   // Tasks without section
-  const unsectionedTasks = tasks.filter(t => !t.sectionId && !t.parentTaskId);
+  const unsectionedTasks = flatMode
+    ? tasks.filter(t => !t.sectionId) // In flat mode, show all unsectioned tasks (including flattened subtasks)
+    : tasks.filter(t => !t.sectionId && !t.parentTaskId); // In nested mode, only top-level unsectioned tasks
 
   if (tasks.length === 0 && sections.length === 0) {
     return (

@@ -103,6 +103,7 @@ export function GlobalTasksView({
       
       const orderedTasks: TaskWithMetadata[] = [];
       
+      // Process sectioned tasks
       allSections.forEach(section => {
         const sectionParents = allTasks
           .filter(t => t.sectionId === section.id && !t.parentTaskId)
@@ -126,6 +127,32 @@ export function GlobalTasksView({
               _flatModeParentName: parentTask.description,
               _flatModeParentId: parentTask.id
             });
+          });
+        });
+      });
+      
+      // Process unsectioned tasks
+      const unsectionedParents = allTasks
+        .filter(t => !t.sectionId && !t.parentTaskId)
+        .sort((a, b) => a.order - b.order);
+      
+      unsectionedParents.forEach(parentTask => {
+        const subtasks = subtasksByParent.get(parentTask.id) || [];
+        
+        orderedTasks.push({
+          ...parentTask,
+          parentTaskId: null,
+          _flatModeHasSubtasks: subtasks.length > 0,
+          _flatModeSubtaskCount: subtasks.length
+        });
+        
+        subtasks.forEach(subtask => {
+          orderedTasks.push({
+            ...subtask,
+            parentTaskId: null,
+            sectionId: null, // Keep as unsectioned
+            _flatModeParentName: parentTask.description,
+            _flatModeParentId: parentTask.id
           });
         });
       });
