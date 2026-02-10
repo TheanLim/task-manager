@@ -98,7 +98,7 @@ export function InlineEditable({
           onBlur={handleSave}
           onKeyDown={handleKeyDown}
           className={`
-            inline-block min-w-[50px] rounded border px-1 -mx-1 outline-none
+            inline-block min-w-[50px] rounded border px-1 outline-none
             bg-background text-foreground whitespace-nowrap
             border-gray-400 dark:border-gray-500
             ${error ? 'border-destructive' : ''}
@@ -128,7 +128,7 @@ export function InlineEditable({
     <span
       onClick={() => setIsEditing(true)}
       className={`
-        ${value ? 'inline-flex' : 'flex'} items-center cursor-text rounded px-1 -mx-1
+        ${value ? 'inline-flex' : 'flex'} items-center cursor-text rounded px-1
         transition-all duration-150
         hover:bg-accent/50 hover:text-accent-foreground hover:border hover:border-gray-400 dark:hover:border-gray-500
         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2
