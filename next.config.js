@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const isProd = process.env.NODE_ENV === 'production';
-const basePath = isProd ? '/digital-date-night' : '';
+const basePath = isProd ? '/task-manager' : '';
 
 const nextConfig = {
   output: 'export',
