@@ -44,17 +44,25 @@ export function GlobalTasksView({
   selectedTaskId,
   onProjectClick
 }: GlobalTasksViewProps) {
-  const { tasks, sections } = useDataStore();
+  const { tasks, sections, projects } = useDataStore();
   const { globalTasksDisplayMode } = useAppStore();
 
   // Separate tasks: those with projects vs unlinked tasks
+  // Project tasks are sorted by project name so they group by project on initial render
   const { projectTasks, unlinkedTasks, unlinkedSections } = useMemo(() => {
-    const projectTasks = tasks.filter(t => t.projectId !== null);
+    const projectNameMap = new Map(projects.map(p => [p.id, p.name]));
+    const projectTasks = tasks
+      .filter(t => t.projectId !== null)
+      .sort((a, b) => {
+        const nameA = projectNameMap.get(a.projectId!) || '';
+        const nameB = projectNameMap.get(b.projectId!) || '';
+        return nameA.localeCompare(nameB);
+      });
     const unlinkedTasks = tasks.filter(t => t.projectId === null);
     const unlinkedSections = sections.filter(s => s.projectId === null);
     
     return { projectTasks, unlinkedTasks, unlinkedSections };
-  }, [tasks, sections]);
+  }, [tasks, sections, projects]);
 
   // Create virtual "From Projects" section
   const virtualFromProjectsSection: Section = useMemo(() => ({
@@ -186,6 +194,7 @@ export function GlobalTasksView({
       showProjectColumn={true}
       onProjectClick={onProjectClick}
       flatMode={globalTasksDisplayMode === 'flat'}
+      initialSortByProject={true}
     />
   );
 }

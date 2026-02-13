@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Circle, ChevronRight, ChevronDown, MoreVertical, Plus, GripVertical } from 'lucide-react';
+import { Circle, ChevronRight, ChevronDown, MoreVertical, Plus, GripVertical, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -20,6 +20,7 @@ import { InlineEditable } from '@/components/InlineEditable';
 import { validateSectionName } from '@/lib/validation';
 import { useDataStore } from '@/stores/dataStore';
 import { useAppStore, TaskColumnId, DEFAULT_COLUMN_ORDER } from '@/stores/appStore';
+import { Priority } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 import { Input } from '@/components/ui/input';
 import { TaskRow } from '@/components/TaskRow';
@@ -38,6 +39,7 @@ interface TaskListProps {
   showProjectColumn?: boolean;
   onProjectClick?: (projectId: string) => void;
   flatMode?: boolean;
+  initialSortByProject?: boolean;
 }
 
 interface ColumnWidths {
@@ -62,21 +64,22 @@ const COLUMN_LABELS: Record<TaskColumnId, string> = {
  * List view component for displaying tasks grouped by collapsible sections
  * with table-like task rows and draggable column headers
  */
-export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTask, onViewSubtasks, onSubtaskButtonClick, onAddSubtask, selectedTaskId, showProjectColumn = false, onProjectClick, flatMode = false }: TaskListProps) {
+export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTask, onViewSubtasks, onSubtaskButtonClick, onAddSubtask, selectedTaskId, showProjectColumn = false, onProjectClick, flatMode = false, initialSortByProject = false }: TaskListProps) {
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverTaskId, setDragOverTaskId] = useState<string | null>(null);
   const [draggedSectionId, setDraggedSectionId] = useState<string | null>(null);
   const [dragOverSectionId, setDragOverSectionId] = useState<string | null>(null);
   const [sectionWasExpanded, setSectionWasExpanded] = useState<boolean>(false);
   const [taskWasExpanded, setTaskWasExpanded] = useState<boolean>(false);
+  const [userHasReordered, setUserHasReordered] = useState<boolean>(false);
   const [isAddingSection, setIsAddingSection] = useState(false);
   const [newSectionName, setNewSectionName] = useState('');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [sectionToDelete, setSectionToDelete] = useState<string | null>(null);
   const { updateTask, updateSection, deleteSection, addSection, projects } = useDataStore();
 
-  // Column order from persisted store
-  const { columnOrder, setColumnOrder } = useAppStore();
+  // Column order and sort state from persisted store
+  const { columnOrder, setColumnOrder, sortColumn, sortDirection, toggleSort } = useAppStore();
 
   // Column drag state — use refs to avoid stale closures during drag events
   const [draggedColumnId, setDraggedColumnId] = useState<TaskColumnId | null>(null);
@@ -347,6 +350,7 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
       reorderedTasks.forEach((task, index) => { updateTask(task.id, { order: index }); });
     }
 
+    setUserHasReordered(true);
     setDraggedTaskId(null);
   };
 
@@ -354,6 +358,7 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
     e.preventDefault();
     if (draggedTaskId) {
       updateTask(draggedTaskId, { sectionId });
+      setUserHasReordered(true);
       setDraggedTaskId(null);
     }
   };
@@ -429,22 +434,98 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
     setSectionWasExpanded(false);
   };
 
+  // Priority sort weights: higher priority = lower number (sorts first in ascending)
+  const PRIORITY_WEIGHT: Record<string, number> = {
+    [Priority.HIGH]: 0,
+    [Priority.MEDIUM]: 1,
+    [Priority.LOW]: 2,
+    [Priority.NONE]: 3,
+  };
+
+  // Sort comparator for tasks based on active sort column
+  const sortTasks = (taskList: Task[]): Task[] => {
+    if (!sortColumn) return taskList;
+
+    const dir = sortDirection === 'asc' ? 1 : -1;
+
+    return [...taskList].sort((a, b) => {
+      let cmp = 0;
+      switch (sortColumn) {
+        case 'name':
+          cmp = a.description.localeCompare(b.description);
+          break;
+        case 'dueDate': {
+          // Null dates go to the end regardless of direction
+          if (!a.dueDate && !b.dueDate) cmp = 0;
+          else if (!a.dueDate) return 1;
+          else if (!b.dueDate) return -1;
+          else cmp = a.dueDate.localeCompare(b.dueDate);
+          break;
+        }
+        case 'priority':
+          cmp = (PRIORITY_WEIGHT[a.priority] ?? 3) - (PRIORITY_WEIGHT[b.priority] ?? 3);
+          break;
+        case 'assignee': {
+          // Empty assignee goes to the end regardless of direction
+          const aEmpty = !a.assignee.trim();
+          const bEmpty = !b.assignee.trim();
+          if (aEmpty && bEmpty) cmp = 0;
+          else if (aEmpty) return 1;
+          else if (bEmpty) return -1;
+          else cmp = a.assignee.localeCompare(b.assignee);
+          break;
+        }
+        case 'tags': {
+          // Sort by number of tags first, then alphabetically by joined tag string
+          cmp = a.tags.length - b.tags.length;
+          if (cmp === 0) {
+            cmp = [...a.tags].sort().join(',').localeCompare([...b.tags].sort().join(','));
+          }
+          break;
+        }
+        case 'project': {
+          const nameA = getProjectName(a);
+          const nameB = getProjectName(b);
+          // "No Project" goes to the end regardless of direction
+          const aNoProject = nameA === 'No Project';
+          const bNoProject = nameB === 'No Project';
+          if (aNoProject && bNoProject) cmp = 0;
+          else if (aNoProject) return 1;
+          else if (bNoProject) return -1;
+          else cmp = nameA.localeCompare(nameB);
+          break;
+        }
+      }
+      return cmp * dir;
+    });
+  };
+
   // Group tasks by section
   const tasksBySection = sections.reduce((acc, section) => {
     if (flatMode) {
       const sectionTasks = tasks.filter(t => t.sectionId === section.id);
-      acc[section.id] = sectionTasks;
+      acc[section.id] = sortColumn ? sortTasks(sectionTasks) : sectionTasks;
     } else {
-      acc[section.id] = tasks
-        .filter(t => t.sectionId === section.id && !t.parentTaskId)
-        .sort((a, b) => a.order - b.order);
+      const sectionTasks = tasks
+        .filter(t => t.sectionId === section.id && !t.parentTaskId);
+      if (sortColumn) {
+        acc[section.id] = sortTasks(sectionTasks);
+      } else if (initialSortByProject && !userHasReordered) {
+        // Preserve the pre-sorted order from the parent (sorted by project name)
+        acc[section.id] = sectionTasks;
+      } else {
+        acc[section.id] = sectionTasks.sort((a, b) => a.order - b.order);
+      }
     }
     return acc;
   }, {} as Record<string, Task[]>);
 
-  const unsectionedTasks = flatMode
-    ? tasks.filter(t => !t.sectionId)
-    : tasks.filter(t => !t.sectionId && !t.parentTaskId);
+  const unsectionedTasks = (() => {
+    const raw = flatMode
+      ? tasks.filter(t => !t.sectionId)
+      : tasks.filter(t => !t.sectionId && !t.parentTaskId);
+    return sortColumn ? sortTasks(raw) : raw;
+  })();
 
   if (tasks.length === 0 && sections.length === 0) {
     return (
@@ -486,6 +567,16 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
   // Stable string key for column order - used to force TaskRow re-mount on reorder
   const columnOrderKey = visibleColumns.join(',');
 
+  // Render sort indicator icon for a column
+  const renderSortIcon = (colId: string) => {
+    if (sortColumn === colId) {
+      return sortDirection === 'asc'
+        ? <ArrowUp className="h-3 w-3 flex-shrink-0" />
+        : <ArrowDown className="h-3 w-3 flex-shrink-0" />;
+    }
+    return <ArrowUpDown className="h-3 w-3 flex-shrink-0 opacity-0 group-hover/th:opacity-50" />;
+  };
+
   return (
     <div className="flex flex-col h-full">
       <div className="overflow-x-auto flex-1">
@@ -501,8 +592,11 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
           <thead className="sticky top-0 z-20 bg-background border-b">
             <tr className="border-b">
               {/* Name column header - always first, not draggable */}
-              <th className="p-2 text-left text-sm font-medium border-r relative bg-muted sticky left-0 z-30">
-                Name
+              <th className="p-2 text-left text-sm font-medium border-r relative bg-muted sticky left-0 z-30 group/th">
+                <div className="flex items-center justify-between pr-2 cursor-pointer select-none" onClick={() => toggleSort('name')}>
+                  <span>Name</span>
+                  {renderSortIcon('name')}
+                </div>
                 {renderResizeHandle('name')}
               </th>
               {/* Draggable data column headers */}
@@ -510,7 +604,7 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                 <th
                   key={colId}
                   className={cn(
-                    "p-2 text-left text-sm font-medium relative bg-muted/50 select-none",
+                    "p-2 text-left text-sm font-medium relative bg-muted/50 select-none group/th",
                     idx < visibleColumns.length - 1 && "border-r",
                     draggedColumnId === colId && "opacity-50",
                     dragOverColumnId === colId && "ring-2 ring-primary ring-inset"
@@ -522,7 +616,10 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                   onDrop={(e) => handleColumnDrop(e, colId)}
                   onDragEnd={handleColumnDragEnd}
                 >
-                  <span className="cursor-grab active:cursor-grabbing">{COLUMN_LABELS[colId]}</span>
+                  <div className="flex items-center justify-between pr-2 cursor-pointer" onClick={() => toggleSort(colId)}>
+                    <span>{COLUMN_LABELS[colId]}</span>
+                    {renderSortIcon(colId)}
+                  </div>
                   {renderResizeHandle(colId as keyof ColumnWidths)}
                 </th>
               ))}

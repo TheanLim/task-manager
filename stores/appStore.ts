@@ -5,6 +5,11 @@ import { AppSettings, TimeManagementSystem, UUID } from '@/types';
 // Column identifiers for the task table (excluding 'name' which is always first)
 export type TaskColumnId = 'dueDate' | 'priority' | 'assignee' | 'tags' | 'project';
 
+// Sortable column identifiers (includes 'name')
+export type SortableColumnId = 'name' | TaskColumnId;
+
+export type SortDirection = 'asc' | 'desc';
+
 export const DEFAULT_COLUMN_ORDER: TaskColumnId[] = ['dueDate', 'priority', 'assignee', 'tags'];
 
 // App Store Interface
@@ -13,6 +18,8 @@ interface AppStore {
   projectTabs: Record<UUID, string>; // Map of projectId to active tab
   globalTasksDisplayMode: 'nested' | 'flat'; // Display mode for global tasks view
   columnOrder: TaskColumnId[]; // Persisted column order (excludes 'name' which is always first)
+  sortColumn: SortableColumnId | null; // Currently sorted column, null = default order
+  sortDirection: SortDirection; // Sort direction
   
   setActiveProject: (projectId: UUID | null) => void;
   setTimeManagementSystem: (system: TimeManagementSystem) => void;
@@ -22,6 +29,8 @@ interface AppStore {
   getProjectTab: (projectId: UUID) => string;
   setGlobalTasksDisplayMode: (mode: 'nested' | 'flat') => void;
   setColumnOrder: (order: TaskColumnId[]) => void;
+  toggleSort: (column: SortableColumnId) => void;
+  clearSort: () => void;
 }
 
 export const useAppStore = create<AppStore>()(
@@ -36,6 +45,8 @@ export const useAppStore = create<AppStore>()(
       projectTabs: {},
       globalTasksDisplayMode: 'nested',
       columnOrder: DEFAULT_COLUMN_ORDER,
+      sortColumn: null,
+      sortDirection: 'asc' as SortDirection,
       
       setActiveProject: (projectId) => set((state) => ({
         settings: { ...state.settings, activeProjectId: projectId }
@@ -63,7 +74,22 @@ export const useAppStore = create<AppStore>()(
       
       setGlobalTasksDisplayMode: (mode) => set({ globalTasksDisplayMode: mode }),
       
-      setColumnOrder: (order) => set({ columnOrder: order })
+      setColumnOrder: (order) => set({ columnOrder: order }),
+      
+      toggleSort: (column) => set((state) => {
+        if (state.sortColumn === column) {
+          // Same column: toggle direction, or clear if already desc
+          if (state.sortDirection === 'asc') {
+            return { sortDirection: 'desc' as SortDirection };
+          }
+          // Already desc, clear the sort
+          return { sortColumn: null, sortDirection: 'asc' as SortDirection };
+        }
+        // New column: set ascending
+        return { sortColumn: column, sortDirection: 'asc' as SortDirection };
+      }),
+      
+      clearSort: () => set({ sortColumn: null, sortDirection: 'asc' as SortDirection })
     }),
     {
       name: 'task-management-settings',
