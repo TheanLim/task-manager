@@ -15,10 +15,11 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Task, Section } from '@/types';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { InlineEditable } from '@/components/InlineEditable';
 import { validateSectionName } from '@/lib/validation';
 import { useDataStore } from '@/stores/dataStore';
+import { useAppStore, TaskColumnId, DEFAULT_COLUMN_ORDER } from '@/stores/appStore';
 import { v4 as uuidv4 } from 'uuid';
 import { Input } from '@/components/ui/input';
 import { TaskRow } from '@/components/TaskRow';
@@ -34,9 +35,9 @@ interface TaskListProps {
   onSubtaskButtonClick?: (taskId: string) => void;
   onAddSubtask?: (parentTaskId: string) => void;
   selectedTaskId?: string | null;
-  showProjectColumn?: boolean; // NEW - show project column in global view
-  onProjectClick?: (projectId: string) => void; // NEW - handler for project click
-  flatMode?: boolean; // NEW - flat display mode (no hierarchy)
+  showProjectColumn?: boolean;
+  onProjectClick?: (projectId: string) => void;
+  flatMode?: boolean;
 }
 
 interface ColumnWidths {
@@ -45,12 +46,21 @@ interface ColumnWidths {
   priority: number;
   assignee: number;
   tags: number;
-  project?: number; // NEW - project column width
+  project?: number;
 }
+
+// Column display metadata
+const COLUMN_LABELS: Record<TaskColumnId, string> = {
+  dueDate: 'Due date',
+  priority: 'Priority',
+  assignee: 'Assignee',
+  tags: 'Tags',
+  project: 'Project',
+};
 
 /**
  * List view component for displaying tasks grouped by collapsible sections
- * with table-like task rows
+ * with table-like task rows and draggable column headers
  */
 export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTask, onViewSubtasks, onSubtaskButtonClick, onAddSubtask, selectedTaskId, showProjectColumn = false, onProjectClick, flatMode = false }: TaskListProps) {
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
@@ -65,6 +75,30 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
   const [sectionToDelete, setSectionToDelete] = useState<string | null>(null);
   const { updateTask, updateSection, deleteSection, addSection, projects } = useDataStore();
 
+  // Column order from persisted store
+  const { columnOrder, setColumnOrder } = useAppStore();
+
+  // Column drag state — use refs to avoid stale closures during drag events
+  const [draggedColumnId, setDraggedColumnId] = useState<TaskColumnId | null>(null);
+  const [dragOverColumnId, setDragOverColumnId] = useState<TaskColumnId | null>(null);
+  const draggedColumnRef = useRef<TaskColumnId | null>(null);
+
+  // Compute the visible columns in order (always include 'project' at its stored position if showProjectColumn)
+  const visibleColumns: TaskColumnId[] = (() => {
+    // Start with stored order, ensure all default columns are present
+    const order = [...columnOrder];
+    // Add any missing default columns at the end
+    for (const col of DEFAULT_COLUMN_ORDER) {
+      if (!order.includes(col)) order.push(col);
+    }
+    // If project column should be shown and isn't in the order, add it at the end
+    if (showProjectColumn && !order.includes('project')) {
+      order.push('project');
+    }
+    // Filter out project if not showing, and filter out project from non-project views
+    return order.filter(col => col !== 'project' || showProjectColumn);
+  })();
+
   // Helper function to get project name for a task
   const getProjectName = (task: Task): string => {
     if (!task.projectId) return 'No Project';
@@ -74,29 +108,22 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
 
   // Calculate minimum column widths based on content
   const calculateMinWidths = (): ColumnWidths => {
-    // Base minimum widths for headers and UI elements
     const minWidths: ColumnWidths = {
-      name: 200, // Minimum for task name with icons
-      dueDate: 100, // Minimum for date display
-      priority: 80, // Minimum for priority badge
-      assignee: 100, // Minimum for assignee name
-      tags: 120, // Minimum for tags
-      ...(showProjectColumn && { project: 120 }) // Minimum for project name
+      name: 200,
+      dueDate: 100,
+      priority: 80,
+      assignee: 100,
+      tags: 120,
+      ...(showProjectColumn && { project: 120 })
     };
 
-    // Calculate actual content widths (rough estimation)
     tasks.forEach(task => {
-      // Estimate name width (characters * 8px + icons ~100px)
       const nameWidth = Math.min(400, task.description.length * 8 + 100);
       minWidths.name = Math.max(minWidths.name, nameWidth);
-
-      // Estimate assignee width
       if (task.assignee) {
         const assigneeWidth = Math.min(200, task.assignee.length * 8 + 20);
         minWidths.assignee = Math.max(minWidths.assignee, assigneeWidth);
       }
-
-      // Estimate tags width
       if (task.tags.length > 0) {
         const tagsWidth = Math.min(300, task.tags.length * 60);
         minWidths.tags = Math.max(minWidths.tags, tagsWidth);
@@ -108,7 +135,6 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
 
   const minColumnWidths = calculateMinWidths();
 
-  // Column width state
   const [columnWidths, setColumnWidths] = useState<ColumnWidths>({
     name: Math.max(300, minColumnWidths.name),
     dueDate: Math.max(128, minColumnWidths.dueDate),
@@ -119,14 +145,61 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
   });
 
   const handleColumnResize = (column: keyof ColumnWidths, width: number) => {
-    // Enforce minimum width based on content
-    const minWidth = minColumnWidths[column] || 100; // Default minimum if undefined
+    const minWidth = minColumnWidths[column] || 100;
     const constrainedWidth = Math.max(minWidth, width);
-    
-    setColumnWidths(prev => ({
-      ...prev,
-      [column]: constrainedWidth
-    }));
+    setColumnWidths(prev => ({ ...prev, [column]: constrainedWidth }));
+  };
+
+  // --- Column drag-and-drop handlers ---
+  const handleColumnDragStart = (e: React.DragEvent, columnId: TaskColumnId) => {
+    draggedColumnRef.current = columnId;
+    setDraggedColumnId(columnId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', `column:${columnId}`);
+  };
+
+  const handleColumnDragOver = (e: React.DragEvent, columnId: TaskColumnId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const dragged = draggedColumnRef.current;
+    if (!dragged || dragged === columnId) return;
+
+    // Live reorder: swap columns as you drag over them
+    const currentOrder = useAppStore.getState().columnOrder;
+    const order = [...currentOrder];
+    for (const col of DEFAULT_COLUMN_ORDER) {
+      if (!order.includes(col)) order.push(col);
+    }
+    if (showProjectColumn && !order.includes('project')) {
+      order.push('project');
+    }
+    const filtered = order.filter(col => col !== 'project' || showProjectColumn);
+
+    const draggedIndex = filtered.indexOf(dragged);
+    const targetIndex = filtered.indexOf(columnId);
+    if (draggedIndex === -1 || targetIndex === -1) return;
+
+    filtered.splice(draggedIndex, 1);
+    filtered.splice(targetIndex, 0, dragged);
+    setColumnOrder(filtered);
+  };
+
+  const handleColumnDragLeave = () => {
+    setDragOverColumnId(null);
+  };
+
+  const handleColumnDrop = (e: React.DragEvent, _targetColumnId: TaskColumnId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    draggedColumnRef.current = null;
+    setDraggedColumnId(null);
+    setDragOverColumnId(null);
+  };
+
+  const handleColumnDragEnd = () => {
+    draggedColumnRef.current = null;
+    setDraggedColumnId(null);
+    setDragOverColumnId(null);
   };
 
   const handleTaskComplete = (taskId: string) => {
@@ -140,7 +213,6 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
     if (onViewSubtasks) {
       onViewSubtasks(taskId);
     } else {
-      // Fallback to regular click if onViewSubtasks not provided
       onTaskClick(taskId);
     }
   };
@@ -171,11 +243,7 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
 
   const handleAddSection = () => {
     if (!newSectionName.trim()) return;
-
-    // For global view, use null projectId for unlinked task sections
-    // For project view, use the projectId from existing sections
     const projectId = sections[0]?.projectId || null;
-
     const newSection = {
       id: uuidv4(),
       projectId,
@@ -199,14 +267,10 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
     onAddTask(sectionId);
   };
 
+  // --- Task drag-and-drop handlers ---
   const handleDragStart = (e: React.DragEvent, taskId: string) => {
     setDraggedTaskId(taskId);
     e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
   };
 
   const handleTaskDragOver = (e: React.DragEvent, taskId: string) => {
@@ -239,98 +303,48 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
       return;
     }
 
-    // CRITICAL: Prevent mixing subtasks with top-level tasks or subtasks from different parents
-    // Both must be top-level tasks OR both must be subtasks of the same parent
     if (draggedTask.parentTaskId !== targetTask.parentTaskId) {
       setDraggedTaskId(null);
       return;
     }
     
-    // Handle subtask reordering (both have the same parent)
     if (draggedTask.parentTaskId && targetTask.parentTaskId) {
-      // Get all subtasks of the same parent, sorted by order
       const parentSubtasks = tasks
         .filter(t => t.parentTaskId === draggedTask.parentTaskId)
         .sort((a, b) => a.order - b.order);
-
-      // Find indices
       const draggedIndex = parentSubtasks.findIndex(t => t.id === draggedTaskId);
       const targetIndex = parentSubtasks.findIndex(t => t.id === targetTaskId);
-
-      if (draggedIndex === -1 || targetIndex === -1) {
-        setDraggedTaskId(null);
-        return;
-      }
-
-      // Reorder subtasks
+      if (draggedIndex === -1 || targetIndex === -1) { setDraggedTaskId(null); return; }
       const reorderedSubtasks = [...parentSubtasks];
       const [removed] = reorderedSubtasks.splice(draggedIndex, 1);
       reorderedSubtasks.splice(targetIndex, 0, removed);
-
-      // Update order for all affected subtasks
-      reorderedSubtasks.forEach((subtask, index) => {
-        updateTask(subtask.id, { order: index });
-      });
-
+      reorderedSubtasks.forEach((subtask, index) => { updateTask(subtask.id, { order: index }); });
       setDraggedTaskId(null);
       return;
     }
 
-    // Handle top-level task reordering (both have no parent)
-    // If moving to a different section, update the section and place at the target position
     if (draggedTask.sectionId !== targetTask.sectionId) {
-      // Get all tasks in the target section, sorted by order
       const targetSectionTasks = tasks
         .filter(t => t.sectionId === targetTask.sectionId && !t.parentTaskId && t.id !== draggedTaskId)
         .sort((a, b) => a.order - b.order);
-
-      // Find target index
       const targetIndex = targetSectionTasks.findIndex(t => t.id === targetTaskId);
-      
-      if (targetIndex === -1) {
-        setDraggedTaskId(null);
-        return;
-      }
-
-      // Insert dragged task at target position
+      if (targetIndex === -1) { setDraggedTaskId(null); return; }
       targetSectionTasks.splice(targetIndex, 0, draggedTask);
-
-      // Update section and order for dragged task
-      updateTask(draggedTaskId, { 
-        sectionId: targetTask.sectionId,
-        order: targetIndex
-      });
-
-      // Update order for all tasks after the insertion point
+      updateTask(draggedTaskId, { sectionId: targetTask.sectionId, order: targetIndex });
       targetSectionTasks.forEach((task, index) => {
-        if (task.id !== draggedTaskId) {
-          updateTask(task.id, { order: index });
-        }
+        if (task.id !== draggedTaskId) { updateTask(task.id, { order: index }); }
       });
     } else {
-      // Reordering within the same section
       const sectionTasks = tasks
         .filter(t => t.sectionId === draggedTask.sectionId && !t.parentTaskId)
         .sort((a, b) => a.order - b.order);
-
-      // Find indices
       const draggedIndex = sectionTasks.findIndex(t => t.id === draggedTaskId);
       const targetIndex = sectionTasks.findIndex(t => t.id === targetTaskId);
-
-      if (draggedIndex === -1 || targetIndex === -1) {
-        setDraggedTaskId(null);
-        return;
-      }
-
-      // Reorder tasks
+      if (draggedIndex === -1 || targetIndex === -1) { setDraggedTaskId(null); return; }
       const reorderedTasks = [...sectionTasks];
       const [removed] = reorderedTasks.splice(draggedIndex, 1);
       reorderedTasks.splice(targetIndex, 0, removed);
-
-      // Update order for all affected tasks
-      reorderedTasks.forEach((task, index) => {
-        updateTask(task.id, { order: index });
-      });
+      reorderedTasks.forEach((task, index) => { updateTask(task.id, { order: index }); });
     }
 
     setDraggedTaskId(null);
@@ -348,15 +362,11 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
   const handleSectionDragStart = (e: React.DragEvent, sectionId: string) => {
     const section = sections.find(s => s.id === sectionId);
     if (section) {
-      // Remember if section was expanded
       setSectionWasExpanded(!section.collapsed);
-      
-      // Collapse the section if it was expanded
       if (!section.collapsed) {
         updateSection(sectionId, { collapsed: true });
       }
     }
-    
     setDraggedSectionId(sectionId);
     e.dataTransfer.effectAllowed = 'move';
   };
@@ -376,7 +386,6 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
 
   const handleSectionDragEnd = (e: React.DragEvent) => {
     e.preventDefault();
-    // Restore expanded state if drag was cancelled (no drop occurred)
     if (draggedSectionId && sectionWasExpanded) {
       updateSection(draggedSectionId, { collapsed: false });
     }
@@ -391,7 +400,6 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
     setDragOverSectionId(null);
 
     if (!draggedSectionId || draggedSectionId === targetSectionId) {
-      // Restore expanded state if drag was cancelled or invalid
       if (draggedSectionId && sectionWasExpanded) {
         updateSection(draggedSectionId, { collapsed: false });
       }
@@ -400,51 +408,33 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
       return;
     }
 
-    // Sort sections by order
     const sortedSections = [...sections].sort((a, b) => a.order - b.order);
-
-    // Find indices
     const draggedIndex = sortedSections.findIndex(s => s.id === draggedSectionId);
     const targetIndex = sortedSections.findIndex(s => s.id === targetSectionId);
 
     if (draggedIndex === -1 || targetIndex === -1) {
-      // Restore expanded state if drag failed
-      if (sectionWasExpanded) {
-        updateSection(draggedSectionId, { collapsed: false });
-      }
+      if (sectionWasExpanded) { updateSection(draggedSectionId, { collapsed: false }); }
       setDraggedSectionId(null);
       setSectionWasExpanded(false);
       return;
     }
 
-    // Reorder sections
     const reorderedSections = [...sortedSections];
     const [removed] = reorderedSections.splice(draggedIndex, 1);
     reorderedSections.splice(targetIndex, 0, removed);
+    reorderedSections.forEach((section, index) => { updateSection(section.id, { order: index }); });
 
-    // Update order for all sections
-    reorderedSections.forEach((section, index) => {
-      updateSection(section.id, { order: index });
-    });
-
-    // Restore expanded state if section was expanded before drag
-    if (sectionWasExpanded) {
-      updateSection(draggedSectionId, { collapsed: false });
-    }
-
+    if (sectionWasExpanded) { updateSection(draggedSectionId, { collapsed: false }); }
     setDraggedSectionId(null);
     setSectionWasExpanded(false);
   };
 
-  // Group tasks by section and sort by order
+  // Group tasks by section
   const tasksBySection = sections.reduce((acc, section) => {
     if (flatMode) {
-      // In flat mode, get all tasks for this section (including subtasks that were flattened)
-      // and maintain the order they were passed in
       const sectionTasks = tasks.filter(t => t.sectionId === section.id);
       acc[section.id] = sectionTasks;
     } else {
-      // In nested mode, only get top-level tasks
       acc[section.id] = tasks
         .filter(t => t.sectionId === section.id && !t.parentTaskId)
         .sort((a, b) => a.order - b.order);
@@ -452,10 +442,9 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
     return acc;
   }, {} as Record<string, Task[]>);
 
-  // Tasks without section
   const unsectionedTasks = flatMode
-    ? tasks.filter(t => !t.sectionId) // In flat mode, show all unsectioned tasks (including flattened subtasks)
-    : tasks.filter(t => !t.sectionId && !t.parentTaskId); // In nested mode, only top-level unsectioned tasks
+    ? tasks.filter(t => !t.sectionId)
+    : tasks.filter(t => !t.sectionId && !t.parentTaskId);
 
   if (tasks.length === 0 && sections.length === 0) {
     return (
@@ -467,158 +456,76 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
     );
   }
 
+  // Helper to render a column resize handle
+  const renderResizeHandle = (columnKey: keyof ColumnWidths) => (
+    <div
+      className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/50 active:bg-primary"
+      onMouseDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation(); // Don't trigger column drag
+        const startX = e.clientX;
+        const startWidth = columnWidths[columnKey] || 128;
+        const handleMouseMove = (moveEvent: MouseEvent) => {
+          const diff = moveEvent.clientX - startX;
+          const newWidth = Math.max(minColumnWidths[columnKey as keyof ColumnWidths] || 100, startWidth + diff);
+          handleColumnResize(columnKey, newWidth);
+        };
+        const handleMouseUp = () => {
+          document.removeEventListener('mousemove', handleMouseMove);
+          document.removeEventListener('mouseup', handleMouseUp);
+        };
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+      }}
+    />
+  );
+
+  // Number of visible data columns (excluding name)
+  const dataColCount = visibleColumns.length;
+
+  // Stable string key for column order - used to force TaskRow re-mount on reorder
+  const columnOrderKey = visibleColumns.join(',');
+
   return (
     <div className="flex flex-col h-full">
-      {/* Single scrollable container for header and all sections */}
       <div className="overflow-x-auto flex-1">
-        {/* One big table containing everything */}
         <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
           <colgroup>
             <col style={{ width: columnWidths.name }} />
-            <col style={{ width: columnWidths.dueDate }} />
-            <col style={{ width: columnWidths.priority }} />
-            <col style={{ width: columnWidths.assignee }} />
-            <col style={{ width: columnWidths.tags }} />
-            {showProjectColumn && <col style={{ width: columnWidths.project }} />}
+            {visibleColumns.map(colId => (
+              <col key={colId} style={{ width: columnWidths[colId] || 128 }} />
+            ))}
           </colgroup>
 
-          {/* Frozen Column Header */}
+          {/* Column Headers - Name is fixed, others are draggable */}
           <thead className="sticky top-0 z-20 bg-background border-b">
             <tr className="border-b">
+              {/* Name column header - always first, not draggable */}
               <th className="p-2 text-left text-sm font-medium border-r relative bg-muted sticky left-0 z-30">
                 Name
-                <div
-                  className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/50 active:bg-primary"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    const startX = e.clientX;
-                    const startWidth = columnWidths.name;
-                    const handleMouseMove = (moveEvent: MouseEvent) => {
-                      const diff = moveEvent.clientX - startX;
-                      const newWidth = Math.max(minColumnWidths.name, startWidth + diff);
-                      handleColumnResize('name', newWidth);
-                    };
-                    const handleMouseUp = () => {
-                      document.removeEventListener('mousemove', handleMouseMove);
-                      document.removeEventListener('mouseup', handleMouseUp);
-                    };
-                    document.addEventListener('mousemove', handleMouseMove);
-                    document.addEventListener('mouseup', handleMouseUp);
-                  }}
-                />
+                {renderResizeHandle('name')}
               </th>
-              <th className="p-2 text-left text-sm font-medium border-r relative bg-muted/50">
-                Due date
-                <div
-                  className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/50 active:bg-primary"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    const startX = e.clientX;
-                    const startWidth = columnWidths.dueDate;
-                    const handleMouseMove = (moveEvent: MouseEvent) => {
-                      const diff = moveEvent.clientX - startX;
-                      const newWidth = Math.max(minColumnWidths.dueDate, startWidth + diff);
-                      handleColumnResize('dueDate', newWidth);
-                    };
-                    const handleMouseUp = () => {
-                      document.removeEventListener('mousemove', handleMouseMove);
-                      document.removeEventListener('mouseup', handleMouseUp);
-                    };
-                    document.addEventListener('mousemove', handleMouseMove);
-                    document.addEventListener('mouseup', handleMouseUp);
-                  }}
-                />
-              </th>
-              <th className="p-2 text-left text-sm font-medium border-r relative bg-muted/50">
-                Priority
-                <div
-                  className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/50 active:bg-primary"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    const startX = e.clientX;
-                    const startWidth = columnWidths.priority;
-                    const handleMouseMove = (moveEvent: MouseEvent) => {
-                      const diff = moveEvent.clientX - startX;
-                      const newWidth = Math.max(minColumnWidths.priority, startWidth + diff);
-                      handleColumnResize('priority', newWidth);
-                    };
-                    const handleMouseUp = () => {
-                      document.removeEventListener('mousemove', handleMouseMove);
-                      document.removeEventListener('mouseup', handleMouseUp);
-                    };
-                    document.addEventListener('mousemove', handleMouseMove);
-                    document.addEventListener('mouseup', handleMouseUp);
-                  }}
-                />
-              </th>
-              <th className="p-2 text-left text-sm font-medium border-r relative bg-muted/50">
-                Assignee
-                <div
-                  className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/50 active:bg-primary"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    const startX = e.clientX;
-                    const startWidth = columnWidths.assignee;
-                    const handleMouseMove = (moveEvent: MouseEvent) => {
-                      const diff = moveEvent.clientX - startX;
-                      const newWidth = Math.max(minColumnWidths.assignee, startWidth + diff);
-                      handleColumnResize('assignee', newWidth);
-                    };
-                    const handleMouseUp = () => {
-                      document.removeEventListener('mousemove', handleMouseMove);
-                      document.removeEventListener('mouseup', handleMouseUp);
-                    };
-                    document.addEventListener('mousemove', handleMouseMove);
-                    document.addEventListener('mouseup', handleMouseUp);
-                  }}
-                />
-              </th>
-              <th className="p-2 text-left text-sm font-medium border-r relative bg-muted/50">
-                Tags
-                <div
-                  className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/50 active:bg-primary"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    const startX = e.clientX;
-                    const startWidth = columnWidths.tags;
-                    const handleMouseMove = (moveEvent: MouseEvent) => {
-                      const diff = moveEvent.clientX - startX;
-                      const newWidth = Math.max(minColumnWidths.tags, startWidth + diff);
-                      handleColumnResize('tags', newWidth);
-                    };
-                    const handleMouseUp = () => {
-                      document.removeEventListener('mousemove', handleMouseMove);
-                      document.removeEventListener('mouseup', handleMouseUp);
-                    };
-                    document.addEventListener('mousemove', handleMouseMove);
-                    document.addEventListener('mouseup', handleMouseUp);
-                  }}
-                />
-              </th>
-              {showProjectColumn && (
-                <th className="p-2 text-left text-sm font-medium relative bg-muted/50">
-                  Project
-                  <div
-                    className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/50 active:bg-primary"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      const startX = e.clientX;
-                      const startWidth = columnWidths.project || 128;
-                      const handleMouseMove = (moveEvent: MouseEvent) => {
-                        const diff = moveEvent.clientX - startX;
-                        const newWidth = Math.max(minColumnWidths.project || 120, startWidth + diff);
-                        handleColumnResize('project', newWidth);
-                      };
-                      const handleMouseUp = () => {
-                        document.removeEventListener('mousemove', handleMouseMove);
-                        document.removeEventListener('mouseup', handleMouseUp);
-                      };
-                      document.addEventListener('mousemove', handleMouseMove);
-                      document.addEventListener('mouseup', handleMouseUp);
-                    }}
-                  />
+              {/* Draggable data column headers */}
+              {visibleColumns.map((colId, idx) => (
+                <th
+                  key={colId}
+                  className={cn(
+                    "p-2 text-left text-sm font-medium relative bg-muted/50 select-none",
+                    idx < visibleColumns.length - 1 && "border-r",
+                    draggedColumnId === colId && "opacity-50",
+                    dragOverColumnId === colId && "ring-2 ring-primary ring-inset"
+                  )}
+                  draggable
+                  onDragStart={(e) => handleColumnDragStart(e, colId)}
+                  onDragOver={(e) => handleColumnDragOver(e, colId)}
+                  onDragLeave={handleColumnDragLeave}
+                  onDrop={(e) => handleColumnDrop(e, colId)}
+                  onDragEnd={handleColumnDragEnd}
+                >
+                  <span className="cursor-grab active:cursor-grabbing">{COLUMN_LABELS[colId]}</span>
+                  {renderResizeHandle(colId as keyof ColumnWidths)}
                 </th>
-              )}
+              ))}
             </tr>
           </thead>
 
@@ -689,17 +596,15 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                         </Button>
                       </div>
                     </td>
-                    <td className="bg-background"></td>
-                    <td className="bg-background"></td>
-                    <td className="bg-background"></td>
-                    <td className="bg-background"></td>
-                    {showProjectColumn && <td className="bg-background"></td>}
+                    {visibleColumns.map(colId => (
+                      <td key={colId} className="bg-background"></td>
+                    ))}
                   </tr>
 
                   {/* Section Tasks */}
                   {!section.collapsed && sectionTasks.length > 0 && sectionTasks.map(task => (
                     <TaskRow
-                      key={task.id}
+                      key={`${task.id}-${columnOrderKey}`}
                       task={task}
                       onComplete={handleTaskComplete}
                       onClick={onTaskClick}
@@ -721,10 +626,11 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                       projectName={showProjectColumn ? getProjectName(task) : undefined}
                       onProjectClick={onProjectClick}
                       flatMode={flatMode}
+                      columnOrder={visibleColumns}
                     />
                   ))}
 
-                  {/* Add Task Button Row - also serves as drop zone for empty sections */}
+                  {/* Add Task Button Row */}
                   {!section.collapsed && (
                     <tr 
                       className={cn(
@@ -735,7 +641,6 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                       onDragOver={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        // Allow dropping on empty section via Add tasks row
                         if (draggedTaskId && sectionTasks.length === 0) {
                           setDragOverTaskId(`section-${section.id}`);
                         }
@@ -750,31 +655,23 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                         e.preventDefault();
                         e.stopPropagation();
                         setDragOverTaskId(null);
-                        
                         if (draggedTaskId && sectionTasks.length === 0) {
-                          // Move task to this empty section
-                          updateTask(draggedTaskId, { 
-                            sectionId: section.id,
-                            order: 0
-                          });
+                          updateTask(draggedTaskId, { sectionId: section.id, order: 0 });
                           setDraggedTaskId(null);
                         }
                       }}
                     >
                       <td className="p-2 sticky left-0 z-10 bg-background hover:bg-accent transition-colors">
                         <div className="flex items-center gap-2">
-                          {/* Spacing to align with task name - matches drag handle + expand/collapse + checkbox widths */}
                           <div className="w-4 flex-shrink-0" />
                           <div className="w-4 flex-shrink-0" />
                           <div className="w-5 flex-shrink-0" />
                           <span className="text-muted-foreground hover:text-foreground">Add tasks...</span>
                         </div>
                       </td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      {showProjectColumn && <td></td>}
+                      {visibleColumns.map(colId => (
+                        <td key={colId}></td>
+                      ))}
                     </tr>
                   )}
                 </React.Fragment>
@@ -788,15 +685,13 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                   <td className="p-3 text-sm font-semibold text-muted-foreground uppercase border-r sticky left-0 z-10 bg-muted/50">
                     Unsectioned
                   </td>
-                  <td className="border-r bg-muted/50"></td>
-                  <td className="border-r bg-muted/50"></td>
-                  <td className="border-r bg-muted/50"></td>
-                  <td className="bg-muted/50"></td>
-                  {showProjectColumn && <td className="bg-muted/50"></td>}
+                  {visibleColumns.map((colId, i) => (
+                    <td key={colId} className={cn("bg-muted/50", i < visibleColumns.length - 1 && "border-r")}></td>
+                  ))}
                 </tr>
                 {unsectionedTasks.map(task => (
                   <TaskRow
-                    key={task.id}
+                    key={`${task.id}-${columnOrderKey}`}
                     task={task}
                     onComplete={handleTaskComplete}
                     onClick={onTaskClick}
@@ -818,6 +713,7 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                     projectName={showProjectColumn ? getProjectName(task) : undefined}
                     onProjectClick={onProjectClick}
                     flatMode={flatMode}
+                    columnOrder={visibleColumns}
                   />
                 ))}
               </>

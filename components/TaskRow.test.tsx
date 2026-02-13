@@ -44,7 +44,7 @@ describe('TaskRow Component', () => {
     return render(
       <table>
         <tbody>
-          <TaskRow {...props} />
+          <TaskRow columnOrder={['dueDate', 'priority', 'assignee', 'tags']} {...props} />
         </tbody>
       </table>
     );

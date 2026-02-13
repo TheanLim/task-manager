@@ -2,11 +2,17 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { AppSettings, TimeManagementSystem, UUID } from '@/types';
 
+// Column identifiers for the task table (excluding 'name' which is always first)
+export type TaskColumnId = 'dueDate' | 'priority' | 'assignee' | 'tags' | 'project';
+
+export const DEFAULT_COLUMN_ORDER: TaskColumnId[] = ['dueDate', 'priority', 'assignee', 'tags'];
+
 // App Store Interface
 interface AppStore {
   settings: AppSettings;
   projectTabs: Record<UUID, string>; // Map of projectId to active tab
   globalTasksDisplayMode: 'nested' | 'flat'; // Display mode for global tasks view
+  columnOrder: TaskColumnId[]; // Persisted column order (excludes 'name' which is always first)
   
   setActiveProject: (projectId: UUID | null) => void;
   setTimeManagementSystem: (system: TimeManagementSystem) => void;
@@ -15,6 +21,7 @@ interface AppStore {
   setProjectTab: (projectId: UUID, tab: string) => void;
   getProjectTab: (projectId: UUID) => string;
   setGlobalTasksDisplayMode: (mode: 'nested' | 'flat') => void;
+  setColumnOrder: (order: TaskColumnId[]) => void;
 }
 
 export const useAppStore = create<AppStore>()(
@@ -28,6 +35,7 @@ export const useAppStore = create<AppStore>()(
       },
       projectTabs: {},
       globalTasksDisplayMode: 'nested',
+      columnOrder: DEFAULT_COLUMN_ORDER,
       
       setActiveProject: (projectId) => set((state) => ({
         settings: { ...state.settings, activeProjectId: projectId }
@@ -53,7 +61,9 @@ export const useAppStore = create<AppStore>()(
         return get().projectTabs[projectId] || 'overview';
       },
       
-      setGlobalTasksDisplayMode: (mode) => set({ globalTasksDisplayMode: mode })
+      setGlobalTasksDisplayMode: (mode) => set({ globalTasksDisplayMode: mode }),
+      
+      setColumnOrder: (order) => set({ columnOrder: order })
     }),
     {
       name: 'task-management-settings',
