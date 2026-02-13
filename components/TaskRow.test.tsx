@@ -152,8 +152,10 @@ describe('TaskRow Component', () => {
       const taskName = screen.getByText('Test task');
       fireEvent.click(taskName);
 
-      // Should show input field when editing
-      expect(screen.getByDisplayValue('Test task')).toBeInTheDocument();
+      // Should show contentEditable span when editing
+      const editor = screen.getByRole('textbox');
+      expect(editor).toBeInTheDocument();
+      expect(editor).toHaveTextContent('Test task');
     });
 
     it('should call onClick when Details button is clicked', () => {
