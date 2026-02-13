@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Menu, X } from 'lucide-react';
+import { useCrossTabSync } from '@/lib/hooks/useCrossTabSync';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -15,6 +16,7 @@ interface LayoutProps {
  * Main layout component with responsive sidebar
  */
 export function Layout({ children, sidebar, header }: LayoutProps) {
+  useCrossTabSync();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState(256); // Default 256px (w-64)
   const [isResizing, setIsResizing] = useState(false);
