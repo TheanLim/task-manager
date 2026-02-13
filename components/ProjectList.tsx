@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Project } from '@/types';
+import { useTabSyncStore } from '@/lib/tab-sync/store';
 
 interface ProjectListProps {
   projects: Project[];
@@ -25,6 +26,7 @@ export function ProjectList({
 }: ProjectListProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const canEdit = useTabSyncStore(s => s.canEdit);
   const viewFromUrl = searchParams.get('view');
   const isGlobalTasksActive = viewFromUrl === 'tasks';
 
@@ -40,8 +42,7 @@ export function ProjectList({
   };
 
   return (
-    <TooltipProvider>
-      <div className="space-y-4">
+    <div className="space-y-4">
         {/* Tasks Section */}
         <div className="space-y-1">
           <h2 className="text-sm font-semibold text-muted-foreground px-1">Tasks</h2>
@@ -68,7 +69,7 @@ export function ProjectList({
             <h2 className="text-sm font-semibold text-muted-foreground">Projects</h2>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button onClick={onNewProject} size="sm" variant="ghost" className="h-6 w-6 p-0">
+                <Button onClick={onNewProject} size="sm" variant="ghost" className="h-6 w-6 p-0" disabled={!canEdit}>
                   <Plus className="h-3.5 w-3.5" />
                 </Button>
               </TooltipTrigger>
@@ -82,7 +83,7 @@ export function ProjectList({
             <div className="flex flex-col items-center justify-center gap-4 py-8">
               <FolderOpen className="h-12 w-12 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">No projects yet</p>
-              <Button onClick={onNewProject} size="sm">
+              <Button onClick={onNewProject} size="sm" disabled={!canEdit}>
                 <Plus className="mr-2 h-4 w-4" />
                 Create Project
               </Button>
@@ -113,7 +114,6 @@ export function ProjectList({
             </div>
           )}
         </div>
-      </div>
-    </TooltipProvider>
+    </div>
   );
 }

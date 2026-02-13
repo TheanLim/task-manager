@@ -43,6 +43,7 @@ import { useState, useEffect, useRef } from 'react';
 import { InlineEditable } from '@/components/InlineEditable';
 import { validateTaskDescription } from '@/lib/validation';
 import { useDataStore } from '@/stores/dataStore';
+import { useTabSyncStore } from '@/lib/tab-sync/store';
 import { cn } from '@/lib/utils';
 
 interface TaskDetailPanelProps {
@@ -93,6 +94,8 @@ export function TaskDetailPanel({
   const [dragOverSubtaskId, setDragOverSubtaskId] = useState<string | null>(null);
   
   const { updateTask } = useDataStore();
+  const canEdit = useTabSyncStore(s => s.canEdit);
+  const readOnlyTooltip = 'Editing is disabled — another tab is active';
 
   // Sync notesValue when task changes
   useEffect(() => {
@@ -207,7 +210,6 @@ export function TaskDetailPanel({
 
   return (
     <>
-      <TooltipProvider>
         <div className="space-y-6">
         {/* Action Bar */}
         <div className="flex items-center justify-between gap-2">
@@ -222,13 +224,14 @@ export function TaskDetailPanel({
                     : 'bg-green-500 text-white hover:bg-green-600'
                 }`}
                 size="sm"
+                disabled={!canEdit}
               >
                 <CheckCircle2 className="mr-2 h-4 w-4" />
                 {task.completed ? 'Completed' : 'Mark Complete'}
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              <p>{task.completed ? "Mark as incomplete" : "Mark as complete"}</p>
+              <p>{!canEdit ? readOnlyTooltip : task.completed ? "Mark as incomplete" : "Mark as complete"}</p>
             </TooltipContent>
           </Tooltip>
 
@@ -247,7 +250,7 @@ export function TaskDetailPanel({
             
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" onClick={handleDeleteClick}>
+                <Button variant="outline" size="icon" onClick={handleDeleteClick} disabled={!canEdit}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
@@ -298,6 +301,7 @@ export function TaskDetailPanel({
           placeholder="Task description"
           displayClassName="text-2xl font-bold"
           inputClassName="text-2xl font-bold"
+          disabled={!canEdit}
         />
         {task.completed && task.completedAt && (
           <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
@@ -316,8 +320,9 @@ export function TaskDetailPanel({
           <Select
             value={task.priority}
             onValueChange={(value) => {
-              updateTask(task.id, { priority: value as Priority });
+              if (canEdit) updateTask(task.id, { priority: value as Priority });
             }}
+            disabled={!canEdit}
           >
             <SelectTrigger className="h-7 w-32 border-0 shadow-none hover:bg-accent">
               <SelectValue>
@@ -343,8 +348,11 @@ export function TaskDetailPanel({
         <div className="flex items-center gap-2 text-sm">
           <Calendar className="h-4 w-4 text-muted-foreground" />
           <Popover>
-            <PopoverTrigger asChild>
-              <div className="cursor-pointer hover:bg-accent rounded px-2 py-1 -mx-2">
+            <PopoverTrigger asChild disabled={!canEdit}>
+              <div className={cn(
+                "rounded px-2 py-1 -mx-2",
+                canEdit ? "cursor-pointer hover:bg-accent" : "cursor-not-allowed opacity-60"
+              )}>
                 {task.dueDate ? (
                   <span>Due {format(new Date(task.dueDate), 'PPP')}</span>
                 ) : (
@@ -390,26 +398,39 @@ export function TaskDetailPanel({
             placeholder="No assignee"
             displayClassName="text-sm"
             inputClassName="text-sm"
+            disabled={!canEdit}
           />
         </div>
 
         {/* Tags */}
         <div className="flex items-start gap-2">
           <Tag className="h-4 w-4 text-muted-foreground mt-0.5" />
-          <Popover open={isEditingTags} onOpenChange={setIsEditingTags}>
-            <PopoverTrigger asChild>
-              <div className="flex flex-wrap gap-2 cursor-pointer hover:bg-accent rounded px-2 py-1 -mx-2 min-h-[28px]">
-                {task.tags.length > 0 ? (
-                  task.tags.map((tag) => (
-                    <Badge key={tag} variant="secondary">
-                      {tag}
-                    </Badge>
-                  ))
-                ) : (
-                  <span className="text-muted-foreground italic text-sm">No tags</span>
-                )}
-              </div>
-            </PopoverTrigger>
+          <Popover open={isEditingTags} onOpenChange={(open) => canEdit && setIsEditingTags(open)}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <PopoverTrigger asChild disabled={!canEdit}>
+                  <div className={cn(
+                    "flex flex-wrap gap-2 rounded px-2 py-1 -mx-2 min-h-[28px]",
+                    canEdit ? "cursor-pointer hover:bg-accent" : "cursor-not-allowed opacity-60"
+                  )}>
+                    {task.tags.length > 0 ? (
+                      task.tags.map((tag) => (
+                        <Badge key={tag} variant="secondary">
+                          {tag}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className="text-muted-foreground italic text-sm">No tags</span>
+                    )}
+                  </div>
+                </PopoverTrigger>
+              </TooltipTrigger>
+              {!canEdit && (
+                <TooltipContent>
+                  <p>{readOnlyTooltip}</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
             <PopoverContent className="w-64" align="start">
               <div className="space-y-2">
                 <div className="flex gap-2">
@@ -468,8 +489,11 @@ export function TaskDetailPanel({
           </div>
         ) : (
           <div
-            onClick={() => setIsEditingNotes(true)}
-            className="cursor-text rounded px-2 py-1 -mx-2 hover:bg-accent transition-colors min-h-[40px]"
+            onClick={() => canEdit && setIsEditingNotes(true)}
+            className={cn(
+              "rounded px-2 py-1 -mx-2 min-h-[40px] transition-colors",
+              canEdit ? "cursor-text hover:bg-accent" : "cursor-not-allowed opacity-60"
+            )}
           >
             {task.notes ? (
               <RichTextEditor
@@ -493,13 +517,13 @@ export function TaskDetailPanel({
           {task.parentTaskId === null && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="outline" size="sm" onClick={onAddSubtask}>
+                <Button variant="outline" size="sm" onClick={onAddSubtask} disabled={!canEdit}>
                   <Plus className="mr-2 h-4 w-4" />
                   Add Subtask
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Add a new subtask</p>
+                <p>{!canEdit ? readOnlyTooltip : 'Add a new subtask'}</p>
               </TooltipContent>
             </Tooltip>
           )}
@@ -518,7 +542,7 @@ export function TaskDetailPanel({
                   dragOverSubtaskId === subtask.id && "ring-2 ring-primary"
                 )}
                 onClick={() => onSubtaskClick(subtask.id)}
-                draggable
+                draggable={canEdit}
                 onDragStart={(e) => handleSubtaskDragStart(e, subtask.id)}
                 onDragOver={(e) => handleSubtaskDragOver(e, subtask.id)}
                 onDragLeave={handleSubtaskDragLeave}
@@ -527,7 +551,10 @@ export function TaskDetailPanel({
                 {/* Left side: Drag handle (on hover), checkbox, and task name */}
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                   {/* Drag Handle - appears on hover */}
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground flex-shrink-0">
+                  <div className={cn(
+                    "transition-opacity cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground flex-shrink-0",
+                    canEdit ? "opacity-0 group-hover:opacity-100" : "hidden"
+                  )}>
                     <GripVertical className="h-4 w-4" />
                   </div>
                   
@@ -535,16 +562,19 @@ export function TaskDetailPanel({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
+                      if (!canEdit) return;
                       updateTask(subtask.id, { 
                         completed: !subtask.completed,
                         completedAt: !subtask.completed ? new Date().toISOString() : null
                       });
                     }}
+                    disabled={!canEdit}
                     className={cn(
                       "flex-shrink-0 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all",
                       subtask.completed
                         ? "bg-green-500 border-green-500"
-                        : "border-gray-300 dark:border-gray-600"
+                        : "border-gray-300 dark:border-gray-600",
+                      !canEdit && "opacity-60 cursor-not-allowed"
                     )}
                   >
                     {subtask.completed && <Check className="h-3 w-3 text-white" />}
@@ -563,10 +593,14 @@ export function TaskDetailPanel({
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {/* Due date - show icon only when no date, show date only when set */}
                   <Popover>
-                    <PopoverTrigger asChild>
+                    <PopoverTrigger asChild disabled={!canEdit}>
                       <button
                         onClick={(e) => e.stopPropagation()}
-                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                        disabled={!canEdit}
+                        className={cn(
+                          "flex items-center gap-1 text-xs text-muted-foreground transition-colors",
+                          canEdit ? "hover:text-foreground" : "cursor-not-allowed opacity-60"
+                        )}
                       >
                         {subtask.dueDate ? (
                           <span>{format(new Date(subtask.dueDate), 'MMM d')}</span>
@@ -615,13 +649,13 @@ export function TaskDetailPanel({
           <h3 className="text-sm font-semibold">Dependencies</h3>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="outline" size="sm" onClick={onAddDependency}>
+              <Button variant="outline" size="sm" onClick={onAddDependency} disabled={!canEdit}>
                 <Plus className="mr-2 h-4 w-4" />
                 Add Dependency
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              <p>Add a task dependency</p>
+              <p>{!canEdit ? readOnlyTooltip : 'Add a task dependency'}</p>
             </TooltipContent>
           </Tooltip>
         </div>
@@ -641,7 +675,6 @@ export function TaskDetailPanel({
         <p>Updated {format(new Date(task.updatedAt), 'PPP')}</p>
       </div>
     </div>
-    </TooltipProvider>
 
     <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
       <AlertDialogContent>

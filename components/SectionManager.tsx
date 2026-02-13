@@ -8,6 +8,8 @@ import { Card } from '@/components/ui/card';
 import { Plus, Trash2, GripVertical, Check, X } from 'lucide-react';
 import { useDataStore } from '@/stores/dataStore';
 import { v4 as uuidv4 } from 'uuid';
+import { useTabSyncStore } from '@/lib/tab-sync/store';
+import { cn } from '@/lib/utils';
 
 interface SectionManagerProps {
   projectId: UUID;
@@ -15,6 +17,7 @@ interface SectionManagerProps {
 
 export function SectionManager({ projectId }: SectionManagerProps) {
   const { addSection, updateSection, deleteSection, getSectionsByProjectId } = useDataStore();
+  const canEdit = useTabSyncStore(s => s.canEdit);
   const [editingId, setEditingId] = useState<UUID | null>(null);
   const [editingName, setEditingName] = useState('');
   const [newSectionName, setNewSectionName] = useState('');
@@ -72,7 +75,7 @@ export function SectionManager({ projectId }: SectionManagerProps) {
         {projectSections.map((section) => (
           <Card key={section.id} className="p-3">
             <div className="flex items-center gap-2">
-              <GripVertical className="h-4 w-4 text-muted-foreground cursor-move" />
+              <GripVertical className={cn("h-4 w-4 text-muted-foreground", canEdit ? "cursor-move" : "hidden")} draggable={canEdit} />
               
               {editingId === section.id ? (
                 <>
@@ -85,11 +88,13 @@ export function SectionManager({ projectId }: SectionManagerProps) {
                     }}
                     className="flex-1"
                     autoFocus
+                    disabled={!canEdit}
                   />
                   <Button
                     size="sm"
                     variant="ghost"
                     onClick={handleSaveEdit}
+                    disabled={!canEdit}
                   >
                     <Check className="h-4 w-4" />
                   </Button>
@@ -97,6 +102,7 @@ export function SectionManager({ projectId }: SectionManagerProps) {
                     size="sm"
                     variant="ghost"
                     onClick={handleCancelEdit}
+                    disabled={!canEdit}
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -105,7 +111,7 @@ export function SectionManager({ projectId }: SectionManagerProps) {
                 <>
                   <div
                     className="flex-1 cursor-pointer"
-                    onClick={() => handleStartEdit(section)}
+                    onClick={() => canEdit && handleStartEdit(section)}
                   >
                     {section.name}
                   </div>
@@ -113,6 +119,7 @@ export function SectionManager({ projectId }: SectionManagerProps) {
                     size="sm"
                     variant="ghost"
                     onClick={() => handleDelete(section.id)}
+                    disabled={!canEdit}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -131,8 +138,9 @@ export function SectionManager({ projectId }: SectionManagerProps) {
           onKeyDown={(e) => {
             if (e.key === 'Enter') handleAddSection();
           }}
+          disabled={!canEdit}
         />
-        <Button onClick={handleAddSection}>
+        <Button onClick={handleAddSection} disabled={!canEdit}>
           <Plus className="mr-2 h-4 w-4" />
           Add Section
         </Button>

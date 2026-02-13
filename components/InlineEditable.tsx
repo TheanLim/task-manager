@@ -12,6 +12,8 @@ interface InlineEditableProps {
   displayClassName?: string;
   inputClassName?: string;
   displayElement?: React.ReactNode;
+  disabled?: boolean;
+  disabledReason?: string;
 }
 
 export function InlineEditable({
@@ -23,6 +25,8 @@ export function InlineEditable({
   displayClassName = '',
   inputClassName = '',
   displayElement,
+  disabled = false,
+  disabledReason = 'Editing is disabled — another tab is active',
 }: InlineEditableProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(value);
@@ -124,22 +128,22 @@ export function InlineEditable({
     );
   }
 
-  return (
+  const displaySpan = (
     <span
-      onClick={() => setIsEditing(true)}
+      onClick={() => !disabled && setIsEditing(true)}
       className={`
-        ${value ? 'inline-flex' : 'flex'} items-center cursor-text rounded px-1
+        ${value ? 'inline-flex' : 'flex'} items-center rounded px-1
         transition-all duration-150
-        hover:bg-accent/50 hover:text-accent-foreground hover:border hover:border-gray-400 dark:hover:border-gray-500
+        ${!disabled ? 'cursor-text hover:bg-accent/50 hover:text-accent-foreground hover:border hover:border-gray-400 dark:hover:border-gray-500' : 'cursor-not-allowed opacity-60'}
         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2
         ${displayClassName}
         ${className}
       `}
-      title="Click to edit"
+      title={disabled ? disabledReason : undefined}
       role="button"
-      tabIndex={0}
+      tabIndex={disabled ? -1 : 0}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
+        if (!disabled && (e.key === 'Enter' || e.key === ' ')) {
           e.preventDefault();
           setIsEditing(true);
         }
@@ -154,4 +158,8 @@ export function InlineEditable({
       )}
     </span>
   );
+
+  // When disabled, just add a title attribute for the tooltip — much lighter
+  // than mounting a full Tooltip/TooltipProvider per instance
+  return displaySpan;
 }

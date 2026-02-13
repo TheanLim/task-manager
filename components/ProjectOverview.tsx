@@ -18,6 +18,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { format } from 'date-fns';
+import { useTabSyncStore } from '@/lib/tab-sync/store';
 
 interface ProjectOverviewProps {
   project: Project;
@@ -33,6 +34,7 @@ export function ProjectOverview({
   onDeleteProject
 }: ProjectOverviewProps) {
   const router = useRouter();
+  const canEdit = useTabSyncStore(s => s.canEdit);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [description, setDescription] = useState(project.description || '');
 
@@ -69,6 +71,7 @@ export function ProjectOverview({
               onBlur={handleDescriptionBlur}
               placeholder="Add a project description..."
               className="min-h-[100px]"
+              disabled={!canEdit}
             />
           </div>
           
@@ -116,6 +119,7 @@ export function ProjectOverview({
           <Button
             variant="destructive"
             onClick={() => setDeleteDialogOpen(true)}
+            disabled={!canEdit}
           >
             Delete Project
           </Button>

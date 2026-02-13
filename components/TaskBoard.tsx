@@ -36,6 +36,8 @@ import { InlineEditable } from '@/components/InlineEditable';
 import { validateTaskDescription, validateSectionName } from '@/lib/validation';
 import { useDataStore } from '@/stores/dataStore';
 import { v4 as uuidv4 } from 'uuid';
+import { useTabSyncStore } from '@/lib/tab-sync/store';
+import { cn } from '@/lib/utils';
 
 interface TaskBoardProps {
   tasks: Task[];
@@ -120,11 +122,12 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
   const [newSectionName, setNewSectionName] = useState('');
   const [expandedSubtasks, setExpandedSubtasks] = useState<Set<string>>(new Set());
   const { updateTask, updateSection, deleteSection, addSection, getSubtasks } = useDataStore();
+  const canEdit = useTabSyncStore(s => s.canEdit);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: canEdit ? 8 : Infinity,
       },
     }),
     useSensor(KeyboardSensor)
@@ -316,7 +319,7 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
         <div className="space-y-2">
           {/* First row: drag handle, checkbox, task name, priority */}
           <div className="flex items-start gap-2">
-            <div className="cursor-grab active:cursor-grabbing mt-0.5">
+            <div className={canEdit ? "cursor-grab active:cursor-grabbing mt-0.5" : "hidden"}>
               <GripVertical className="h-4 w-4 text-muted-foreground" />
             </div>
             
@@ -327,6 +330,7 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
                   onTaskComplete(task.id, checked === true);
                 }}
                 onClick={(e) => e.stopPropagation()}
+                disabled={!canEdit}
               />
             </div>
             
@@ -339,6 +343,7 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
                   placeholder="Task description"
                   displayClassName={`text-sm ${task.completed ? 'line-through text-muted-foreground' : ''}`}
                   inputClassName="text-sm w-full"
+                  disabled={!canEdit}
                 />
               </div>
               {task.priority !== Priority.NONE && (
@@ -407,6 +412,7 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
                     }}
                     onClick={(e) => e.stopPropagation()}
                     className="flex-shrink-0"
+                    disabled={!canEdit}
                   />
                   <div className="flex-1 min-w-0">
                     <InlineEditable
@@ -416,6 +422,7 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
                       placeholder="Subtask description"
                       displayClassName={`text-sm ${subtask.completed ? 'line-through text-muted-foreground' : ''}`}
                       inputClassName="text-sm w-full"
+                      disabled={!canEdit}
                     />
                   </div>
                   {subtask.dueDate ? (
@@ -479,11 +486,15 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
               {/* Add subtask row */}
               {onAddSubtask && (
                 <div
-                  className="flex items-center gap-2 py-2 px-3 hover:bg-accent/50 cursor-pointer text-muted-foreground hover:text-foreground"
+                  className={cn(
+                    "flex items-center gap-2 py-2 px-3",
+                    canEdit ? "hover:bg-accent/50 cursor-pointer text-muted-foreground hover:text-foreground" : "text-muted-foreground/60 cursor-not-allowed"
+                  )}
                   onClick={(e) => {
                     e.stopPropagation();
-                    onAddSubtask(task.id);
+                    if (canEdit) onAddSubtask(task.id);
                   }}
+                  title={!canEdit ? 'Editing is disabled — another tab is active' : undefined}
                 >
                   <Plus className="h-4 w-4 ml-5" />
                   <span className="text-sm">Add subtask...</span>
@@ -519,7 +530,7 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
                 <DroppableSection id={section.id}>
                   <div className="bg-muted/50 rounded-lg p-4 min-h-[500px] flex flex-col">
                     <div className="flex items-center gap-2 mb-4">
-                      <GripVertical className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <GripVertical className={cn("h-4 w-4 text-muted-foreground flex-shrink-0", !canEdit && "hidden")} />
                       <div className="flex items-center justify-between flex-1">
                         <InlineEditable
                           value={section.name}
@@ -528,6 +539,7 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
                           placeholder="Section name"
                           displayClassName="font-semibold"
                           inputClassName="font-semibold"
+                          disabled={!canEdit}
                         />
                         <Badge variant="secondary">{sectionTasks.length}</Badge>
                       </div>
@@ -554,6 +566,7 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
                       variant="ghost"
                       className="w-full justify-start text-muted-foreground hover:text-foreground mt-2"
                       onClick={() => handleAddTask(section.id)}
+                      disabled={!canEdit}
                     >
                       <Plus className="h-4 w-4 mr-2" />
                       Add task
@@ -577,6 +590,7 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
                 }}
                 onBlur={handleCancelAddSection}
                 placeholder="Section name"
+                disabled={!canEdit}
                 autoFocus
                 className="mb-2"
               />
@@ -607,6 +621,7 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
                 variant="ghost"
                 className="w-full justify-start text-muted-foreground hover:text-foreground"
                 onClick={() => setIsAddingSection(true)}
+                disabled={!canEdit}
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Add section

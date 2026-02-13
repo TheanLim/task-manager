@@ -19,7 +19,9 @@ import { useState } from 'react';
 import { InlineEditable } from '@/components/InlineEditable';
 import { validateSectionName } from '@/lib/validation';
 import { useDataStore } from '@/stores/dataStore';
+import { useTabSyncStore } from '@/lib/tab-sync/store';
 import { v4 as uuidv4 } from 'uuid';
+
 import { Input } from '@/components/ui/input';
 import { TaskRow } from '@/components/TaskRow';
 import { cn } from '@/lib/utils';
@@ -64,6 +66,7 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [sectionToDelete, setSectionToDelete] = useState<string | null>(null);
   const { updateTask, updateSection, deleteSection, addSection, projects } = useDataStore();
+  const canEdit = useTabSyncStore(s => s.canEdit);
 
   // Helper function to get project name for a task
   const getProjectName = (task: Task): string => {
@@ -636,7 +639,7 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                       ${draggedSectionId === section.id ? 'opacity-50' : ''}
                       ${dragOverSectionId === section.id ? 'ring-2 ring-primary' : ''}
                     `}
-                    draggable={true}
+                    draggable={canEdit}
                     onDragStart={(e) => handleSectionDragStart(e, section.id)}
                     onDragOver={(e) => {
                       e.preventDefault();
@@ -651,7 +654,10 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                   >
                     <td className="pt-6 pb-3 px-3 sticky left-0 z-10 bg-background">
                       <div className="flex items-center gap-2">
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground flex-shrink-0">
+                        <div className={cn(
+                          "transition-opacity cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground flex-shrink-0",
+                          canEdit ? "opacity-0 group-hover:opacity-100" : "hidden"
+                        )}>
                           <GripVertical className="h-4 w-4" />
                         </div>
                         <button
@@ -671,6 +677,7 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                           placeholder="Section name"
                           displayClassName="font-semibold truncate"
                           inputClassName="font-semibold"
+                          disabled={!canEdit}
                         />
                         <Badge variant="secondary" className="flex-shrink-0">
                           {sectionTasks.length}
@@ -684,6 +691,7 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                           }}
                           className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
                           title="Delete section"
+                          disabled={!canEdit}
                         >
                           <MoreVertical className="h-4 w-4" />
                         </Button>
@@ -706,7 +714,7 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                       onViewSubtasks={handleViewSubtasks}
                       onSubtaskButtonClick={onSubtaskButtonClick}
                       onAddSubtask={onAddSubtask}
-                      draggable
+                      draggable={canEdit}
                       onDragStart={handleDragStart}
                       onDragOver={handleTaskDragOver}
                       onDragLeave={handleTaskDragLeave}
@@ -728,10 +736,12 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                   {!section.collapsed && (
                     <tr 
                       className={cn(
-                        "hover:bg-accent cursor-pointer transition-colors",
+                        "transition-colors",
+                        canEdit ? "hover:bg-accent cursor-pointer" : "opacity-60 cursor-not-allowed",
                         draggedTaskId && sectionTasks.length === 0 && "bg-accent/50"
                       )}
-                      onClick={() => handleAddTask(section.id)}
+                      onClick={() => canEdit && handleAddTask(section.id)}
+                      title={!canEdit ? 'Editing is disabled — another tab is active' : undefined}
                       onDragOver={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -767,7 +777,10 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                           <div className="w-4 flex-shrink-0" />
                           <div className="w-4 flex-shrink-0" />
                           <div className="w-5 flex-shrink-0" />
-                          <span className="text-muted-foreground hover:text-foreground">Add tasks...</span>
+                          <span className={cn(
+                            "text-muted-foreground",
+                            canEdit ? "hover:text-foreground" : "opacity-60"
+                          )}>Add tasks...</span>
                         </div>
                       </td>
                       <td></td>
@@ -803,7 +816,7 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                     onViewSubtasks={handleViewSubtasks}
                     onSubtaskButtonClick={onSubtaskButtonClick}
                     onAddSubtask={onAddSubtask}
-                    draggable
+                    draggable={canEdit}
                     onDragStart={handleDragStart}
                     onDragOver={handleTaskDragOver}
                     onDragLeave={handleTaskDragLeave}
@@ -850,7 +863,8 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
             <Button
               variant="outline"
               className="w-full border-dashed"
-              onClick={() => setIsAddingSection(true)}
+              onClick={() => { if (!canEdit) return; setIsAddingSection(true); }}
+              disabled={!canEdit}
             >
               <Plus className="h-4 w-4 mr-2" />
               Add Section

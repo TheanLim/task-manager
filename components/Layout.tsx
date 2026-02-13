@@ -57,8 +57,7 @@ export function Layout({ children, sidebar, header }: LayoutProps) {
     <div className="flex flex-col h-screen overflow-hidden bg-background">
       {/* Header - always visible at top */}
       <header className="flex h-16 items-center gap-4 border-b bg-card px-4 flex-shrink-0">
-        <TooltipProvider>
-          <Tooltip>
+        <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 variant="ghost"
@@ -72,7 +71,6 @@ export function Layout({ children, sidebar, header }: LayoutProps) {
               <p>{sidebarOpen ? 'Close sidebar' : 'Open sidebar'}</p>
             </TooltipContent>
           </Tooltip>
-        </TooltipProvider>
         
         <div className="flex flex-1 items-center justify-between">
           {header}

@@ -38,6 +38,8 @@ import { useFilteredTasks } from '@/lib/hooks/useFilteredTasks';
 import { ShareService } from '@/lib/share/shareService';
 import { Toast } from '@/components/ui/toast';
 import { SharedStateDialog } from '@/components/SharedStateDialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useTabSyncStore } from '@/lib/tab-sync/store';
 import { AppState } from '@/types';
 
 function HomeContent() {
@@ -50,6 +52,7 @@ function HomeContent() {
   const expandedFromUrl = searchParams.get('expanded') === 'true';
   
   const isGlobalView = viewFromUrl === 'tasks'; // NEW - determine if we're in global view
+  const canEdit = useTabSyncStore(s => s.canEdit);
 
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
@@ -331,11 +334,13 @@ function HomeContent() {
 
   // Handlers
   const handleNewProject = () => {
+    if (!useTabSyncStore.getState().canEdit) return;
     setEditingProject(null);
     setProjectDialogOpen(true);
   };
 
   const handleProjectSubmit = (data: { name: string; description: string; viewMode: ViewMode }) => {
+    if (!useTabSyncStore.getState().canEdit) return;
     if (editingProject) {
       updateProject(editingProject, data);
     } else {
@@ -352,6 +357,7 @@ function HomeContent() {
   };
 
   const handleNewTask = (sectionId?: string, parentTaskId?: string) => {
+    if (!useTabSyncStore.getState().canEdit) return;
     // Allow task creation in global view (without active project)
     if (!activeProject && !isGlobalView) return;
     setEditingTask(null);
@@ -368,6 +374,7 @@ function HomeContent() {
     tags: string[];
     dueDate: string | null;
   }) => {
+    if (!useTabSyncStore.getState().canEdit) return;
     // Allow task creation in global view (creates unlinked task)
     if (!activeProject && !isGlobalView) return;
 
@@ -427,6 +434,7 @@ function HomeContent() {
   };
 
   const handleTaskComplete = (taskId: string, completed: boolean) => {
+    if (!useTabSyncStore.getState().canEdit) return;
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
     
@@ -534,10 +542,21 @@ function HomeContent() {
             <ImportExportMenu />
             <ThemeToggle />
             {(activeProject || isGlobalView) && (
-              <Button onClick={() => handleNewTask()} size="sm" className="sm:size-default">
-                <Plus className="mr-0 sm:mr-2 h-4 w-4" />
-                <span className="hidden sm:inline">New Task</span>
-              </Button>
+              <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span tabIndex={0}>
+                      <Button onClick={() => handleNewTask()} size="sm" className="sm:size-default" disabled={!canEdit}>
+                        <Plus className="mr-0 sm:mr-2 h-4 w-4" />
+                        <span className="hidden sm:inline">New Task</span>
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  {!canEdit && (
+                    <TooltipContent>
+                      <p>Editing is disabled — another tab is active</p>
+                    </TooltipContent>
+                  )}
+                </Tooltip>
             )}
           </div>
         </>
@@ -600,6 +619,7 @@ function HomeContent() {
                   placeholder="Project name"
                   displayClassName="text-2xl font-bold"
                   className="text-2xl font-bold"
+                  disabled={!canEdit}
                 />
                 <div className="ml-auto">
                   <ShareButton 
@@ -693,7 +713,7 @@ function HomeContent() {
               <p className="text-muted-foreground mb-4">
                 Select a project from the sidebar or create a new one to get started
               </p>
-              <Button onClick={handleNewProject}>
+              <Button onClick={handleNewProject} disabled={!canEdit}>
                 <Plus className="mr-2 h-4 w-4" />
                 Create Project
               </Button>

@@ -18,6 +18,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { Calendar as CalendarIcon, X } from 'lucide-react';
 import { RichTextEditor } from '@/components/RichTextEditor';
+import { useTabSyncStore } from '@/lib/tab-sync/store';
 
 interface TaskDialogProps {
   open: boolean;
@@ -47,6 +48,7 @@ export function TaskDialog({ open, onOpenChange, onSubmit, task, parentTask }: T
   const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
   const [showCalendar, setShowCalendar] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const canEdit = useTabSyncStore(s => s.canEdit);
 
   // Reset form when dialog opens/closes or task changes
   useEffect(() => {
@@ -139,6 +141,7 @@ export function TaskDialog({ open, onOpenChange, onSubmit, task, parentTask }: T
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Task description"
                 maxLength={500}
+                disabled={!canEdit}
                 autoFocus
               />
               {error && <p className="text-sm text-destructive">{error}</p>}
@@ -151,6 +154,7 @@ export function TaskDialog({ open, onOpenChange, onSubmit, task, parentTask }: T
                 value={notes}
                 onChange={setNotes}
                 placeholder="Additional notes (optional)"
+                readOnly={!canEdit}
               />
             </div>
 
@@ -161,7 +165,8 @@ export function TaskDialog({ open, onOpenChange, onSubmit, task, parentTask }: T
                 id="priority"
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as Priority)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                disabled={!canEdit}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <option value={Priority.NONE}>None</option>
                 <option value={Priority.LOW}>Low</option>
@@ -178,6 +183,7 @@ export function TaskDialog({ open, onOpenChange, onSubmit, task, parentTask }: T
                 value={assignee}
                 onChange={(e) => setAssignee(e.target.value)}
                 placeholder="Assignee name (optional)"
+                disabled={!canEdit}
               />
             </div>
 
@@ -190,6 +196,7 @@ export function TaskDialog({ open, onOpenChange, onSubmit, task, parentTask }: T
                   variant="outline"
                   className="w-full justify-start text-left font-normal"
                   onClick={() => setShowCalendar(!showCalendar)}
+                  disabled={!canEdit}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {dueDate ? format(dueDate, 'PPP') : 'Pick a date'}
@@ -200,6 +207,7 @@ export function TaskDialog({ open, onOpenChange, onSubmit, task, parentTask }: T
                     variant="ghost"
                     size="icon"
                     onClick={() => setDueDate(undefined)}
+                    disabled={!canEdit}
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -210,9 +218,12 @@ export function TaskDialog({ open, onOpenChange, onSubmit, task, parentTask }: T
                   mode="single"
                   selected={dueDate}
                   onSelect={(date) => {
-                    setDueDate(date);
-                    setShowCalendar(false);
+                    if (canEdit) {
+                      setDueDate(date);
+                      setShowCalendar(false);
+                    }
                   }}
+                  disabled={!canEdit}
                   className="rounded-md border"
                 />
               )}
@@ -228,8 +239,9 @@ export function TaskDialog({ open, onOpenChange, onSubmit, task, parentTask }: T
                   onChange={(e) => setTagInput(e.target.value)}
                   onKeyDown={handleTagInputKeyDown}
                   placeholder="Add tag and press Enter"
+                  disabled={!canEdit}
                 />
-                <Button type="button" variant="outline" onClick={addTag}>
+                <Button type="button" variant="outline" onClick={addTag} disabled={!canEdit}>
                   Add
                 </Button>
               </div>
@@ -244,7 +256,8 @@ export function TaskDialog({ open, onOpenChange, onSubmit, task, parentTask }: T
                       <button
                         type="button"
                         onClick={() => removeTag(tag)}
-                        className="text-muted-foreground hover:text-foreground"
+                        disabled={!canEdit}
+                        className="text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -259,7 +272,7 @@ export function TaskDialog({ open, onOpenChange, onSubmit, task, parentTask }: T
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit">{task ? 'Save Changes' : 'Create Task'}</Button>
+            <Button type="submit" disabled={!canEdit}>{task ? 'Save Changes' : 'Create Task'}</Button>
           </DialogFooter>
         </form>
       </DialogContent>

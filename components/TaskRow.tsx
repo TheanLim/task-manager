@@ -15,6 +15,7 @@ import { format } from 'date-fns';
 import { useDataStore } from '@/stores/dataStore';
 import { InlineEditable } from '@/components/InlineEditable';
 import { validateTaskDescription } from '@/lib/validation';
+import { useTabSyncStore } from '@/lib/tab-sync/store';
 
 // Extended task type with flat mode metadata
 interface TaskWithFlatMetadata extends Task {
@@ -79,6 +80,7 @@ export function TaskRow({
   const [isEditingTags, setIsEditingTags] = useState(false);
   const [tagInput, setTagInput] = useState('');
   const { getSubtasks, updateTask } = useDataStore();
+  const canEdit = useTabSyncStore(s => s.canEdit);
   const subtasks = getSubtasks(task.id);
   const hasSubtasks = subtasks.length > 0;
 
@@ -157,8 +159,7 @@ export function TaskRow({
       >
         {/* Task Name Column - contains drag handle, expand/collapse, checkbox, name, and chevron-right */}
         <td className="py-1 pr-1 border-r sticky left-0 bg-background group-hover:bg-accent z-10 relative transition-colors">
-          <TooltipProvider>
-            <div className="flex items-center gap-2" style={{ paddingLeft: depth > 0 ? `${depth * 24 + 4}px` : '4px' }}>
+          <div className="flex items-center gap-2" style={{ paddingLeft: depth > 0 ? `${depth * 24 + 4}px` : '4px' }}>
               {/* Drag Handle - appears on hover for all draggable tasks */}
               {draggable ? (
                 <div className="opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground flex-shrink-0">
@@ -222,13 +223,21 @@ export function TaskRow({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  onComplete(task.id);
+                  if (canEdit) {
+                    onComplete(task.id);
+                  }
                 }}
+                disabled={!canEdit}
                 className={cn(
                   "flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
                   task.completed
-                    ? "bg-green-500 border-green-500 hover:bg-green-600 hover:border-green-600"
-                    : "border-gray-300 hover:border-gray-400 dark:border-gray-600 dark:hover:border-gray-500"
+                    ? "bg-green-500 border-green-500"
+                    : "border-gray-300 dark:border-gray-600",
+                  canEdit
+                    ? task.completed
+                      ? "hover:bg-green-600 hover:border-green-600"
+                      : "hover:border-gray-400 dark:hover:border-gray-500"
+                    : "cursor-not-allowed opacity-60"
                 )}
                 aria-label={task.completed ? 'Mark as incomplete' : 'Mark as complete'}
               >
@@ -242,6 +251,7 @@ export function TaskRow({
                   onSave={(newDescription) => updateTask(task.id, { description: newDescription })}
                   validate={validateTaskDescription}
                   placeholder="Task description"
+                  disabled={!canEdit}
                   displayClassName={cn(
                     task.completed && "line-through text-muted-foreground"
                   )}
@@ -345,7 +355,6 @@ export function TaskRow({
                 </TooltipContent>
               </Tooltip>
             </div>
-          </TooltipProvider>
         </td>
 
         {/* Due Date Column */}
@@ -354,8 +363,11 @@ export function TaskRow({
           onClick={(e) => e.stopPropagation()}
         >
           <Popover>
-            <PopoverTrigger asChild>
-              <div className="flex items-center gap-1 hover:bg-accent rounded px-1 py-0.5">
+            <PopoverTrigger asChild disabled={!canEdit}>
+              <div className={cn(
+                "flex items-center gap-1 rounded px-1 py-0.5",
+                canEdit ? "hover:bg-accent" : "cursor-not-allowed opacity-60"
+              )}>
                 {task.dueDate ? (
                   <span>{format(new Date(task.dueDate), 'MMM d')}</span>
                 ) : (
@@ -368,8 +380,11 @@ export function TaskRow({
                 mode="single"
                 selected={task.dueDate ? new Date(task.dueDate) : undefined}
                 onSelect={(date) => {
-                  updateTask(task.id, { dueDate: date?.toISOString() || null });
+                  if (canEdit) {
+                    updateTask(task.id, { dueDate: date?.toISOString() || null });
+                  }
                 }}
+                disabled={!canEdit}
                 initialFocus
               />
               {task.dueDate && (
@@ -378,6 +393,7 @@ export function TaskRow({
                     variant="ghost"
                     size="sm"
                     className="w-full"
+                    disabled={!canEdit}
                     onClick={() => updateTask(task.id, { dueDate: null })}
                   >
                     Clear date
@@ -395,9 +411,13 @@ export function TaskRow({
         >
           <Select
             value={task.priority}
-            onValueChange={(value) => updateTask(task.id, { priority: value as Priority })}
+            onValueChange={(value) => canEdit && updateTask(task.id, { priority: value as Priority })}
+            disabled={!canEdit}
           >
-            <SelectTrigger className="h-6 border-0 shadow-none hover:bg-accent">
+            <SelectTrigger className={cn(
+              "h-6 border-0 shadow-none",
+              canEdit ? "hover:bg-accent" : "cursor-not-allowed opacity-60"
+            )}>
               <SelectValue>
                 {task.priority !== Priority.NONE ? (
                   <Badge variant={getPriorityVariant(task.priority)} className="text-xs">
@@ -422,11 +442,15 @@ export function TaskRow({
           className="p-1 border-r text-sm text-muted-foreground truncate cursor-pointer"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="hover:bg-accent rounded px-1 py-0.5">
+          <div className={cn(
+            "rounded px-1 py-0.5",
+            canEdit && "hover:bg-accent"
+          )}>
             <InlineEditable
               value={task.assignee || ''}
               onSave={(newAssignee) => updateTask(task.id, { assignee: newAssignee || undefined })}
               placeholder="Assignee"
+              disabled={!canEdit}
               displayClassName="truncate text-sm"
               inputClassName="w-full text-sm"
               displayElement={
@@ -443,9 +467,14 @@ export function TaskRow({
           className="p-1 border-r cursor-pointer"
           onClick={(e) => e.stopPropagation()}
         >
-          <Popover open={isEditingTags} onOpenChange={setIsEditingTags}>
-            <PopoverTrigger asChild>
-              <div className="flex gap-1 flex-wrap hover:bg-accent rounded px-1 py-0.5 min-h-[24px]">
+          <Popover open={isEditingTags} onOpenChange={(open) => canEdit && setIsEditingTags(open)}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <PopoverTrigger asChild disabled={!canEdit}>
+                    <div className={cn(
+                      "flex gap-1 flex-wrap rounded px-1 py-0.5 min-h-[24px]",
+                      canEdit ? "hover:bg-accent" : "cursor-not-allowed opacity-60"
+                    )}>
                 {task.tags.length > 0 ? (
                   <>
                     {task.tags.slice(0, 2).map(tag => (
@@ -463,7 +492,14 @@ export function TaskRow({
                   <span className="text-xs text-muted-foreground/50">Add tags</span>
                 )}
               </div>
-            </PopoverTrigger>
+                  </PopoverTrigger>
+                </TooltipTrigger>
+                {!canEdit && (
+                  <TooltipContent>
+                    <p>Editing is disabled — another tab is active</p>
+                  </TooltipContent>
+                )}
+              </Tooltip>
             <PopoverContent className="w-64" align="start">
               <div className="space-y-2">
                 <div className="flex gap-2">
@@ -478,8 +514,9 @@ export function TaskRow({
                     }}
                     placeholder="Add tag..."
                     className="h-8 text-sm"
+                    disabled={!canEdit}
                   />
-                  <Button size="sm" onClick={handleAddTag} disabled={!tagInput.trim()}>
+                  <Button size="sm" onClick={handleAddTag} disabled={!tagInput.trim() || !canEdit}>
                     Add
                   </Button>
                 </div>
@@ -491,6 +528,7 @@ export function TaskRow({
                         <button
                           onClick={() => handleRemoveTag(tag)}
                           className="ml-1 hover:text-destructive"
+                          disabled={!canEdit}
                         >
                           <X className="h-3 w-3" />
                         </button>
@@ -557,19 +595,29 @@ export function TaskRow({
           {/* Add subtask row */}
           {onAddSubtask && (
             <tr 
-              className="border-b hover:bg-accent cursor-pointer transition-colors"
+              className={cn(
+                "border-b transition-colors",
+                canEdit ? "hover:bg-accent cursor-pointer" : "opacity-60 cursor-not-allowed"
+              )}
               onClick={(e) => {
                 e.stopPropagation();
-                onAddSubtask(task.id);
+                if (canEdit) onAddSubtask(task.id);
               }}
+              title={!canEdit ? 'Editing is disabled — another tab is active' : undefined}
             >
-              <td className="py-1 pr-1 border-r sticky left-0 bg-background hover:bg-accent z-10 transition-colors">
+              <td className={cn(
+                "py-1 pr-1 border-r sticky left-0 bg-background z-10 transition-colors",
+                canEdit && "hover:bg-accent"
+              )}>
                 <div className="flex items-center gap-2" style={{ paddingLeft: `${(depth + 1) * 24 + 4}px` }}>
                   {/* Spacing to align with subtask content */}
                   <div className="w-4 flex-shrink-0" /> {/* Drag handle space */}
                   <div className="w-4 flex-shrink-0" /> {/* Expand/collapse space */}
                   <div className="w-5 flex-shrink-0" /> {/* Checkbox space */}
-                  <span className="text-muted-foreground hover:text-foreground text-sm">Add subtask...</span>
+                  <span className={cn(
+                    "text-muted-foreground text-sm",
+                    canEdit && "hover:text-foreground"
+                  )}>Add subtask...</span>
                 </div>
               </td>
               <td className="border-r"></td>

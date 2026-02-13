@@ -3,6 +3,8 @@ import "./globals.css";
 import "./quill-custom.css";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { TabSyncProvider } from "@/components/TabSyncProvider";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 export const metadata: Metadata = {
   title: "Task Management App",
@@ -19,7 +21,11 @@ export default function RootLayout({
       <body>
         <ErrorBoundary>
           <ThemeProvider>
-            {children}
+            <TabSyncProvider>
+              <TooltipProvider>
+                {children}
+              </TooltipProvider>
+            </TabSyncProvider>
           </ThemeProvider>
         </ErrorBoundary>
       </body>
