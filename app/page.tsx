@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense, useCallback } from 'react';
+import { useEffect, Suspense, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Layout } from '@/components/Layout';
 import { ProjectList } from '@/features/projects/components/ProjectList';
@@ -60,9 +60,9 @@ function HomeContent() {
   } = useDataStore();
 
   const { settings, setActiveProject } = useAppStore();
-  const { state: tmsState } = useTMSStore();
 
   // --- Shared state loading via useSharedStateLoader ---
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const onLoadResult = useCallback(
     (result: { message: string; type: 'success' | 'error' | 'info' }) => {
       dm.showToast(result.message, result.type);
@@ -274,12 +274,6 @@ function HomeContent() {
       if (Object.keys(delta).length > 0) {
         useTMSStore.getState().updateState(delta);
       }
-    }
-  };
-
-  const handleTaskEdit = () => {
-    if (dm.taskDetailPanel.selectedTaskId) {
-      dm.openTaskDialog({ editingTaskId: dm.taskDetailPanel.selectedTaskId });
     }
   };
 

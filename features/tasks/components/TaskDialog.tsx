@@ -56,7 +56,7 @@ export function TaskDialog({ open, onOpenChange, onSubmit, task, parentTask }: T
         setDescription(task.description);
         setNotes(task.notes);
         setAssignee(task.assignee);
-        setPriority(task.priority);
+        setPriority(task.priority as Priority);
         setTags(task.tags);
         setDueDate(task.dueDate ? new Date(task.dueDate) : undefined);
       } else {

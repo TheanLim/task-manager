@@ -71,7 +71,7 @@ export function TaskRow({
   const isDragging = draggedTaskId === task.id;
   const isDragOver = dragOverTaskId === task.id;
 
-  const getPriorityVariant = (priority: Priority): 'default' | 'destructive' | 'secondary' | 'outline' => {
+  const getPriorityVariant = (priority: string): 'default' | 'destructive' | 'secondary' | 'outline' => {
     switch (priority) {
       case Priority.HIGH: return 'destructive';
       case Priority.MEDIUM: return 'default';

@@ -35,7 +35,7 @@ export const TaskSchema = z.object({
   updatedAt: z.string().datetime(),
   comments: z.array(z.any()).optional(),
   attachments: z.array(z.any()).optional(),
-  customFields: z.record(z.any()).optional(),
+  customFields: z.record(z.string(), z.any()).optional(),
 });
 
 export const SectionSchema = z.object({

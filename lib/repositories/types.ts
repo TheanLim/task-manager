@@ -17,6 +17,7 @@ export interface TaskRepository extends Repository<Task> {
   findByParentTaskId(parentTaskId: UUID): Task[];
 }
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface ProjectRepository extends Repository<Project> {}
 
 export interface SectionRepository extends Repository<Section> {

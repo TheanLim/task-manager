@@ -109,7 +109,7 @@ export function TaskDetailPanel({
     }
   }, [scrollToSubtasks]);
 
-  const getPriorityVariant = (priority: Priority): 'default' | 'destructive' | 'secondary' | 'outline' => {
+  const getPriorityVariant = (priority: string): 'default' | 'destructive' | 'secondary' | 'outline' => {
     switch (priority) {
       case Priority.HIGH:
         return 'destructive';

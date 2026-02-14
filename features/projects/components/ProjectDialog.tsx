@@ -42,7 +42,7 @@ export function ProjectDialog({
       if (project) {
         setName(project.name);
         setDescription(project.description);
-        setViewMode(project.viewMode);
+        setViewMode(project.viewMode as ViewMode);
       } else {
         setName('');
         setDescription('');
