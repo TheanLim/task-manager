@@ -63,6 +63,9 @@ export class LocalStorageBackend {
    * Returns default empty state if nothing is found or validation fails.
    */
   load(): AppState {
+    if (typeof window === 'undefined') {
+      return getDefaultState();
+    }
     try {
       // Try unified key first
       const unifiedData = localStorage.getItem(STORAGE_KEY);
@@ -122,6 +125,7 @@ export class LocalStorageBackend {
    * Writes to both the unified key and the separate Zustand keys for backward compatibility.
    */
   save(): void {
+    if (typeof window === 'undefined') return;
     try {
       // Unified key
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
