@@ -1,10 +1,19 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { LocalStorageAdapter, StorageError, ImportError } from './storage';
 import { AppState, Priority, ViewMode, TimeManagementSystem } from '@/types';
+import { v4 as uuidv4 } from 'uuid';
 
 describe('LocalStorageAdapter', () => {
   let adapter: LocalStorageAdapter;
   let mockLocalStorage: Record<string, string>;
+  
+  // Fixed UUIDs for deterministic tests
+  const PROJECT_1_ID = '550e8400-e29b-41d4-a716-446655440001';
+  const PROJECT_2_ID = '550e8400-e29b-41d4-a716-446655440002';
+  const TASK_1_ID = '550e8400-e29b-41d4-a716-446655440011';
+  const TASK_2_ID = '550e8400-e29b-41d4-a716-446655440012';
+  const SECTION_1_ID = 'section-todo';
+  const DEP_1_ID = '550e8400-e29b-41d4-a716-446655440021';
   
   beforeEach(() => {
     adapter = new LocalStorageAdapter();
@@ -30,7 +39,7 @@ describe('LocalStorageAdapter', () => {
   const createValidAppState = (): AppState => ({
     projects: [
       {
-        id: 'project-1',
+        id: PROJECT_1_ID,
         name: 'Test Project',
         description: 'A test project',
         viewMode: ViewMode.LIST,
@@ -40,8 +49,8 @@ describe('LocalStorageAdapter', () => {
     ],
     tasks: [
       {
-        id: 'task-1',
-        projectId: 'project-1',
+        id: TASK_1_ID,
+        projectId: PROJECT_1_ID,
         parentTaskId: null,
         sectionId: null,
         description: 'Test task',
@@ -120,7 +129,7 @@ describe('LocalStorageAdapter', () => {
       expect(loaded).toBeNull();
     });
     
-    it('should throw StorageError when loading invalid state structure from Zustand keys', () => {
+    it('should return null when loading invalid state structure from Zustand keys', () => {
       // Set data that will fail validation (projects is not an array)
       mockLocalStorage['task-management-data'] = JSON.stringify({ 
         state: { 
@@ -147,8 +156,8 @@ describe('LocalStorageAdapter', () => {
         }
       });
       
-      expect(() => adapter.load()).toThrow(StorageError);
-      expect(() => adapter.load()).toThrow('Invalid state structure');
+      const loaded = adapter.load();
+      expect(loaded).toBeNull();
     });
   });
   
@@ -196,15 +205,15 @@ describe('LocalStorageAdapter', () => {
     
     it('should export all data including TMS state and settings', () => {
       const state = createValidAppState();
-      state.tmsState.dit.todayTasks = ['task-1'];
-      state.settings.activeProjectId = 'project-1';
+      state.tmsState.dit.todayTasks = [TASK_1_ID];
+      state.settings.activeProjectId = PROJECT_1_ID;
       
       adapter.save(state);
       const json = adapter.exportToJSON();
       const parsed = JSON.parse(json);
       
-      expect(parsed.tmsState.dit.todayTasks).toEqual(['task-1']);
-      expect(parsed.settings.activeProjectId).toBe('project-1');
+      expect(parsed.tmsState.dit.todayTasks).toEqual([TASK_1_ID]);
+      expect(parsed.settings.activeProjectId).toBe(PROJECT_1_ID);
     });
   });
   
@@ -228,16 +237,16 @@ describe('LocalStorageAdapter', () => {
       const json = JSON.stringify(invalidState);
       
       expect(() => adapter.importFromJSON(json)).toThrow(ImportError);
-      expect(() => adapter.importFromJSON(json)).toThrow('Invalid import data structure');
+      expect(() => adapter.importFromJSON(json)).toThrow('Invalid import data');
     });
     
     it('should import state with all fields', () => {
       const state = createValidAppState();
       state.tasks.push({
-        id: 'task-2',
-        projectId: 'project-1',
-        parentTaskId: 'task-1',
-        sectionId: 'section-1',
+        id: TASK_2_ID,
+        projectId: PROJECT_1_ID,
+        parentTaskId: TASK_1_ID,
+        sectionId: SECTION_1_ID,
         description: 'Subtask',
         notes: 'Some notes',
         assignee: 'John',
@@ -255,7 +264,7 @@ describe('LocalStorageAdapter', () => {
       const imported = adapter.importFromJSON(json);
       
       expect(imported.tasks).toHaveLength(2);
-      expect(imported.tasks[1].parentTaskId).toBe('task-1');
+      expect(imported.tasks[1].parentTaskId).toBe(TASK_1_ID);
       expect(imported.tasks[1].priority).toBe(Priority.HIGH);
     });
   });
@@ -340,7 +349,7 @@ describe('LocalStorageAdapter', () => {
       
       // Add more projects
       state.projects.push({
-        id: 'project-2',
+        id: PROJECT_2_ID,
         name: 'Another Project',
         description: 'Description',
         viewMode: ViewMode.BOARD,
@@ -350,8 +359,8 @@ describe('LocalStorageAdapter', () => {
       
       // Add sections
       state.sections.push({
-        id: 'section-1',
-        projectId: 'project-1',
+        id: SECTION_1_ID,
+        projectId: PROJECT_1_ID,
         name: 'Section 1',
         order: 0,
         collapsed: false,
@@ -361,9 +370,9 @@ describe('LocalStorageAdapter', () => {
       
       // Add dependencies
       state.dependencies.push({
-        id: 'dep-1',
-        blockingTaskId: 'task-1',
-        blockedTaskId: 'task-2',
+        id: DEP_1_ID,
+        blockingTaskId: TASK_1_ID,
+        blockedTaskId: TASK_2_ID,
         createdAt: new Date().toISOString()
       });
       

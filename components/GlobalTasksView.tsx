@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { TaskList } from '@/components/TaskList';
+import { TaskList } from '@/features/tasks/components/TaskList';
 import { useDataStore } from '@/stores/dataStore';
 import { useAppStore } from '@/stores/appStore';
 import { Circle } from 'lucide-react';

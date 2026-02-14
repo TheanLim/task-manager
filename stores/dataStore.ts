@@ -7,6 +7,34 @@ import type {
   Section,
   TaskDependency,
 } from '@/types';
+import { LocalStorageBackend } from '@/lib/repositories/localStorageBackend';
+import {
+  LocalStorageProjectRepository,
+  LocalStorageTaskRepository,
+  LocalStorageSectionRepository,
+  LocalStorageDependencyRepository,
+} from '@/lib/repositories/localStorageRepositories';
+import { TaskService } from '@/features/tasks/services/taskService';
+import { ProjectService } from '@/features/projects/services/projectService';
+import { DependencyService } from '@/features/tasks/services/dependencyService';
+import { DependencyResolverImpl } from '@/features/tasks/dependencyResolver';
+
+// --- Repository & Service singletons ---
+export const localStorageBackend = new LocalStorageBackend();
+export const projectRepository = new LocalStorageProjectRepository(localStorageBackend);
+export const taskRepository = new LocalStorageTaskRepository(localStorageBackend);
+export const sectionRepository = new LocalStorageSectionRepository(localStorageBackend);
+export const dependencyRepository = new LocalStorageDependencyRepository(localStorageBackend);
+
+const dependencyResolver = new DependencyResolverImpl();
+export const taskService = new TaskService(taskRepository, dependencyRepository);
+export const projectService = new ProjectService(
+  projectRepository,
+  sectionRepository,
+  taskService,
+  taskRepository,
+);
+export const dependencyService = new DependencyService(dependencyRepository, dependencyResolver);
 
 // Data Store Interface
 interface DataStore {
@@ -53,159 +81,80 @@ export const useDataStore = create<DataStore>()(
       sections: [],
       dependencies: [],
       
-      // Project Actions
-      addProject: (project) => set((state) => {
-        const now = new Date().toISOString();
-        
-        // Create default sections
-        const defaultSections: Section[] = [
-          {
-            id: `${project.id}-section-todo`,
-            projectId: project.id,
-            name: 'To Do',
-            order: 0,
-            collapsed: false,
-            createdAt: now,
-            updatedAt: now
-          },
-          {
-            id: `${project.id}-section-doing`,
-            projectId: project.id,
-            name: 'Doing',
-            order: 1,
-            collapsed: false,
-            createdAt: now,
-            updatedAt: now
-          },
-          {
-            id: `${project.id}-section-done`,
-            projectId: project.id,
-            name: 'Done',
-            order: 2,
-            collapsed: false,
-            createdAt: now,
-            updatedAt: now
-          }
-        ];
-        
-        return {
-          projects: [...state.projects, project],
-          sections: [...state.sections, ...defaultSections]
-        };
-      }),
+      // Project Actions — delegate to services/repositories
+      // Subscriptions handle state updates automatically
+      addProject: (project) => {
+        projectService.createWithDefaults(project);
+      },
       
-      updateProject: (id, updates) => set((state) => ({
-        projects: state.projects.map(p => 
-          p.id === id ? { ...p, ...updates, updatedAt: new Date().toISOString() } : p
-        )
-      })),
+      updateProject: (id, updates) => {
+        projectRepository.update(id, { ...updates, updatedAt: new Date().toISOString() });
+      },
       
-      deleteProject: (id) => set((state) => {
-        // Cascading deletion: remove project and all associated tasks, sections
-        const tasksToDelete = state.tasks.filter(t => t.projectId === id);
-        const taskIdsToDelete = new Set(tasksToDelete.map(t => t.id));
-        
-        // Also need to delete subtasks of deleted tasks
-        const getAllSubtaskIds = (parentId: UUID): UUID[] => {
-          const subtasks = state.tasks.filter(t => t.parentTaskId === parentId);
-          return [
-            ...subtasks.map(t => t.id),
-            ...subtasks.flatMap(t => getAllSubtaskIds(t.id))
-          ];
-        };
-        
-        tasksToDelete.forEach(task => {
-          getAllSubtaskIds(task.id).forEach(id => taskIdsToDelete.add(id));
-        });
-        
-        return {
-          projects: state.projects.filter(p => p.id !== id),
-          tasks: state.tasks.filter(t => !taskIdsToDelete.has(t.id)),
-          sections: state.sections.filter(s => s.projectId !== id),
-          dependencies: state.dependencies.filter(
-            d => !taskIdsToDelete.has(d.blockingTaskId) && !taskIdsToDelete.has(d.blockedTaskId)
-          )
-        };
-      }),
+      deleteProject: (id) => {
+        projectService.cascadeDelete(id);
+      },
       
       // Task Actions
-      addTask: (task) => set((state) => ({
-        tasks: [...state.tasks, task]
-      })),
+      addTask: (task) => {
+        taskRepository.create(task);
+      },
       
-      updateTask: (id, updates) => set((state) => ({
-        tasks: state.tasks.map(t => 
-          t.id === id ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t
-        )
-      })),
+      updateTask: (id, updates) => {
+        taskRepository.update(id, { ...updates, updatedAt: new Date().toISOString() });
+      },
       
-      deleteTask: (id) => set((state) => {
-        const taskToDelete = state.tasks.find(t => t.id === id);
-        if (!taskToDelete) return state;
-        
-        // Get all subtasks recursively
-        const getSubtaskIds = (parentId: UUID): UUID[] => {
-          const subtasks = state.tasks.filter(t => t.parentTaskId === parentId);
-          return [
-            ...subtasks.map(t => t.id),
-            ...subtasks.flatMap(t => getSubtaskIds(t.id))
-          ];
-        };
-        
-        const idsToDelete = new Set([id, ...getSubtaskIds(id)]);
-        
-        return {
-          tasks: state.tasks.filter(t => !idsToDelete.has(t.id)),
-          dependencies: state.dependencies.filter(
-            d => !idsToDelete.has(d.blockingTaskId) && !idsToDelete.has(d.blockedTaskId)
-          )
-        };
-      }),
+      deleteTask: (id) => {
+        taskService.cascadeDelete(id);
+      },
       
       // Section Actions
-      addSection: (section) => set((state) => ({
-        sections: [...state.sections, section]
-      })),
+      addSection: (section) => {
+        sectionRepository.create(section);
+      },
       
-      updateSection: (id, updates) => set((state) => ({
-        sections: state.sections.map(s => 
-          s.id === id ? { ...s, ...updates, updatedAt: new Date().toISOString() } : s
-        )
-      })),
+      updateSection: (id, updates) => {
+        sectionRepository.update(id, { ...updates, updatedAt: new Date().toISOString() });
+      },
       
-      deleteSection: (id) => set((state) => {
-        // Find default section or create null assignment
-        const sectionToDelete = state.sections.find(s => s.id === id);
-        if (!sectionToDelete) return state;
+      deleteSection: (id) => {
+        // Reassign tasks from deleted section to "To Do" section, then delete
+        const sectionToDelete = sectionRepository.findById(id);
+        if (!sectionToDelete) return;
         
-        const defaultSection = state.sections.find(
-          s => s.projectId === sectionToDelete.projectId && s.name === 'To Do'
-        );
+        const defaultSection = sectionRepository.findByProjectId(sectionToDelete.projectId)
+          .find(s => s.name === 'To Do');
         
-        return {
-          sections: state.sections.filter(s => s.id !== id),
-          tasks: state.tasks.map(t => 
-            t.sectionId === id ? { ...t, sectionId: defaultSection?.id || null } : t
-          )
-        };
-      }),
+        // Reassign tasks that belong to this section
+        const allTasks = taskRepository.findAll();
+        for (const task of allTasks) {
+          if (task.sectionId === id) {
+            taskRepository.update(task.id, { sectionId: defaultSection?.id || null });
+          }
+        }
+        
+        sectionRepository.delete(id);
+      },
       
-      toggleSectionCollapsed: (id) => set((state) => ({
-        sections: state.sections.map(s =>
-          s.id === id ? { ...s, collapsed: !s.collapsed, updatedAt: new Date().toISOString() } : s
-        )
-      })),
+      toggleSectionCollapsed: (id) => {
+        const section = sectionRepository.findById(id);
+        if (!section) return;
+        sectionRepository.update(id, {
+          collapsed: !section.collapsed,
+          updatedAt: new Date().toISOString(),
+        });
+      },
       
       // Dependency Actions
-      addDependency: (dependency) => set((state) => ({
-        dependencies: [...state.dependencies, dependency]
-      })),
+      addDependency: (dependency) => {
+        dependencyRepository.create(dependency);
+      },
       
-      deleteDependency: (id) => set((state) => ({
-        dependencies: state.dependencies.filter(d => d.id !== id)
-      })),
+      deleteDependency: (id) => {
+        dependencyRepository.delete(id);
+      },
       
-      // Selectors
+      // Selectors — read from cached state
       getProjectById: (id) => get().projects.find(p => p.id === id),
       
       getTasksByProjectId: (projectId) => 
@@ -229,3 +178,20 @@ export const useDataStore = create<DataStore>()(
     }
   )
 );
+
+// --- Subscribe to repositories and sync cached state ---
+projectRepository.subscribe((projects) => {
+  useDataStore.setState({ projects });
+});
+
+taskRepository.subscribe((tasks) => {
+  useDataStore.setState({ tasks });
+});
+
+sectionRepository.subscribe((sections) => {
+  useDataStore.setState({ sections });
+});
+
+dependencyRepository.subscribe((dependencies) => {
+  useDataStore.setState({ dependencies });
+});

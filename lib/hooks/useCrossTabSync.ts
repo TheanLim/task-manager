@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useDataStore } from '@/stores/dataStore';
 import { useAppStore } from '@/stores/appStore';
-import { useTMSStore } from '@/stores/tmsStore';
+import { useTMSStore } from '@/features/tms/stores/tmsStore';
 
 /**
  * Listens for localStorage changes from other tabs and rehydrates

@@ -20,10 +20,10 @@ import { Download, Upload, FileJson } from 'lucide-react';
 import { LocalStorageAdapter } from '@/lib/storage';
 import { useDataStore } from '@/stores/dataStore';
 import { useAppStore } from '@/stores/appStore';
-import { useTMSStore } from '@/stores/tmsStore';
+import { useTMSStore } from '@/features/tms/stores/tmsStore';
 import { Toast } from '@/components/ui/toast';
 import { Project, Task, Section, TaskDependency, AppState } from '@/types';
-import { ShareButton } from '@/components/ShareButton';
+import { ShareButton } from '@/features/sharing/components/ShareButton';
 
 export function ImportExportMenu() {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
