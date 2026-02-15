@@ -43,6 +43,7 @@ interface TaskListProps {
   initialSortByProject?: boolean;
   showReinsertButton?: boolean;
   onReinsert?: (taskId: string) => void;
+  onToggleSection?: (sectionId: string) => void;
 }
 
 interface ColumnWidths {
@@ -67,7 +68,7 @@ const COLUMN_LABELS: Record<TaskColumnId, string> = {
  * List view component for displaying tasks grouped by collapsible sections
  * with table-like task rows and draggable column headers
  */
-export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTask, onViewSubtasks, onSubtaskButtonClick, onAddSubtask, selectedTaskId, showProjectColumn = false, onProjectClick, flatMode = false, initialSortByProject = false, showReinsertButton = false, onReinsert }: TaskListProps) {
+export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTask, onViewSubtasks, onSubtaskButtonClick, onAddSubtask, selectedTaskId, showProjectColumn = false, onProjectClick, flatMode = false, initialSortByProject = false, showReinsertButton = false, onReinsert, onToggleSection }: TaskListProps) {
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverTaskId, setDragOverTaskId] = useState<string | null>(null);
   const [draggedSectionId, setDraggedSectionId] = useState<string | null>(null);
@@ -225,9 +226,14 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
   };
 
   const toggleSectionCollapsed = (sectionId: string) => {
-    const section = sections.find(s => s.id === sectionId);
-    if (section) {
-      updateSection(sectionId, { collapsed: !section.collapsed });
+    // Let parent handle toggle if callback provided (e.g. for virtual sections)
+    if (onToggleSection) {
+      onToggleSection(sectionId);
+    } else {
+      const section = sections.find(s => s.id === sectionId);
+      if (section) {
+        updateSection(sectionId, { collapsed: !section.collapsed });
+      }
     }
   };
 

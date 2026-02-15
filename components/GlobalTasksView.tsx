@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useState } from 'react';
 import { TaskList } from '@/features/tasks/components/TaskList';
 import { useDataStore, taskService } from '@/stores/dataStore';
 import { useAppStore } from '@/stores/appStore';
@@ -65,16 +65,20 @@ export function GlobalTasksView({
     return { projectTasks, unlinkedTasks, unlinkedSections };
   }, [tasks, sections, projects]);
 
+  // Track collapsed state for the virtual "From Projects" section locally
+  // (it doesn't exist in the repository, so updateSection won't persist it)
+  const [fromProjectsCollapsed, setFromProjectsCollapsed] = useState(false);
+
   // Create virtual "From Projects" section
   const virtualFromProjectsSection: Section = useMemo(() => ({
     id: FROM_PROJECTS_SECTION_ID,
-    projectId: null, // Use null so new sections inherit the correct projectId
+    projectId: null,
     name: 'From Projects',
-    order: -1, // Show first
-    collapsed: false,
+    order: -1,
+    collapsed: fromProjectsCollapsed,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
-  }), []);
+  }), [fromProjectsCollapsed]);
 
   // Process tasks and sections based on display mode
   const { displayTasks, displaySections } = useMemo(() => {
@@ -175,6 +179,19 @@ export function GlobalTasksView({
     taskService.reinsertTask(taskId);
   }, []);
 
+  // Section toggle — handle virtual "From Projects" section locally, delegate others to store
+  const { updateSection } = useDataStore();
+  const handleToggleSection = useCallback((sectionId: string) => {
+    if (sectionId === FROM_PROJECTS_SECTION_ID) {
+      setFromProjectsCollapsed(prev => !prev);
+    } else {
+      const section = sections.find(s => s.id === sectionId);
+      if (section) {
+        updateSection(sectionId, { collapsed: !section.collapsed });
+      }
+    }
+  }, [sections, updateSection]);
+
   // Empty state
   if (tasks.length === 0) {
     return (
@@ -203,6 +220,7 @@ export function GlobalTasksView({
       initialSortByProject={true}
       showReinsertButton={needsAttentionSort}
       onReinsert={needsAttentionSort ? handleReinsert : undefined}
+      onToggleSection={handleToggleSection}
     />
   );
 }
