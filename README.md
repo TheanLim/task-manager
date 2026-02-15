@@ -23,6 +23,12 @@ A modern, feature-rich task management application with integrated time manageme
 ### Global Tasks View
 - View and manage tasks across all projects in one place
 - Filter and search across the entire task set
+- **Review Queue mode** — sort by last reviewed (oldest first), mark tasks reviewed with ↻ button to push them to the bottom
+- **Completed task management** — popover with hide-all toggle, configurable auto-hide threshold (24h / 48h / 1 week / Never), and "Recently done" view for referencing completed work
+- Nested (hierarchical) or Flat (all tasks at same level) display modes
+- Subtask progress counts (e.g. 3/5) on parent tasks across all views
+- Drag-and-drop reordering (disabled in Review Queue mode)
+- Project column with drag-reorderable columns
 
 ### Time Management Systems
 Four methodologies to choose from:
@@ -150,7 +156,7 @@ npm run test:e2e:ui
 │   ├── tasks/
 │   │   ├── components/           # TaskBoard, TaskCalendar, TaskDialog, TaskList, TaskRow, etc.
 │   │   ├── hooks/                # useFilteredTasks
-│   │   ├── services/             # taskService, dependencyService
+│   │   ├── services/             # taskService, dependencyService, autoHideService
 │   │   └── dependencyResolver.ts
 │   ├── tms/
 │   │   ├── components/           # AF4View, DITView, FVPView, TMSSelector
