@@ -6,6 +6,7 @@ import { useDataStore, taskService } from '@/stores/dataStore';
 import { useAppStore } from '@/stores/appStore';
 import { Circle } from 'lucide-react';
 import { Task, Section } from '@/types';
+import { filterAutoHiddenTasks } from '@/features/tasks/services/autoHideService';
 
 interface GlobalTasksViewProps {
   onTaskClick: (taskId: string) => void;
@@ -48,6 +49,8 @@ export function GlobalTasksView({
   const { globalTasksDisplayMode } = useAppStore();
   const needsAttentionSort = useAppStore((s) => s.needsAttentionSort);
   const hideCompletedTasks = useAppStore((s) => s.hideCompletedTasks);
+  const autoHideThreshold = useAppStore((s) => s.autoHideThreshold);
+  const showRecentlyCompleted = useAppStore((s) => s.showRecentlyCompleted);
 
   // Separate tasks: those with projects vs unlinked tasks
   // Project tasks are sorted by project name so they group by project on initial render
@@ -176,13 +179,31 @@ export function GlobalTasksView({
   }, [projectTasks, unlinkedTasks, unlinkedSections, virtualFromProjectsSection, globalTasksDisplayMode]);
 
   // Filter completed tasks based on mode
-  // Reviewing: always hide completed parent tasks (subtask filtering handled by TaskRow)
-  // Normal + hideCompletedTasks: hide completed parent tasks
-  const shouldHideCompleted = needsAttentionSort || hideCompletedTasks;
+  // Priority: Review Queue / Hide Completed → hide ALL completed
+  // Recently Completed → show ONLY auto-hidden tasks
+  // Normal → apply time-based auto-hide filter
   const filteredTasks = useMemo(() => {
-    if (!shouldHideCompleted) return displayTasks;
-    return displayTasks.filter(t => !t.completed);
-  }, [displayTasks, shouldHideCompleted]);
+    if (needsAttentionSort || hideCompletedTasks) {
+      // Review Queue or Hide Completed: hide all completed (existing behavior)
+      return displayTasks.filter(t => !t.completed);
+    }
+    if (autoHideThreshold === 'never' && !showRecentlyCompleted) {
+      return displayTasks;
+    }
+    const result = filterAutoHiddenTasks(displayTasks, tasks, {
+      threshold: autoHideThreshold,
+      displayMode: globalTasksDisplayMode,
+    });
+    if (showRecentlyCompleted) {
+      // Show only the auto-hidden tasks
+      return result.autoHidden;
+    }
+    return result.visible;
+  }, [displayTasks, tasks, needsAttentionSort, hideCompletedTasks,
+      autoHideThreshold, showRecentlyCompleted, globalTasksDisplayMode]);
+
+  // Determine whether to hide completed subtasks in TaskRow
+  const shouldHideCompletedSubtasks = needsAttentionSort || hideCompletedTasks;
 
   // Reinsert callback — delegates to TaskService
   const handleReinsert = useCallback((taskId: string) => {
@@ -231,7 +252,7 @@ export function GlobalTasksView({
       showReinsertButton={needsAttentionSort}
       onReinsert={needsAttentionSort ? handleReinsert : undefined}
       onToggleSection={handleToggleSection}
-      hideCompletedSubtasks={shouldHideCompleted}
+      hideCompletedSubtasks={shouldHideCompletedSubtasks}
     />
   );
 }

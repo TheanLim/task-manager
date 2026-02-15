@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { AppSettings, TimeManagementSystem, UUID } from '@/types';
+import type { AutoHideThreshold } from '@/lib/schemas';
 
 // Column identifiers for the task table (excluding 'name' which is always first)
 export type TaskColumnId = 'dueDate' | 'priority' | 'assignee' | 'tags' | 'project';
@@ -22,6 +23,8 @@ interface AppStore {
   sortDirection: SortDirection; // Sort direction
   needsAttentionSort: boolean; // Whether "Needs Attention" sort is active on All Tasks page
   hideCompletedTasks: boolean; // Whether to hide completed tasks in All Tasks Normal mode
+  autoHideThreshold: AutoHideThreshold; // Time threshold for auto-hiding completed tasks
+  showRecentlyCompleted: boolean; // Whether to show recently auto-hidden completed tasks
   
   setActiveProject: (projectId: UUID | null) => void;
   setTimeManagementSystem: (system: TimeManagementSystem) => void;
@@ -35,6 +38,8 @@ interface AppStore {
   clearSort: () => void;
   setNeedsAttentionSort: (active: boolean) => void;
   setHideCompletedTasks: (hide: boolean) => void;
+  setAutoHideThreshold: (threshold: AutoHideThreshold) => void;
+  setShowRecentlyCompleted: (show: boolean) => void;
 }
 
 export const useAppStore = create<AppStore>()(
@@ -53,6 +58,8 @@ export const useAppStore = create<AppStore>()(
       sortDirection: 'asc' as SortDirection,
       needsAttentionSort: false,
       hideCompletedTasks: false,
+      autoHideThreshold: '24h' as AutoHideThreshold,
+      showRecentlyCompleted: false,
       
       setActiveProject: (projectId) => set((state) => ({
         settings: { ...state.settings, activeProjectId: projectId }
@@ -104,6 +111,10 @@ export const useAppStore = create<AppStore>()(
       }),
       
       setHideCompletedTasks: (hide) => set({ hideCompletedTasks: hide }),
+      
+      setAutoHideThreshold: (threshold) => set({ autoHideThreshold: threshold }),
+      
+      setShowRecentlyCompleted: (show) => set({ showRecentlyCompleted: show }),
     }),
     {
       name: 'task-management-settings',

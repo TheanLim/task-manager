@@ -4,6 +4,7 @@ import { z } from 'zod';
 export const PrioritySchema = z.enum(['none', 'low', 'medium', 'high']);
 export const ViewModeSchema = z.enum(['list', 'board', 'calendar']);
 export const TimeManagementSystemSchema = z.enum(['none', 'dit', 'af4', 'fvp']);
+export const AutoHideThresholdSchema = z.enum(['24h', '48h', '1w', 'never']);
 
 // Entity schemas
 export const ProjectSchema = z.object({
@@ -82,6 +83,7 @@ export const AppSettingsSchema = z.object({
   theme: z.enum(['light', 'dark', 'system']),
   notifications: z.boolean().optional(),
   defaultPriority: PrioritySchema.optional(),
+  autoHideThreshold: AutoHideThresholdSchema.optional(),
 });
 
 export const AppStateSchema = z.object({
@@ -101,4 +103,5 @@ export type Section = z.infer<typeof SectionSchema>;
 export type TaskDependency = z.infer<typeof TaskDependencySchema>;
 export type TMSState = z.infer<typeof TMSStateSchema>;
 export type AppSettings = z.infer<typeof AppSettingsSchema>;
+export type AutoHideThreshold = z.infer<typeof AutoHideThresholdSchema>;
 export type AppState = z.infer<typeof AppStateSchema>;

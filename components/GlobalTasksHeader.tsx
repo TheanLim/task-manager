@@ -1,9 +1,11 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { Plus, List, ListTree, ListChecks, Eye, Info, EyeOff, CheckCircle2 } from 'lucide-react';
+import { Plus, List, ListTree, ListChecks, Eye, Info, EyeOff, CheckCircle2, Clock, History } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import type { AutoHideThreshold } from '@/lib/schemas';
 
 interface GlobalTasksHeaderProps {
   onAddTask: () => void;
@@ -14,7 +16,20 @@ interface GlobalTasksHeaderProps {
  * Includes display mode toggle and add task button
  */
 export function GlobalTasksHeader({ onAddTask }: GlobalTasksHeaderProps) {
-  const { globalTasksDisplayMode, setGlobalTasksDisplayMode, needsAttentionSort, setNeedsAttentionSort, hideCompletedTasks, setHideCompletedTasks } = useAppStore();
+  const {
+    globalTasksDisplayMode, setGlobalTasksDisplayMode,
+    needsAttentionSort, setNeedsAttentionSort,
+    hideCompletedTasks, setHideCompletedTasks,
+    autoHideThreshold, setAutoHideThreshold,
+    showRecentlyCompleted, setShowRecentlyCompleted,
+  } = useAppStore();
+
+  const THRESHOLD_LABELS: Record<AutoHideThreshold, string> = {
+    '24h': '24 hours',
+    '48h': '48 hours',
+    '1w': '1 week',
+    'never': 'Never',
+  };
 
   return (
     <>
@@ -61,6 +76,56 @@ export function GlobalTasksHeader({ onAddTask }: GlobalTasksHeaderProps) {
                 </TooltipTrigger>
                 <TooltipContent>
                   <p>{hideCompletedTasks ? 'Show completed tasks' : 'Hide completed tasks'}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+
+          {/* Auto-hide threshold — only when not in Review Queue */}
+          {!needsAttentionSort && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center">
+                    <Clock className="h-3.5 w-3.5 mr-1 text-muted-foreground" />
+                    <Select
+                      value={autoHideThreshold}
+                      onValueChange={(v) => setAutoHideThreshold(v as AutoHideThreshold)}
+                    >
+                      <SelectTrigger className="h-8 w-[100px] text-xs border-dashed">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(Object.keys(THRESHOLD_LABELS) as AutoHideThreshold[]).map((key) => (
+                          <SelectItem key={key} value={key}>{THRESHOLD_LABELS[key]}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Auto-hide completed tasks older than this</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+
+          {/* Recently completed toggle — only when threshold is not 'never' and not in Review Queue */}
+          {!needsAttentionSort && autoHideThreshold !== 'never' && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={showRecentlyCompleted ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setShowRecentlyCompleted(!showRecentlyCompleted)}
+                  >
+                    <History className="h-4 w-4 mr-2" />
+                    {showRecentlyCompleted ? 'Showing completed' : 'Recently done'}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{showRecentlyCompleted ? 'Return to active tasks' : 'Show tasks auto-hidden after completion'}</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
