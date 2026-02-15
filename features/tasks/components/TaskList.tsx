@@ -625,7 +625,7 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
           </colgroup>
 
           {/* Column Headers - Name is fixed, others are draggable */}
-          <thead className="sticky top-0 z-20 bg-background border-b">
+          <thead className="sticky top-0 z-20 bg-background shadow-elevation-base">
             <tr className="border-b">
               {/* Name column header - always first, not draggable */}
               <th className="p-2 text-left text-sm font-medium border-r relative bg-muted sticky left-0 z-30 group/th">

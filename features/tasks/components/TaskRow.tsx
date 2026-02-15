@@ -12,6 +12,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+
+const PRIORITY_BORDER: Record<string, string> = {
+  high: 'border-l-accent-brand',
+  medium: 'border-l-accent-brand',
+  low: 'border-l-accent-brand',
+  none: 'border-l-accent-brand',
+};
 import { useDataStore } from '@/stores/dataStore';
 import { InlineEditable } from '@/components/InlineEditable';
 import { validateTaskDescription } from '@/lib/validation';
@@ -65,6 +72,7 @@ export function TaskRow({
   const [subtasksExpanded, setSubtasksExpanded] = useState(false);
   const [isEditingTags, setIsEditingTags] = useState(false);
   const [tagInput, setTagInput] = useState('');
+  const [justCompleted, setJustCompleted] = useState(false);
   const { getSubtasks, updateTask } = useDataStore();
   const rawSubtasks = getSubtasks(task.id);
   // On All Tasks page (showReinsertButton), sort subtasks by effective last action time
@@ -203,7 +211,7 @@ export function TaskRow({
     <>
       <tr
         data-task-id={task.id}
-        className={cn("border-b hover:bg-accent group transition-colors", task.completed && "opacity-60", isDragging && "opacity-50", isDragOver && "ring-2 ring-primary")}
+        className={cn("border-b hover:bg-accent hover:shadow-elevation-base group transition-colors", task.completed && "opacity-60", isDragging && "opacity-50", isDragOver && "ring-2 ring-primary")}
         draggable={draggable}
         onDragStart={onDragStart ? (e) => { if (hasSubtasks && subtasksExpanded) { onSetTaskWasExpanded?.(true); setSubtasksExpanded(false); } onDragStart(e, task.id); } : undefined}
         onDragOver={onDragOver ? (e) => onDragOver(e, task.id) : undefined}
@@ -212,11 +220,11 @@ export function TaskRow({
         onDragEnd={() => { if (hasSubtasks && taskWasExpanded && draggedTaskId === task.id) { setSubtasksExpanded(true); onSetTaskWasExpanded?.(false); } }}
       >
         {/* Name column - always first */}
-        <td className="py-1 pr-1 border-r sticky left-0 bg-background group-hover:bg-accent z-10 relative transition-colors">
+        <td className="py-1 pr-1 border-r sticky left-0 bg-background group-hover:bg-accent group-focus-within:bg-accent z-10 relative transition-colors">
           <TooltipProvider>
             <div className="flex items-center gap-2" style={{ paddingLeft: depth > 0 ? `${depth * 24 + 4}px` : '4px' }}>
               {draggable ? (
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground flex-shrink-0"><GripVertical className="h-4 w-4" /></div>
+                <div className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground flex-shrink-0"><GripVertical className="h-4 w-4" /></div>
               ) : (<div className="w-4 flex-shrink-0" />)}
 
               {flatMode ? (
@@ -233,7 +241,7 @@ export function TaskRow({
                 ) : (<div className="w-4 flex-shrink-0" />)
               )}
 
-              <button onClick={(e) => { e.stopPropagation(); onComplete(task.id); }} className={cn("flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all", task.completed ? "bg-green-500 border-green-500 hover:bg-green-600 hover:border-green-600" : "border-gray-300 hover:border-gray-400 dark:border-gray-600 dark:hover:border-gray-500")} aria-label={task.completed ? 'Mark as incomplete' : 'Mark as complete'}>
+              <button onClick={(e) => { e.stopPropagation(); if (!task.completed) { setJustCompleted(true); setTimeout(() => setJustCompleted(false), 400); } onComplete(task.id); }} className={cn("flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors", task.completed ? "bg-green-500 border-green-500 hover:bg-green-600 hover:border-green-600" : "border-gray-300 hover:border-gray-400 dark:border-gray-600 dark:hover:border-gray-500", justCompleted && "animate-check-pop")} aria-label={task.completed ? 'Mark as incomplete' : 'Mark as complete'}>
                 {task.completed && <Check className="h-3 w-3 text-white" />}
               </button>
 
@@ -257,7 +265,7 @@ export function TaskRow({
               {showReinsertButton && (
                 <Tooltip><TooltipTrigger asChild>
                   <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onReinsert?.(task.id); }}
-                    className="h-8 w-8 p-0 transition-opacity flex-shrink-0 absolute right-11 opacity-0 group-hover:opacity-100"
+                    className="h-8 w-8 p-0 transition-opacity flex-shrink-0 absolute right-11 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
                     aria-label="Move to bottom">
                     <RotateCw className="h-4 w-4" />
                   </Button>
@@ -265,7 +273,7 @@ export function TaskRow({
               )}
 
               <Tooltip><TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onClick(task.id); }} className={cn("h-8 w-8 p-0 transition-opacity flex-shrink-0 absolute right-3", isSelected ? "opacity-0" : "opacity-0 group-hover:opacity-100")} aria-label="View details"><ChevronRight className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onClick(task.id); }} className={cn("h-8 w-8 p-0 transition-opacity flex-shrink-0 absolute right-3", isSelected ? "opacity-0" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100")} aria-label="View details"><ChevronRight className="h-4 w-4" /></Button>
               </TooltipTrigger><TooltipContent><p>View details</p></TooltipContent></Tooltip>
             </div>
           </TooltipProvider>

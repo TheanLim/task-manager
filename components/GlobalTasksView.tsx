@@ -5,6 +5,7 @@ import { TaskList } from '@/features/tasks/components/TaskList';
 import { useDataStore, taskService } from '@/stores/dataStore';
 import { useAppStore } from '@/stores/appStore';
 import { Circle } from 'lucide-react';
+import { EmptyState } from '@/components/EmptyState';
 import { Task, Section } from '@/types';
 import { filterAutoHiddenTasks } from '@/features/tasks/services/autoHideService';
 
@@ -226,11 +227,11 @@ export function GlobalTasksView({
   // Empty state
   if (tasks.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <Circle className="h-12 w-12 text-muted-foreground mb-4" />
-        <p className="text-muted-foreground">No tasks yet</p>
-        <p className="text-sm text-muted-foreground mt-1">Create a task to get started</p>
-      </div>
+      <EmptyState
+        icon={Circle}
+        title="Ready to get things done"
+        description="Create a task to start tracking your work"
+      />
     );
   }
 

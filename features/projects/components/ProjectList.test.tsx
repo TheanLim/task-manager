@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import fc from 'fast-check';
 import { ProjectList } from './ProjectList';
 import { Project, ViewMode } from '@/types';
 
@@ -56,7 +57,8 @@ describe('ProjectList', () => {
       />
     );
 
-    expect(screen.getByText('No projects yet')).toBeInTheDocument();
+    expect(screen.getByText('Start your first project')).toBeInTheDocument();
+    expect(screen.getByText('Create a project to organize your tasks and track progress')).toBeInTheDocument();
     expect(screen.getByText('Create Project')).toBeInTheDocument();
   });
 
@@ -127,7 +129,38 @@ describe('ProjectList', () => {
       />
     );
 
-    const activeCard = screen.getByText('Test Project 1').closest('div');
-    expect(activeCard).toHaveClass('bg-accent');
+    const activeItem = screen.getByText('Test Project 1').closest('.cursor-pointer');
+    expect(activeItem).toHaveClass('border-l-accent-brand');
+    expect(activeItem).toHaveClass('bg-accent/50');
+  });
+
+  // Feature: warm-industrial-redesign, Property 4: Project Dot Indicator Presence
+  // **Validates: Requirements 3.2**
+  it('should have exactly one dot indicator per project for any list of projects', () => {
+    const projectArb = fc.record({
+      id: fc.uuid(),
+      name: fc.string({ minLength: 1, maxLength: 50 }),
+      description: fc.string({ maxLength: 100 }),
+      viewMode: fc.constantFrom('list' as ViewMode, 'board' as ViewMode, 'calendar' as ViewMode),
+      createdAt: fc.constant(new Date().toISOString()),
+      updatedAt: fc.constant(new Date().toISOString()),
+    });
+
+    fc.assert(
+      fc.property(fc.array(projectArb, { minLength: 0, maxLength: 20 }), (projects) => {
+        const { container } = render(
+          <ProjectList
+            projects={projects}
+            activeProjectId={null}
+            onProjectSelect={vi.fn()}
+            onNewProject={vi.fn()}
+          />
+        );
+
+        const dots = container.querySelectorAll('.rounded-full.w-1\\.5.h-1\\.5');
+        expect(dots.length).toBe(projects.length);
+      }),
+      { numRuns: 100 }
+    );
   });
 });

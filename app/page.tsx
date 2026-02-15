@@ -421,7 +421,29 @@ function HomeContent() {
         {/* Task detail panel — sidebar */}
         {selectedTask && !expandedFromUrl && (
           <div
-            className="relative border-t lg:border-t-0 lg:border-l overflow-y-auto flex-shrink-0"
+            ref={(el) => {
+              // Auto-focus first interactive element when panel opens
+              if (el) {
+                requestAnimationFrame(() => {
+                  const focusable = el.querySelector<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+                  focusable?.focus();
+                });
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.stopPropagation();
+                dm.deselectTask();
+                // Return focus to the task row that opened the panel
+                const taskId = dm.taskDetailPanel.selectedTaskId;
+                requestAnimationFrame(() => {
+                  const row = document.querySelector<HTMLElement>(`[data-task-id="${taskId}"]`);
+                  const focusable = row?.querySelector<HTMLElement>('button, [tabindex]:not([tabindex="-1"])');
+                  focusable?.focus();
+                });
+              }
+            }}
+            className="relative border-t lg:border-t-0 lg:border-l overflow-y-auto flex-shrink-0 bg-card shadow-elevation-raised animate-slide-in-right"
             style={{ width: dm.taskDetailPanel.panelWidth }}
           >
             <div
@@ -436,7 +458,15 @@ function HomeContent() {
                 blockingTasks={blockingTasks}
                 blockedTasks={blockedTasks}
                 onDelete={handleTaskDelete}
-                onClose={() => dm.deselectTask()}
+                onClose={() => {
+                  const taskId = selectedTask.id;
+                  dm.deselectTask();
+                  requestAnimationFrame(() => {
+                    const row = document.querySelector<HTMLElement>(`[data-task-id="${taskId}"]`);
+                    const focusable = row?.querySelector<HTMLElement>('button, [tabindex]:not([tabindex="-1"])');
+                    focusable?.focus();
+                  });
+                }}
                 onComplete={(completed) => handleTaskComplete(selectedTask.id, completed)}
                 onExpand={handleTaskExpand}
                 onAddSubtask={() => {
