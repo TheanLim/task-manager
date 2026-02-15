@@ -332,6 +332,81 @@ describe('TaskRow Component', () => {
     });
   });
 
+  describe('Reinsert Button', () => {
+    it('should render reinsert button when showReinsertButton is true', () => {
+      renderTaskRow({
+        task: mockTask,
+        onComplete: mockOnComplete,
+        onClick: mockOnClick,
+        onViewSubtasks: mockOnViewSubtasks,
+        showReinsertButton: true,
+        onReinsert: vi.fn()
+      });
+
+      expect(screen.getByLabelText('Move to bottom')).toBeInTheDocument();
+    });
+
+    it('should not render reinsert button when showReinsertButton is false', () => {
+      renderTaskRow({
+        task: mockTask,
+        onComplete: mockOnComplete,
+        onClick: mockOnClick,
+        onViewSubtasks: mockOnViewSubtasks,
+        showReinsertButton: false
+      });
+
+      expect(screen.queryByLabelText('Move to bottom')).not.toBeInTheDocument();
+    });
+
+    it('should not render reinsert button by default', () => {
+      renderTaskRow({
+        task: mockTask,
+        onComplete: mockOnComplete,
+        onClick: mockOnClick,
+        onViewSubtasks: mockOnViewSubtasks
+      });
+
+      expect(screen.queryByLabelText('Move to bottom')).not.toBeInTheDocument();
+    });
+
+    it('should call onReinsert with task id when clicked', () => {
+      const mockOnReinsert = vi.fn();
+      renderTaskRow({
+        task: mockTask,
+        onComplete: mockOnComplete,
+        onClick: mockOnClick,
+        onViewSubtasks: mockOnViewSubtasks,
+        showReinsertButton: true,
+        onReinsert: mockOnReinsert
+      });
+
+      const reinsertButton = screen.getByLabelText('Move to bottom');
+      fireEvent.click(reinsertButton);
+
+      expect(mockOnReinsert).toHaveBeenCalledWith('task-1');
+    });
+
+    it('should stop propagation when reinsert button is clicked', () => {
+      const mockOnReinsert = vi.fn();
+      const mockRowClick = vi.fn();
+      
+      const { container } = renderTaskRow({
+        task: mockTask,
+        onComplete: mockOnComplete,
+        onClick: mockOnClick,
+        onViewSubtasks: mockOnViewSubtasks,
+        showReinsertButton: true,
+        onReinsert: mockOnReinsert
+      });
+
+      const reinsertButton = screen.getByLabelText('Move to bottom');
+      fireEvent.click(reinsertButton);
+
+      // onClick should NOT have been called (propagation stopped)
+      expect(mockOnClick).not.toHaveBeenCalled();
+    });
+  });
+
   describe('Drag and Drop', () => {
     it('should be draggable when draggable prop is true', () => {
       const mockOnDragStart = vi.fn();

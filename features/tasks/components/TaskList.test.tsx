@@ -196,4 +196,130 @@ describe('TaskList', () => {
     // Note: In the actual implementation, subtasks are collapsed by default in TaskRow
     expect(screen.queryByText('Subtask 1')).not.toBeInTheDocument();
   });
+
+  describe('default sort by last action time (initialSortByProject)', () => {
+    const singleSection: Section[] = [
+      {
+        id: 'section-1',
+        projectId: 'project-1',
+        name: 'To Do',
+        order: 0,
+        collapsed: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+    ];
+
+    const tasksWithLastAction: Task[] = [
+      {
+        id: 'task-newest',
+        projectId: 'project-1',
+        parentTaskId: null,
+        sectionId: 'section-1',
+        description: 'Newest Action',
+        notes: '',
+        assignee: '',
+        priority: Priority.NONE,
+        tags: [],
+        dueDate: null,
+        completed: false,
+        completedAt: null,
+        order: 0,
+        createdAt: '2025-01-01T00:00:00.000Z',
+        updatedAt: '2025-01-01T00:00:00.000Z',
+        lastActionAt: '2025-06-15T00:00:00.000Z',
+      },
+      {
+        id: 'task-oldest',
+        projectId: 'project-1',
+        parentTaskId: null,
+        sectionId: 'section-1',
+        description: 'Oldest Action',
+        notes: '',
+        assignee: '',
+        priority: Priority.NONE,
+        tags: [],
+        dueDate: null,
+        completed: false,
+        completedAt: null,
+        order: 1,
+        createdAt: '2025-01-01T00:00:00.000Z',
+        updatedAt: '2025-01-01T00:00:00.000Z',
+        lastActionAt: '2025-01-10T00:00:00.000Z',
+      },
+      {
+        id: 'task-null',
+        projectId: 'project-1',
+        parentTaskId: null,
+        sectionId: 'section-1',
+        description: 'Null Action (uses createdAt)',
+        notes: '',
+        assignee: '',
+        priority: Priority.NONE,
+        tags: [],
+        dueDate: null,
+        completed: false,
+        completedAt: null,
+        order: 2,
+        createdAt: '2024-06-01T00:00:00.000Z',
+        updatedAt: '2025-01-01T00:00:00.000Z',
+        lastActionAt: null,
+      },
+    ];
+
+    it('should sort by effective last action time ascending when showReinsertButton is true and no column sort', () => {
+      render(
+        <TaskList
+          tasks={tasksWithLastAction}
+          sections={singleSection}
+          onTaskClick={vi.fn()}
+          onTaskComplete={vi.fn()}
+          onAddTask={vi.fn()}
+          initialSortByProject={true}
+          showReinsertButton={true}
+        />
+      );
+
+      // All three task descriptions should be present
+      expect(screen.getByText('Null Action (uses createdAt)')).toBeInTheDocument();
+      expect(screen.getByText('Oldest Action')).toBeInTheDocument();
+      expect(screen.getByText('Newest Action')).toBeInTheDocument();
+
+      // Verify ascending order by effective last action time:
+      // Null Action (createdAt 2024-06-01) < Oldest Action (2025-01-10) < Newest Action (2025-06-15)
+      const nullEl = screen.getByText('Null Action (uses createdAt)');
+      const oldestEl = screen.getByText('Oldest Action');
+      const newestEl = screen.getByText('Newest Action');
+
+      // Use DOM order: earlier in document = rendered first
+      const positions = [nullEl, oldestEl, newestEl].map(el => {
+        // compareDocumentPosition bit 4 = DOCUMENT_POSITION_FOLLOWING
+        return el;
+      });
+      // nullEl should come before oldestEl, oldestEl before newestEl
+      expect(nullEl.compareDocumentPosition(oldestEl) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(oldestEl.compareDocumentPosition(newestEl) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('should use order-based sort when initialSortByProject is false and no column sort', () => {
+      render(
+        <TaskList
+          tasks={tasksWithLastAction}
+          sections={singleSection}
+          onTaskClick={vi.fn()}
+          onTaskComplete={vi.fn()}
+          onAddTask={vi.fn()}
+          initialSortByProject={false}
+        />
+      );
+
+      // Order-based: order 0 (Newest Action), 1 (Oldest Action), 2 (Null Action)
+      const newestEl = screen.getByText('Newest Action');
+      const oldestEl = screen.getByText('Oldest Action');
+      const nullEl = screen.getByText('Null Action (uses createdAt)');
+
+      expect(newestEl.compareDocumentPosition(oldestEl) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(oldestEl.compareDocumentPosition(nullEl) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+  });
 });

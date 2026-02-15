@@ -25,6 +25,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Input } from '@/components/ui/input';
 import { TaskRow } from '@/features/tasks/components/TaskRow';
 import { cn } from '@/lib/utils';
+import { getEffectiveLastActionTime } from '@/features/tasks/services/taskService';
 
 interface TaskListProps {
   tasks: Task[];
@@ -40,6 +41,8 @@ interface TaskListProps {
   onProjectClick?: (projectId: string) => void;
   flatMode?: boolean;
   initialSortByProject?: boolean;
+  showReinsertButton?: boolean;
+  onReinsert?: (taskId: string) => void;
 }
 
 interface ColumnWidths {
@@ -64,7 +67,7 @@ const COLUMN_LABELS: Record<TaskColumnId, string> = {
  * List view component for displaying tasks grouped by collapsible sections
  * with table-like task rows and draggable column headers
  */
-export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTask, onViewSubtasks, onSubtaskButtonClick, onAddSubtask, selectedTaskId, showProjectColumn = false, onProjectClick, flatMode = false, initialSortByProject = false }: TaskListProps) {
+export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTask, onViewSubtasks, onSubtaskButtonClick, onAddSubtask, selectedTaskId, showProjectColumn = false, onProjectClick, flatMode = false, initialSortByProject = false, showReinsertButton = false, onReinsert }: TaskListProps) {
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverTaskId, setDragOverTaskId] = useState<string | null>(null);
   const [draggedSectionId, setDraggedSectionId] = useState<string | null>(null);
@@ -495,6 +498,12 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
           else cmp = nameA.localeCompare(nameB);
           break;
         }
+        case 'lastAction': {
+          const aTime = getEffectiveLastActionTime(a);
+          const bTime = getEffectiveLastActionTime(b);
+          cmp = aTime.localeCompare(bTime);
+          break;
+        }
       }
       return cmp * dir;
     });
@@ -504,12 +513,26 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
   const tasksBySection = sections.reduce((acc, section) => {
     if (flatMode) {
       const sectionTasks = tasks.filter(t => t.sectionId === section.id);
-      acc[section.id] = sortColumn ? sortTasks(sectionTasks) : sectionTasks;
+      if (sortColumn) {
+        acc[section.id] = sortTasks(sectionTasks);
+      } else if (showReinsertButton) {
+        // Needs Attention mode: sort by effective last action time ascending
+        acc[section.id] = [...sectionTasks].sort((a, b) =>
+          getEffectiveLastActionTime(a).localeCompare(getEffectiveLastActionTime(b))
+        );
+      } else {
+        acc[section.id] = sectionTasks;
+      }
     } else {
       const sectionTasks = tasks
         .filter(t => t.sectionId === section.id && !t.parentTaskId);
       if (sortColumn) {
         acc[section.id] = sortTasks(sectionTasks);
+      } else if (showReinsertButton) {
+        // Needs Attention mode: sort by effective last action time ascending
+        acc[section.id] = [...sectionTasks].sort((a, b) =>
+          getEffectiveLastActionTime(a).localeCompare(getEffectiveLastActionTime(b))
+        );
       } else if (initialSortByProject && !userHasReordered) {
         // Preserve the pre-sorted order from the parent (sorted by project name)
         acc[section.id] = sectionTasks;
@@ -524,7 +547,13 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
     const raw = flatMode
       ? tasks.filter(t => !t.sectionId)
       : tasks.filter(t => !t.sectionId && !t.parentTaskId);
-    return sortColumn ? sortTasks(raw) : raw;
+    if (sortColumn) return sortTasks(raw);
+    if (showReinsertButton) {
+      return [...raw].sort((a, b) =>
+        getEffectiveLastActionTime(a).localeCompare(getEffectiveLastActionTime(b))
+      );
+    }
+    return raw;
   })();
 
   if (tasks.length === 0 && sections.length === 0) {
@@ -708,7 +737,7 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                       onViewSubtasks={handleViewSubtasks}
                       onSubtaskButtonClick={onSubtaskButtonClick}
                       onAddSubtask={onAddSubtask}
-                      draggable
+                      draggable={!showReinsertButton}
                       onDragStart={handleDragStart}
                       onDragOver={handleTaskDragOver}
                       onDragLeave={handleTaskDragLeave}
@@ -724,6 +753,8 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                       onProjectClick={onProjectClick}
                       flatMode={flatMode}
                       columnOrder={visibleColumns}
+                      showReinsertButton={showReinsertButton}
+                      onReinsert={onReinsert}
                     />
                   ))}
 
@@ -795,7 +826,7 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                     onViewSubtasks={handleViewSubtasks}
                     onSubtaskButtonClick={onSubtaskButtonClick}
                     onAddSubtask={onAddSubtask}
-                    draggable
+                    draggable={!showReinsertButton}
                     onDragStart={handleDragStart}
                     onDragOver={handleTaskDragOver}
                     onDragLeave={handleTaskDragLeave}
@@ -811,6 +842,8 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                     onProjectClick={onProjectClick}
                     flatMode={flatMode}
                     columnOrder={visibleColumns}
+                    showReinsertButton={showReinsertButton}
+                    onReinsert={onReinsert}
                   />
                 ))}
               </>

@@ -33,6 +33,7 @@ export const TaskSchema = z.object({
   order: z.number(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
+  lastActionAt: z.string().datetime().nullable().optional(),
   comments: z.array(z.any()).optional(),
   attachments: z.array(z.any()).optional(),
   customFields: z.record(z.string(), z.any()).optional(),

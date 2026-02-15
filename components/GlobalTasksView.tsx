@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import { TaskList } from '@/features/tasks/components/TaskList';
-import { useDataStore } from '@/stores/dataStore';
+import { useDataStore, taskService } from '@/stores/dataStore';
 import { useAppStore } from '@/stores/appStore';
 import { Circle } from 'lucide-react';
 import { Task, Section } from '@/types';
@@ -46,6 +46,7 @@ export function GlobalTasksView({
 }: GlobalTasksViewProps) {
   const { tasks, sections, projects } = useDataStore();
   const { globalTasksDisplayMode } = useAppStore();
+  const needsAttentionSort = useAppStore((s) => s.needsAttentionSort);
 
   // Separate tasks: those with projects vs unlinked tasks
   // Project tasks are sorted by project name so they group by project on initial render
@@ -169,6 +170,11 @@ export function GlobalTasksView({
     return { displayTasks: allTasks, displaySections: allSections };
   }, [projectTasks, unlinkedTasks, unlinkedSections, virtualFromProjectsSection, globalTasksDisplayMode]);
 
+  // Reinsert callback — delegates to TaskService
+  const handleReinsert = useCallback((taskId: string) => {
+    taskService.reinsertTask(taskId);
+  }, []);
+
   // Empty state
   if (tasks.length === 0) {
     return (
@@ -195,6 +201,8 @@ export function GlobalTasksView({
       onProjectClick={onProjectClick}
       flatMode={globalTasksDisplayMode === 'flat'}
       initialSortByProject={true}
+      showReinsertButton={needsAttentionSort}
+      onReinsert={needsAttentionSort ? handleReinsert : undefined}
     />
   );
 }

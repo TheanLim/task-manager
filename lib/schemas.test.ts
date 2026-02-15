@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import fc from 'fast-check';
 import { LocalStorageAdapter, ImportError } from './storage';
-import { AppStateSchema } from './schemas';
+import { AppStateSchema, TaskSchema } from './schemas';
 
 // Minimum 100 iterations per property
 const PROPERTY_CONFIG = { numRuns: 100 };
@@ -39,6 +39,7 @@ const validAppStateArb = fc.record({
       order: fc.integer(),
       createdAt: fc.date().map((d) => d.toISOString()),
       updatedAt: fc.date().map((d) => d.toISOString()),
+      lastActionAt: fc.option(fc.date().map((d) => d.toISOString()), { nil: null }),
     }),
     { minLength: 0, maxLength: 3 }
   ),
@@ -267,3 +268,67 @@ describe('Feature: architecture-refactor', () => {
     });
   });
 });
+
+describe('Feature: task-last-action-ordering, Property 1: Schema validation with backward compatibility', () => {
+  it('Feature: task-last-action-ordering, Property 1: Schema validation with backward compatibility', () => {
+    /**
+     * **Validates: Requirements 1.1, 7.1**
+     *
+     * For any valid task object, the Zod TaskSchema should accept it whether
+     * lastActionAt is a valid datetime string, null, or entirely absent.
+     * For any task object where lastActionAt is a non-datetime string,
+     * the schema should reject it.
+     */
+    // Constrain dates to 4-digit years so toISOString() produces Zod-compatible datetime
+    const safeDate = fc.date({ min: new Date('1970-01-01'), max: new Date('2099-12-31') });
+
+    const baseTaskArb = fc.record({
+      id: fc.uuid(),
+      projectId: fc.option(fc.uuid(), { nil: null }),
+      parentTaskId: fc.option(fc.uuid(), { nil: null }),
+      sectionId: fc.option(fc.string({ minLength: 1 }), { nil: null }),
+      description: fc.string({ minLength: 1, maxLength: 500 }),
+      notes: fc.string(),
+      assignee: fc.string(),
+      priority: fc.constantFrom('none' as const, 'low' as const, 'medium' as const, 'high' as const),
+      tags: fc.array(fc.string(), { maxLength: 5 }),
+      dueDate: fc.option(safeDate.map((d) => d.toISOString()), { nil: null }),
+      completed: fc.boolean(),
+      completedAt: fc.option(safeDate.map((d) => d.toISOString()), { nil: null }),
+      order: fc.integer(),
+      createdAt: safeDate.map((d) => d.toISOString()),
+      updatedAt: safeDate.map((d) => d.toISOString()),
+    });
+
+    // Valid lastActionAt variants: datetime string, null, or absent
+    const lastActionAtVariantArb = fc.oneof(
+      fc.constant({ lastActionAt: null } as { lastActionAt?: string | null }),
+      safeDate.map((d) => ({ lastActionAt: d.toISOString() }) as { lastActionAt?: string | null }),
+      fc.constant({} as { lastActionAt?: string | null }),
+    );
+
+    fc.assert(
+      fc.property(baseTaskArb, lastActionAtVariantArb, (baseTask, variant) => {
+        const task = { ...baseTask, ...variant };
+        const result = TaskSchema.safeParse(task);
+        expect(result.success).toBe(true);
+      }),
+      PROPERTY_CONFIG,
+    );
+
+    // Invalid: non-datetime strings should be rejected
+    const invalidLastActionAtArb = fc.string({ minLength: 1 }).filter(
+      (s) => Number.isNaN(Date.parse(s)) || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(s),
+    );
+
+    fc.assert(
+      fc.property(baseTaskArb, invalidLastActionAtArb, (baseTask, badValue) => {
+        const task = { ...baseTask, lastActionAt: badValue };
+        const result = TaskSchema.safeParse(task);
+        expect(result.success).toBe(false);
+      }),
+      PROPERTY_CONFIG,
+    );
+  });
+});
+

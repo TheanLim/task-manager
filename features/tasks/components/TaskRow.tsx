@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ChevronRight, ChevronDown, Check, Calendar, GripVertical, X, ListTree, User, FolderTree, CornerDownRight } from 'lucide-react';
+import { ChevronRight, ChevronDown, Check, Calendar, GripVertical, X, ListTree, User, FolderTree, CornerDownRight, RotateCw } from 'lucide-react';
 import { Task, Priority } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import { useDataStore } from '@/stores/dataStore';
 import { InlineEditable } from '@/components/InlineEditable';
 import { validateTaskDescription } from '@/lib/validation';
 import type { TaskColumnId } from '@/stores/appStore';
+import { getEffectiveLastActionTime } from '@/features/tasks/services/taskService';
 
 // Extended task type with flat mode metadata
 interface TaskWithFlatMetadata extends Task {
@@ -48,6 +49,8 @@ interface TaskRowProps {
   onProjectClick?: (projectId: string) => void;
   flatMode?: boolean;
   columnOrder: TaskColumnId[];
+  showReinsertButton?: boolean;
+  onReinsert?: (taskId: string) => void;
 }
 
 export function TaskRow({
@@ -55,13 +58,19 @@ export function TaskRow({
   draggable = false, onDragStart, onDragOver, onDragLeave, onDrop,
   draggedTaskId = null, dragOverTaskId = null, depth = 0, isSelected = false,
   taskWasExpanded = false, onSetTaskWasExpanded, showProjectColumn = false,
-  projectName, onProjectClick, flatMode = false, columnOrder
+  projectName, onProjectClick, flatMode = false, columnOrder,
+  showReinsertButton = false, onReinsert
 }: TaskRowProps) {
   const [subtasksExpanded, setSubtasksExpanded] = useState(false);
   const [isEditingTags, setIsEditingTags] = useState(false);
   const [tagInput, setTagInput] = useState('');
   const { getSubtasks, updateTask } = useDataStore();
-  const subtasks = getSubtasks(task.id);
+  const rawSubtasks = getSubtasks(task.id);
+  // On All Tasks page (showReinsertButton), sort subtasks by effective last action time
+  // On project views, getSubtasks already sorts by order
+  const subtasks = showReinsertButton
+    ? [...rawSubtasks].sort((a, b) => getEffectiveLastActionTime(a).localeCompare(getEffectiveLastActionTime(b)))
+    : rawSubtasks;
   const hasSubtasks = subtasks.length > 0;
 
   useEffect(() => {
@@ -237,6 +246,16 @@ export function TaskRow({
                 )}
               </div>
 
+              {showReinsertButton && (
+                <Tooltip><TooltipTrigger asChild>
+                  <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onReinsert?.(task.id); }}
+                    className="h-8 w-8 p-0 transition-opacity flex-shrink-0 absolute right-11 opacity-0 group-hover:opacity-100"
+                    aria-label="Move to bottom">
+                    <RotateCw className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger><TooltipContent><p>Move to bottom</p></TooltipContent></Tooltip>
+              )}
+
               <Tooltip><TooltipTrigger asChild>
                 <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onClick(task.id); }} className={cn("h-8 w-8 p-0 transition-opacity flex-shrink-0 absolute right-3", isSelected ? "opacity-0" : "opacity-0 group-hover:opacity-100")} aria-label="View details"><ChevronRight className="h-4 w-4" /></Button>
               </TooltipTrigger><TooltipContent><p>View details</p></TooltipContent></Tooltip>
@@ -276,6 +295,8 @@ export function TaskRow({
               onProjectClick={onProjectClick}
               flatMode={flatMode}
               columnOrder={columnOrder}
+              showReinsertButton={showReinsertButton}
+              onReinsert={onReinsert}
             />
           ))}
           {onAddSubtask && (

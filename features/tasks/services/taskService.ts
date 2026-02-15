@@ -1,5 +1,14 @@
 import type { UUID } from '@/types';
+import type { Task } from '@/lib/schemas';
 import type { TaskRepository, DependencyRepository } from '@/lib/repositories/types';
+
+/**
+ * Returns the effective last action time for a task.
+ * Falls back to createdAt when lastActionAt is null/undefined.
+ */
+export function getEffectiveLastActionTime(task: Task): string {
+  return task.lastActionAt ?? task.createdAt;
+}
 
 export class TaskService {
   constructor(
@@ -65,4 +74,30 @@ export class TaskService {
       }
     }
   }
+
+  /**
+   * Reinsert a task: update its lastActionAt to now and reposition it.
+   * - Parent tasks: update lastActionAt (sorting handles positioning)
+   * - Subtasks: move to bottom of parent's subtask list, update both
+   *   subtask and parent lastActionAt
+   */
+  reinsertTask(taskId: UUID): void {
+    const task = this.taskRepo.findById(taskId);
+    if (!task) return;
+
+    const now = new Date().toISOString();
+
+    if (task.parentTaskId == null) {
+      // Parent task: just update lastActionAt — UI sorts by effective last action time
+      this.taskRepo.update(taskId, { lastActionAt: now });
+    } else {
+      // Subtask: update timestamps only — do NOT change order field
+      // so project views (which sort by order) remain unaffected.
+      // The All Tasks page sorts subtasks by effective last action time.
+      this.taskRepo.update(taskId, { lastActionAt: now });
+      // Bubble parent to bottom of section
+      this.taskRepo.update(task.parentTaskId, { lastActionAt: now });
+    }
+  }
+
 }
