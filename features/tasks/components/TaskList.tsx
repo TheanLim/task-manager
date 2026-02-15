@@ -97,12 +97,13 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
     for (const col of DEFAULT_COLUMN_ORDER) {
       if (!order.includes(col)) order.push(col);
     }
-    // If project column should be shown and isn't in the order, add it at the end
-    if (showProjectColumn && !order.includes('project')) {
-      order.push('project');
+    // Filter out project from the stored order (we'll position it manually)
+    const filtered = order.filter(col => col !== 'project');
+    // If project column should be shown, insert it first (right after the fixed Name column)
+    if (showProjectColumn) {
+      filtered.unshift('project');
     }
-    // Filter out project if not showing, and filter out project from non-project views
-    return order.filter(col => col !== 'project' || showProjectColumn);
+    return filtered;
   })();
 
   // Helper function to get project name for a task
