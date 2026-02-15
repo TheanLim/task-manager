@@ -300,24 +300,28 @@ function HomeContent() {
   };
 
   const handleTaskExpand = () => {
-    if (dm.taskDetailPanel.selectedTaskId && activeProject) {
-      const params = new URLSearchParams();
-      params.set('project', activeProject.id);
-      if (tabFromUrl) params.set('tab', tabFromUrl);
-      params.set('task', dm.taskDetailPanel.selectedTaskId);
-      params.set('expanded', 'true');
-      router.push(`/?${params.toString()}`);
-    }
+    if (!dm.taskDetailPanel.selectedTaskId) return;
+    const task = tasks.find(t => t.id === dm.taskDetailPanel.selectedTaskId);
+    const projectId = activeProject?.id ?? task?.projectId;
+    const params = new URLSearchParams();
+    if (projectId) params.set('project', projectId);
+    if (tabFromUrl) params.set('tab', tabFromUrl);
+    params.set('task', dm.taskDetailPanel.selectedTaskId);
+    params.set('expanded', 'true');
+    if (!activeProject) params.set('view', 'tasks');
+    router.push(`/?${params.toString()}`);
   };
 
   const handleTaskCollapse = () => {
-    if (activeProject && dm.taskDetailPanel.selectedTaskId) {
-      const params = new URLSearchParams();
-      params.set('project', activeProject.id);
-      if (tabFromUrl) params.set('tab', tabFromUrl);
-      params.set('task', dm.taskDetailPanel.selectedTaskId);
-      router.push(`/?${params.toString()}`);
-    }
+    if (!dm.taskDetailPanel.selectedTaskId) return;
+    const task = tasks.find(t => t.id === dm.taskDetailPanel.selectedTaskId);
+    const projectId = activeProject?.id ?? task?.projectId;
+    const params = new URLSearchParams();
+    if (projectId) params.set('project', projectId);
+    if (tabFromUrl) params.set('tab', tabFromUrl);
+    params.set('task', dm.taskDetailPanel.selectedTaskId);
+    if (!activeProject) params.set('view', 'tasks');
+    router.push(`/?${params.toString()}`);
   };
 
   // --- Derived state for task detail panel ---
