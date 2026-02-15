@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { Plus, List, ListTree, ListChecks, Eye, Info } from 'lucide-react';
+import { Plus, List, ListTree, ListChecks, Eye, Info, EyeOff, CheckCircle2 } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -14,7 +14,7 @@ interface GlobalTasksHeaderProps {
  * Includes display mode toggle and add task button
  */
 export function GlobalTasksHeader({ onAddTask }: GlobalTasksHeaderProps) {
-  const { globalTasksDisplayMode, setGlobalTasksDisplayMode, needsAttentionSort, setNeedsAttentionSort } = useAppStore();
+  const { globalTasksDisplayMode, setGlobalTasksDisplayMode, needsAttentionSort, setNeedsAttentionSort, hideCompletedTasks, setHideCompletedTasks } = useAppStore();
 
   return (
     <>
@@ -44,6 +44,27 @@ export function GlobalTasksHeader({ onAddTask }: GlobalTasksHeaderProps) {
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
+
+          {/* Hide completed toggle — only in Normal mode (Reviewing auto-hides) */}
+          {!needsAttentionSort && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={hideCompletedTasks ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setHideCompletedTasks(!hideCompletedTasks)}
+                  >
+                    {hideCompletedTasks ? <EyeOff className="h-4 w-4 mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                    {hideCompletedTasks ? 'Completed hidden' : 'Hide completed'}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{hideCompletedTasks ? 'Show completed tasks' : 'Hide completed tasks'}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
 
           {/* Display mode toggle */}
           <TooltipProvider>

@@ -44,6 +44,7 @@ interface TaskListProps {
   showReinsertButton?: boolean;
   onReinsert?: (taskId: string) => void;
   onToggleSection?: (sectionId: string) => void;
+  hideCompletedSubtasks?: boolean;
 }
 
 interface ColumnWidths {
@@ -68,7 +69,7 @@ const COLUMN_LABELS: Record<TaskColumnId, string> = {
  * List view component for displaying tasks grouped by collapsible sections
  * with table-like task rows and draggable column headers
  */
-export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTask, onViewSubtasks, onSubtaskButtonClick, onAddSubtask, selectedTaskId, showProjectColumn = false, onProjectClick, flatMode = false, initialSortByProject = false, showReinsertButton = false, onReinsert, onToggleSection }: TaskListProps) {
+export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTask, onViewSubtasks, onSubtaskButtonClick, onAddSubtask, selectedTaskId, showProjectColumn = false, onProjectClick, flatMode = false, initialSortByProject = false, showReinsertButton = false, onReinsert, onToggleSection, hideCompletedSubtasks = false }: TaskListProps) {
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverTaskId, setDragOverTaskId] = useState<string | null>(null);
   const [draggedSectionId, setDraggedSectionId] = useState<string | null>(null);
@@ -761,6 +762,7 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                       columnOrder={visibleColumns}
                       showReinsertButton={showReinsertButton}
                       onReinsert={onReinsert}
+                      hideCompletedSubtasks={hideCompletedSubtasks}
                     />
                   ))}
 
@@ -850,6 +852,7 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                     columnOrder={visibleColumns}
                     showReinsertButton={showReinsertButton}
                     onReinsert={onReinsert}
+                    hideCompletedSubtasks={hideCompletedSubtasks}
                   />
                 ))}
               </>

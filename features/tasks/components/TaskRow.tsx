@@ -51,6 +51,7 @@ interface TaskRowProps {
   columnOrder: TaskColumnId[];
   showReinsertButton?: boolean;
   onReinsert?: (taskId: string) => void;
+  hideCompletedSubtasks?: boolean;
 }
 
 export function TaskRow({
@@ -59,7 +60,7 @@ export function TaskRow({
   draggedTaskId = null, dragOverTaskId = null, depth = 0, isSelected = false,
   taskWasExpanded = false, onSetTaskWasExpanded, showProjectColumn = false,
   projectName, onProjectClick, flatMode = false, columnOrder,
-  showReinsertButton = false, onReinsert
+  showReinsertButton = false, onReinsert, hideCompletedSubtasks = false
 }: TaskRowProps) {
   const [subtasksExpanded, setSubtasksExpanded] = useState(false);
   const [isEditingTags, setIsEditingTags] = useState(false);
@@ -68,10 +69,17 @@ export function TaskRow({
   const rawSubtasks = getSubtasks(task.id);
   // On All Tasks page (showReinsertButton), sort subtasks by effective last action time
   // On project views, getSubtasks already sorts by order
-  const subtasks = showReinsertButton
+  const sortedSubtasks = showReinsertButton
     ? [...rawSubtasks].sort((a, b) => getEffectiveLastActionTime(a).localeCompare(getEffectiveLastActionTime(b)))
     : rawSubtasks;
-  const hasSubtasks = subtasks.length > 0;
+  // Filter out completed subtasks when hideCompletedSubtasks is active
+  const subtasks = hideCompletedSubtasks
+    ? sortedSubtasks.filter(s => !s.completed)
+    : sortedSubtasks;
+  const totalSubtaskCount = rawSubtasks.length;
+  const completedSubtaskCount = rawSubtasks.filter(s => s.completed).length;
+  const hasSubtasks = rawSubtasks.length > 0;
+  const hasVisibleSubtasks = subtasks.length > 0;
 
   useEffect(() => {
     if (flatMode && subtasksExpanded) setSubtasksExpanded(false);
@@ -239,7 +247,7 @@ export function TaskRow({
                   </TooltipTrigger><TooltipContent><p>Click to jump to parent task</p></TooltipContent></Tooltip>
                 )}
                 {!flatMode && hasSubtasks && onSubtaskButtonClick && (
-                  <Tooltip><TooltipTrigger asChild><button onClick={(e) => { e.stopPropagation(); onSubtaskButtonClick(task.id); }} className="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors flex-shrink-0"><span>{subtasks.length}</span><ListTree className="h-3 w-3" /></button></TooltipTrigger><TooltipContent><p>View {subtasks.length} subtask{subtasks.length !== 1 ? 's' : ''}</p></TooltipContent></Tooltip>
+                  <Tooltip><TooltipTrigger asChild><button onClick={(e) => { e.stopPropagation(); onSubtaskButtonClick(task.id); }} className="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors flex-shrink-0"><span>{hideCompletedSubtasks && completedSubtaskCount > 0 ? `${completedSubtaskCount}/${totalSubtaskCount}` : subtasks.length}</span><ListTree className="h-3 w-3" /></button></TooltipTrigger><TooltipContent><p>{hideCompletedSubtasks && completedSubtaskCount > 0 ? `${completedSubtaskCount} of ${totalSubtaskCount} subtasks completed` : `View ${subtasks.length} subtask${subtasks.length !== 1 ? 's' : ''}`}</p></TooltipContent></Tooltip>
                 )}
                 {flatMode && (task as TaskWithFlatMetadata)._flatModeHasSubtasks && (
                   <Badge variant="secondary" className="text-xs"><FolderTree className="h-3 w-3 mr-1" />{(task as TaskWithFlatMetadata)._flatModeSubtaskCount} subtask{(task as TaskWithFlatMetadata)._flatModeSubtaskCount !== 1 ? 's' : ''}</Badge>
@@ -268,7 +276,7 @@ export function TaskRow({
       </tr>
 
       {/* Subtasks (if expanded) */}
-      {hasSubtasks && subtasksExpanded && (
+      {hasVisibleSubtasks && subtasksExpanded && (
         <>
           {subtasks.map(subtask => (
             <TaskRow
@@ -297,6 +305,7 @@ export function TaskRow({
               columnOrder={columnOrder}
               showReinsertButton={showReinsertButton}
               onReinsert={onReinsert}
+              hideCompletedSubtasks={hideCompletedSubtasks}
             />
           ))}
           {onAddSubtask && (

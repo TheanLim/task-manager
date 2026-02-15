@@ -21,6 +21,7 @@ interface AppStore {
   sortColumn: SortableColumnId | null; // Currently sorted column, null = default order
   sortDirection: SortDirection; // Sort direction
   needsAttentionSort: boolean; // Whether "Needs Attention" sort is active on All Tasks page
+  hideCompletedTasks: boolean; // Whether to hide completed tasks in All Tasks Normal mode
   
   setActiveProject: (projectId: UUID | null) => void;
   setTimeManagementSystem: (system: TimeManagementSystem) => void;
@@ -33,6 +34,7 @@ interface AppStore {
   toggleSort: (column: SortableColumnId) => void;
   clearSort: () => void;
   setNeedsAttentionSort: (active: boolean) => void;
+  setHideCompletedTasks: (hide: boolean) => void;
 }
 
 export const useAppStore = create<AppStore>()(
@@ -50,6 +52,7 @@ export const useAppStore = create<AppStore>()(
       sortColumn: null,
       sortDirection: 'asc' as SortDirection,
       needsAttentionSort: false,
+      hideCompletedTasks: false,
       
       setActiveProject: (projectId) => set((state) => ({
         settings: { ...state.settings, activeProjectId: projectId }
@@ -99,6 +102,8 @@ export const useAppStore = create<AppStore>()(
         // Clear column sort when enabling needs attention
         ...(active ? { sortColumn: null, sortDirection: 'asc' as SortDirection } : {}),
       }),
+      
+      setHideCompletedTasks: (hide) => set({ hideCompletedTasks: hide }),
     }),
     {
       name: 'task-management-settings',

@@ -47,6 +47,7 @@ export function GlobalTasksView({
   const { tasks, sections, projects } = useDataStore();
   const { globalTasksDisplayMode } = useAppStore();
   const needsAttentionSort = useAppStore((s) => s.needsAttentionSort);
+  const hideCompletedTasks = useAppStore((s) => s.hideCompletedTasks);
 
   // Separate tasks: those with projects vs unlinked tasks
   // Project tasks are sorted by project name so they group by project on initial render
@@ -174,6 +175,15 @@ export function GlobalTasksView({
     return { displayTasks: allTasks, displaySections: allSections };
   }, [projectTasks, unlinkedTasks, unlinkedSections, virtualFromProjectsSection, globalTasksDisplayMode]);
 
+  // Filter completed tasks based on mode
+  // Reviewing: always hide completed parent tasks (subtask filtering handled by TaskRow)
+  // Normal + hideCompletedTasks: hide completed parent tasks
+  const shouldHideCompleted = needsAttentionSort || hideCompletedTasks;
+  const filteredTasks = useMemo(() => {
+    if (!shouldHideCompleted) return displayTasks;
+    return displayTasks.filter(t => !t.completed);
+  }, [displayTasks, shouldHideCompleted]);
+
   // Reinsert callback — delegates to TaskService
   const handleReinsert = useCallback((taskId: string) => {
     taskService.reinsertTask(taskId);
@@ -205,7 +215,7 @@ export function GlobalTasksView({
 
   return (
     <TaskList
-      tasks={displayTasks}
+      tasks={filteredTasks}
       sections={displaySections}
       onTaskClick={onTaskClick}
       onTaskComplete={onTaskComplete}
@@ -221,6 +231,7 @@ export function GlobalTasksView({
       showReinsertButton={needsAttentionSort}
       onReinsert={needsAttentionSort ? handleReinsert : undefined}
       onToggleSection={handleToggleSection}
+      hideCompletedSubtasks={shouldHideCompleted}
     />
   );
 }
