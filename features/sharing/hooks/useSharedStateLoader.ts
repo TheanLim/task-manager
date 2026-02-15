@@ -1,6 +1,11 @@
 import { useEffect } from 'react';
 import { ShareService } from '@/features/sharing/services/shareService';
-import { localStorageBackend } from '@/stores/dataStore';
+import {
+  projectRepository,
+  taskRepository,
+  sectionRepository,
+  dependencyRepository,
+} from '@/stores/dataStore';
 import { AppState } from '@/types';
 
 export interface UseSharedStateLoaderOptions {
@@ -33,12 +38,11 @@ export function useSharedStateLoader({ onSharedStateLoaded, onLoadResult }: UseS
 
       if (result.success && result.state) {
         // Check if user has existing data (after hydration)
-        const currentState = localStorageBackend.getState();
         const hasExistingData =
-          currentState.projects.length > 0 ||
-          currentState.tasks.length > 0 ||
-          currentState.sections.length > 0 ||
-          currentState.dependencies.length > 0;
+          projectRepository.findAll().length > 0 ||
+          taskRepository.findAll().length > 0 ||
+          sectionRepository.findAll().length > 0 ||
+          dependencyRepository.findAll().length > 0;
 
         if (hasExistingData) {
           // Show dialog to ask user what to do
@@ -84,12 +88,12 @@ export function handleLoadSharedState(
   }
 
   if (mode === 'replace') {
-    // Write through the backend so its internal state, localStorage,
+    // Write through repositories so the backend, localStorage,
     // and the Zustand store (via repository subscriptions) all stay in sync.
-    localStorageBackend.setEntities('projects', sharedState.projects);
-    localStorageBackend.setEntities('tasks', sharedState.tasks);
-    localStorageBackend.setEntities('sections', sharedState.sections);
-    localStorageBackend.setEntities('dependencies', sharedState.dependencies);
+    projectRepository.replaceAll(sharedState.projects);
+    taskRepository.replaceAll(sharedState.tasks);
+    sectionRepository.replaceAll(sharedState.sections);
+    dependencyRepository.replaceAll(sharedState.dependencies);
 
     onLoadResult({ message: 'Shared data loaded successfully!', type: 'success' });
   } else {
@@ -103,10 +107,10 @@ function mergeSharedState(
   sharedState: AppState,
   onLoadResult: (result: { message: string; type: 'success' | 'error' | 'info' }) => void
 ): void {
-  const projects = localStorageBackend.getEntities('projects');
-  const tasks = localStorageBackend.getEntities('tasks');
-  const sections = localStorageBackend.getEntities('sections');
-  const dependencies = localStorageBackend.getEntities('dependencies');
+  const projects = projectRepository.findAll();
+  const tasks = taskRepository.findAll();
+  const sections = sectionRepository.findAll();
+  const dependencies = dependencyRepository.findAll();
 
   // Deduplicate existing data in case there are already duplicates
   const uniqueProjects = Array.from(new Map(projects.map(p => [p.id, p])).values());
@@ -124,11 +128,11 @@ function mergeSharedState(
   const newSections = sharedState.sections.filter(s => !existingSectionIds.has(s.id));
   const newDependencies = sharedState.dependencies.filter(d => !existingDependencyIds.has(d.id));
 
-  // Write through the backend so internal state, localStorage, and Zustand all stay in sync
-  localStorageBackend.setEntities('projects', [...uniqueProjects, ...newProjects]);
-  localStorageBackend.setEntities('tasks', [...uniqueTasks, ...newTasks]);
-  localStorageBackend.setEntities('sections', [...uniqueSections, ...newSections]);
-  localStorageBackend.setEntities('dependencies', [...uniqueDependencies, ...newDependencies]);
+  // Write through repositories so backend, localStorage, and Zustand all stay in sync
+  projectRepository.replaceAll([...uniqueProjects, ...newProjects]);
+  taskRepository.replaceAll([...uniqueTasks, ...newTasks]);
+  sectionRepository.replaceAll([...uniqueSections, ...newSections]);
+  dependencyRepository.replaceAll([...uniqueDependencies, ...newDependencies]);
 
   const addedCount = newProjects.length + newTasks.length + newSections.length + newDependencies.length;
   const skippedCount =

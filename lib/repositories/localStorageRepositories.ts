@@ -37,6 +37,10 @@ export class LocalStorageProjectRepository implements ProjectRepository {
     this.backend.setEntities('projects', projects);
   }
 
+  replaceAll(items: Project[]): void {
+    this.backend.setEntities('projects', items);
+  }
+
   subscribe(callback: SubscriptionCallback<Project>): Unsubscribe {
     return this.backend.onEntityChange('projects', () => {
       callback(this.backend.getEntities('projects'));
@@ -80,6 +84,10 @@ export class LocalStorageTaskRepository implements TaskRepository {
     this.backend.setEntities('tasks', tasks);
   }
 
+  replaceAll(items: Task[]): void {
+    this.backend.setEntities('tasks', items);
+  }
+
   subscribe(callback: SubscriptionCallback<Task>): Unsubscribe {
     return this.backend.onEntityChange('tasks', () => {
       callback(this.backend.getEntities('tasks'));
@@ -117,6 +125,10 @@ export class LocalStorageSectionRepository implements SectionRepository {
   delete(id: UUID): void {
     const sections = this.backend.getEntities('sections').filter((s) => s.id !== id);
     this.backend.setEntities('sections', sections);
+  }
+
+  replaceAll(items: Section[]): void {
+    this.backend.setEntities('sections', items);
   }
 
   subscribe(callback: SubscriptionCallback<Section>): Unsubscribe {
@@ -160,6 +172,10 @@ export class LocalStorageDependencyRepository implements DependencyRepository {
   delete(id: UUID): void {
     const deps = this.backend.getEntities('dependencies').filter((d) => d.id !== id);
     this.backend.setEntities('dependencies', deps);
+  }
+
+  replaceAll(items: TaskDependency[]): void {
+    this.backend.setEntities('dependencies', items);
   }
 
   subscribe(callback: SubscriptionCallback<TaskDependency>): Unsubscribe {

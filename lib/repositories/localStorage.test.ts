@@ -372,4 +372,89 @@ describe('Feature: architecture-refactor', () => {
       );
     });
   });
+
+  describe('Property 5: Repository replaceAll round-trip', () => {
+    it('replaceAll overwrites all projects and is readable via findAll', () => {
+      fc.assert(
+        fc.property(
+          fc.array(projectArbitrary, { minLength: 0, maxLength: 10 }),
+          (projects) => {
+            localStorage.clear();
+            const b = new LocalStorageBackend();
+            const repo = new LocalStorageProjectRepository(b);
+
+            // Seed with some data first
+            repo.create({ ...projects[0] ?? { id: crypto.randomUUID(), name: 'seed', description: '', viewMode: 'list' as const, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() } });
+
+            repo.replaceAll(projects);
+            expect(repo.findAll()).toEqual(projects);
+          },
+        ),
+        PROPERTY_CONFIG,
+      );
+    });
+
+    it('replaceAll overwrites all tasks and is readable via findAll', () => {
+      fc.assert(
+        fc.property(
+          fc.array(taskArbitrary, { minLength: 0, maxLength: 10 }),
+          (tasks) => {
+            localStorage.clear();
+            const b = new LocalStorageBackend();
+            const repo = new LocalStorageTaskRepository(b);
+
+            repo.replaceAll(tasks);
+            expect(repo.findAll()).toEqual(tasks);
+          },
+        ),
+        PROPERTY_CONFIG,
+      );
+    });
+
+    it('replaceAll overwrites all sections and is readable via findAll', () => {
+      fc.assert(
+        fc.property(
+          fc.array(sectionArbitrary, { minLength: 0, maxLength: 10 }),
+          (sections) => {
+            localStorage.clear();
+            const b = new LocalStorageBackend();
+            const repo = new LocalStorageSectionRepository(b);
+
+            repo.replaceAll(sections);
+            expect(repo.findAll()).toEqual(sections);
+          },
+        ),
+        PROPERTY_CONFIG,
+      );
+    });
+
+    it('replaceAll overwrites all dependencies and is readable via findAll', () => {
+      fc.assert(
+        fc.property(
+          fc.array(dependencyArbitrary, { minLength: 0, maxLength: 10 }),
+          (deps) => {
+            localStorage.clear();
+            const b = new LocalStorageBackend();
+            const repo = new LocalStorageDependencyRepository(b);
+
+            repo.replaceAll(deps);
+            expect(repo.findAll()).toEqual(deps);
+          },
+        ),
+        PROPERTY_CONFIG,
+      );
+    });
+
+    it('replaceAll notifies subscribers exactly once', () => {
+      localStorage.clear();
+      const b = new LocalStorageBackend();
+      const repo = new LocalStorageProjectRepository(b);
+
+      let callCount = 0;
+      repo.subscribe(() => { callCount++; });
+
+      repo.replaceAll([]);
+      expect(callCount).toBe(1);
+    });
+  });
 });

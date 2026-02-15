@@ -4,6 +4,8 @@ import { LocalStorageBackend } from '@/lib/repositories/localStorageBackend';
 import {
   LocalStorageTaskRepository,
   LocalStorageProjectRepository,
+  LocalStorageSectionRepository,
+  LocalStorageDependencyRepository,
 } from '@/lib/repositories/localStorageRepositories';
 import type { AppState, Project, Task } from '@/lib/schemas';
 
@@ -67,14 +69,19 @@ function makeSharedState(overrides: Partial<AppState> = {}): AppState {
   };
 }
 
-// We need to mock the dataStore module to provide a test-scoped backend
-// instead of the singleton. The real module creates a singleton at import time.
+// We need to mock the dataStore module to provide test-scoped repositories
+// backed by a fresh LocalStorageBackend instead of the singleton.
 let testBackend: LocalStorageBackend;
+let testProjectRepo: LocalStorageProjectRepository;
+let testTaskRepo: LocalStorageTaskRepository;
+let testSectionRepo: LocalStorageSectionRepository;
+let testDependencyRepo: LocalStorageDependencyRepository;
 
 vi.mock('@/stores/dataStore', () => ({
-  get localStorageBackend() {
-    return testBackend;
-  },
+  get projectRepository() { return testProjectRepo; },
+  get taskRepository() { return testTaskRepo; },
+  get sectionRepository() { return testSectionRepo; },
+  get dependencyRepository() { return testDependencyRepo; },
 }));
 
 describe('handleLoadSharedState', () => {
@@ -83,6 +90,10 @@ describe('handleLoadSharedState', () => {
   beforeEach(() => {
     localStorage.clear();
     testBackend = new LocalStorageBackend();
+    testProjectRepo = new LocalStorageProjectRepository(testBackend);
+    testTaskRepo = new LocalStorageTaskRepository(testBackend);
+    testSectionRepo = new LocalStorageSectionRepository(testBackend);
+    testDependencyRepo = new LocalStorageDependencyRepository(testBackend);
     onLoadResult = vi.fn();
     // Mock window.history.replaceState used by clearUrlHash
     vi.spyOn(window.history, 'replaceState').mockImplementation(() => {});

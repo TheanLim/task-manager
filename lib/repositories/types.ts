@@ -9,6 +9,7 @@ export interface Repository<T extends { id: string }> {
   create(item: T): void;
   update(id: UUID, updates: Partial<T>): void;
   delete(id: UUID): void;
+  replaceAll(items: T[]): void;
   subscribe(callback: SubscriptionCallback<T>): Unsubscribe;
 }
 
