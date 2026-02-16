@@ -49,6 +49,16 @@ Four methodologies to choose from:
 - Zod-based schema validation
 - Data deduplication utilities
 
+### Keyboard Navigation
+- Full keyboard navigation for task lists with vim-style shortcuts
+- Arrow keys and hjkl for movement
+- gg / G for first/last row, Ctrl+d / Ctrl+u for half-page scroll
+- [ / ] for section jumping
+- Space to toggle completion, Enter to open details
+- Subtask-aware navigation (respects expanded/collapsed state)
+- Customizable shortcuts via help overlay (press ?)
+- Visual focus indicator with auto-fade
+
 ### User Interface
 - Responsive design (mobile, tablet, desktop)
 - Dark / Light / System theme support
@@ -150,6 +160,13 @@ npm run test:e2e:ui
 │   ├── ThemeToggle.tsx
 │   └── ViewModeSelector.tsx
 ├── features/                     # Feature modules
+│   ├── keyboard/
+│   │   ├── components/           # ShortcutHelpOverlay, ShortcutSettings
+│   │   ├── hooks/                # useGlobalShortcuts, useKeyboardNavigation
+│   │   ├── services/             # gridNavigationService, shortcutService
+│   │   ├── stores/               # keyboardNavStore
+│   │   ├── schemas.ts
+│   │   └── types.ts
 │   ├── projects/
 │   │   ├── components/           # ProjectDialog, ProjectList, ProjectView, etc.
 │   │   └── services/             # projectService (CRUD, business logic)
