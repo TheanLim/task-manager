@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { AppSettings, TimeManagementSystem, UUID } from '@/types';
 import type { AutoHideThreshold } from '@/lib/schemas';
 import type { ShortcutAction, ShortcutMap } from '@/features/keyboard/types';
+import { getDefaultShortcutMap } from '@/features/keyboard/services/shortcutService';
 
 // Column identifiers for the task table (excluding 'name' which is always first)
 export type TaskColumnId = 'dueDate' | 'priority' | 'assignee' | 'tags' | 'project';
@@ -121,12 +122,18 @@ export const useAppStore = create<AppStore>()(
       
       setShowRecentlyCompleted: (show) => set({ showRecentlyCompleted: show }),
       
-      setKeyboardShortcut: (action, key) => set((state) => ({
-        keyboardShortcuts: {
-          ...state.keyboardShortcuts,
-          [action]: { ...state.keyboardShortcuts[action], key } as ShortcutMap[ShortcutAction],
-        },
-      })),
+      setKeyboardShortcut: (action, key) => set((state) => {
+        const defaults = getDefaultShortcutMap();
+        const defaultBinding = defaults[action];
+        if (!defaultBinding) return state;
+        
+        return {
+          keyboardShortcuts: {
+            ...state.keyboardShortcuts,
+            [action]: { ...defaultBinding, key },
+          },
+        };
+      }),
       
       resetKeyboardShortcuts: () => set({ keyboardShortcuts: {} }),
     }),

@@ -415,6 +415,49 @@ test.describe('Customizable Shortcuts UI Entry Point', () => {
     await expect(overlay.getByText('Press a key…')).not.toBeVisible()
   })
 
+  test('recording a new key binding updates and persists the shortcut', async ({ page }) => {
+    await page.locator('table[role="grid"]').focus()
+    await page.keyboard.press('Shift+/')
+    const overlay = page.getByRole('dialog', { name: /keyboard shortcuts/i })
+
+    await overlay.getByText('Edit shortcuts…').click()
+    await page.waitForTimeout(300)
+
+    // Find the "New task" shortcut (default is 'n')
+    const newTaskRow = overlay.locator('li', { has: page.getByText('New task') })
+    const nKbd = newTaskRow.locator('kbd[role="button"]')
+    await expect(nKbd).toContainText('n')
+
+    // Click to start recording
+    await nKbd.click()
+    await expect(overlay.getByText('Press a key…')).toBeVisible()
+
+    // Press a new key (e.g., 'm')
+    await page.keyboard.press('m')
+    await page.waitForTimeout(300)
+
+    // Should now show 'm' instead of 'n'
+    await expect(nKbd).toContainText('m')
+    await expect(overlay.getByText('Press a key…')).not.toBeVisible()
+
+    // Close the overlay
+    await overlay.getByRole('button', { name: /close/i }).click()
+    await expect(overlay).not.toBeVisible()
+
+    // Reopen and verify the change persisted
+    await page.keyboard.press('Shift+/')
+    await expect(overlay).toBeVisible()
+    await overlay.getByText('Edit shortcuts…').click()
+    await page.waitForTimeout(200)
+
+    const newTaskRowAgain = overlay.locator('li', { has: page.getByText('New task') })
+    await expect(newTaskRowAgain.locator('kbd[role="button"]')).toContainText('m')
+
+    // Reset to defaults to clean up
+    await overlay.getByText('Reset to defaults').click()
+    await page.waitForTimeout(200)
+  })
+
   test('reset to defaults button is functional', async ({ page }) => {
     await page.locator('table[role="grid"]').focus()
     await page.keyboard.press('Shift+/')
