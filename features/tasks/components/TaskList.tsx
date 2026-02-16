@@ -15,7 +15,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Task, Section } from '@/types';
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { InlineEditable } from '@/components/InlineEditable';
 import { validateSectionName } from '@/lib/validation';
 import { useDataStore } from '@/stores/dataStore';
@@ -26,6 +26,9 @@ import { Input } from '@/components/ui/input';
 import { TaskRow } from '@/features/tasks/components/TaskRow';
 import { cn } from '@/lib/utils';
 import { getEffectiveLastActionTime } from '@/features/tasks/services/taskService';
+import { useKeyboardNavigation } from '@/features/keyboard/hooks/useKeyboardNavigation';
+import { getDefaultShortcutMap, mergeShortcutMaps } from '@/features/keyboard/services/shortcutService';
+import { useKeyboardNavStore } from '@/features/keyboard/stores/keyboardNavStore';
 
 interface TaskListProps {
   tasks: Task[];
@@ -82,6 +85,10 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [sectionToDelete, setSectionToDelete] = useState<string | null>(null);
   const { updateTask, updateSection, deleteSection, addSection, projects } = useDataStore();
+
+  // Keyboard navigation
+  const tableRef = useRef<HTMLTableElement>(null);
+  const keyboardShortcuts = useAppStore(s => s.keyboardShortcuts);
 
   // Column order and sort state from persisted store
   const { columnOrder, setColumnOrder, sortColumn, sortDirection, toggleSort } = useAppStore();
@@ -563,12 +570,62 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
     return raw;
   })();
 
+  // Compute flat list of visible task IDs in display order for keyboard navigation
+  const visibleTasks = useMemo(() => {
+    const result: Task[] = [];
+    const sortedSections = [...sections].sort((a, b) => a.order - b.order);
+    for (const section of sortedSections) {
+      if (section.collapsed) continue;
+      const sectionTasks = tasksBySection[section.id] || [];
+      result.push(...sectionTasks);
+    }
+    result.push(...unsectionedTasks);
+    return result;
+  }, [sections, tasksBySection, unsectionedTasks]);
+
+  // Compute section start indices for [ and ] navigation
+  const sectionStartIndices = useMemo(() => {
+    const indices: number[] = [];
+    let idx = 0;
+    const sortedSections = [...sections].sort((a, b) => a.order - b.order);
+    for (const section of sortedSections) {
+      if (section.collapsed) continue;
+      const sectionTasks = tasksBySection[section.id] || [];
+      if (sectionTasks.length > 0) {
+        indices.push(idx);
+      }
+      idx += sectionTasks.length;
+    }
+    // Unsectioned tasks start index
+    if (unsectionedTasks.length > 0) {
+      indices.push(idx);
+    }
+    return indices;
+  }, [sections, tasksBySection, unsectionedTasks]);
+
+  // Wire keyboard navigation
+  const shortcutMap = mergeShortcutMaps(getDefaultShortcutMap(), keyboardShortcuts);
+  const { activeCell, getCellProps, onTableKeyDown, savedCell } = useKeyboardNavigation({
+    visibleRowCount: visibleTasks.length,
+    columnCount: visibleColumns.length + 1,
+    tableRef,
+    shortcutMap,
+    isDragging: !!draggedTaskId,
+    visibleRowTaskIds: visibleTasks.map(t => t.id),
+    sectionStartIndices,
+    onSpacePress: (taskId: string) => {
+      onTaskComplete(taskId, !tasks.find(t => t.id === taskId)?.completed);
+    },
+    onEnterPress: (taskId: string) => {
+      onTaskClick(taskId);
+    },
+  });
+
   if (tasks.length === 0 && sections.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
+      <div className="flex flex-col items-center justify-center py-12 text-center" tabIndex={0}>
         <Circle className="h-12 w-12 text-muted-foreground mb-4" />
-        <p className="text-muted-foreground">No tasks yet</p>
-        <p className="text-sm text-muted-foreground mt-1">Create a task to get started</p>
+        <p className="text-muted-foreground">No tasks — press n to create one</p>
       </div>
     );
   }
@@ -616,7 +673,7 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
   return (
     <div className="flex flex-col h-full">
       <div className="overflow-x-auto flex-1">
-        <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
+        <table className="w-full border-collapse outline-none" role="grid" ref={tableRef} onKeyDown={onTableKeyDown} tabIndex={0} style={{ tableLayout: 'fixed' }}>
           <colgroup>
             <col style={{ width: columnWidths.name }} />
             {visibleColumns.map(colId => (
@@ -802,7 +859,9 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                           <div className="w-4 flex-shrink-0" />
                           <div className="w-4 flex-shrink-0" />
                           <div className="w-5 flex-shrink-0" />
-                          <span className="text-muted-foreground hover:text-foreground">Add tasks...</span>
+                          <span className="text-muted-foreground hover:text-foreground">
+                            {sectionTasks.length === 0 ? 'Add tasks... (or press n)' : 'Add tasks...'}
+                          </span>
                         </div>
                       </td>
                       {visibleColumns.map(colId => (

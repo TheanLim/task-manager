@@ -127,6 +127,7 @@ export function InlineEditable({
   return (
     <span
       onClick={() => setIsEditing(true)}
+      data-inline-editable
       className={`
         ${value ? 'inline-flex' : 'flex'} items-center cursor-text rounded px-1
         transition-all duration-150

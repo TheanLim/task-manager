@@ -124,7 +124,7 @@ export function TaskRow({
     switch (colId) {
       case 'dueDate':
         return (
-          <td key={key} className={cn("p-1 text-sm text-muted-foreground cursor-pointer", borderCls)} onClick={(e) => e.stopPropagation()}>
+          <td key={key} role="gridcell" className={cn("p-1 text-sm text-muted-foreground cursor-pointer", borderCls)} onClick={(e) => e.stopPropagation()}>
             <Popover>
               <PopoverTrigger asChild>
                 <div className="flex items-center gap-1 hover:bg-accent rounded px-1 py-0.5">
@@ -140,7 +140,7 @@ export function TaskRow({
         );
       case 'priority':
         return (
-          <td key={key} className={cn("p-1 cursor-pointer", borderCls)} onClick={(e) => e.stopPropagation()}>
+          <td key={key} role="gridcell" className={cn("p-1 cursor-pointer", borderCls)} onClick={(e) => e.stopPropagation()}>
             <Select value={task.priority} onValueChange={(value) => updateTask(task.id, { priority: value as Priority })}>
               <SelectTrigger className="h-6 border-0 shadow-none hover:bg-accent">
                 <SelectValue>
@@ -158,7 +158,7 @@ export function TaskRow({
         );
       case 'assignee':
         return (
-          <td key={key} className={cn("p-1 text-sm text-muted-foreground truncate cursor-pointer", borderCls)} onClick={(e) => e.stopPropagation()}>
+          <td key={key} role="gridcell" className={cn("p-1 text-sm text-muted-foreground truncate cursor-pointer", borderCls)} onClick={(e) => e.stopPropagation()}>
             <div className="hover:bg-accent rounded px-1 py-0.5">
               <InlineEditable value={task.assignee || ''} onSave={(v) => updateTask(task.id, { assignee: v || undefined })} placeholder="Assignee" displayClassName="truncate text-sm" inputClassName="w-full text-sm" displayElement={task.assignee ? undefined : <User className="h-3 w-3 text-muted-foreground/50" />} />
             </div>
@@ -166,7 +166,7 @@ export function TaskRow({
         );
       case 'tags':
         return (
-          <td key={key} className={cn("p-1 cursor-pointer", borderCls)} onClick={(e) => e.stopPropagation()}>
+          <td key={key} role="gridcell" className={cn("p-1 cursor-pointer", borderCls)} onClick={(e) => e.stopPropagation()}>
             <Popover open={isEditingTags} onOpenChange={setIsEditingTags}>
               <PopoverTrigger asChild>
                 <div className="flex gap-1 flex-wrap hover:bg-accent rounded px-1 py-0.5 min-h-[24px]">
@@ -198,7 +198,7 @@ export function TaskRow({
         );
       case 'project':
         return (
-          <td key={key} className={cn("p-1 text-sm text-muted-foreground truncate cursor-pointer", borderCls)} onClick={(e) => { e.stopPropagation(); if (task.projectId && onProjectClick) onProjectClick(task.projectId); }}>
+          <td key={key} role="gridcell" className={cn("p-1 text-sm text-muted-foreground truncate cursor-pointer", borderCls)} onClick={(e) => { e.stopPropagation(); if (task.projectId && onProjectClick) onProjectClick(task.projectId); }}>
             <div className={cn("px-1 py-0.5 truncate rounded", task.projectId && "hover:bg-accent hover:text-foreground transition-colors")}>{projectName || 'No Project'}</div>
           </td>
         );
@@ -211,6 +211,7 @@ export function TaskRow({
     <>
       <tr
         data-task-id={task.id}
+        role="row"
         className={cn("border-b hover:bg-accent hover:shadow-elevation-base group transition-colors", task.completed && "opacity-60", isDragging && "opacity-50", isDragOver && "ring-2 ring-primary")}
         draggable={draggable}
         onDragStart={onDragStart ? (e) => { if (hasSubtasks && subtasksExpanded) { onSetTaskWasExpanded?.(true); setSubtasksExpanded(false); } onDragStart(e, task.id); } : undefined}
@@ -220,7 +221,7 @@ export function TaskRow({
         onDragEnd={() => { if (hasSubtasks && taskWasExpanded && draggedTaskId === task.id) { setSubtasksExpanded(true); onSetTaskWasExpanded?.(false); } }}
       >
         {/* Name column - always first */}
-        <td className="py-1 pr-1 border-r sticky left-0 bg-background group-hover:bg-accent group-focus-within:bg-accent z-10 relative transition-colors">
+        <td role="gridcell" className="py-1 pr-1 border-r sticky left-0 bg-background group-hover:bg-accent group-focus-within:bg-accent z-10 relative transition-colors">
           <TooltipProvider>
             <div className="flex items-center gap-2" style={{ paddingLeft: depth > 0 ? `${depth * 24 + 4}px` : '4px' }}>
               {draggable ? (

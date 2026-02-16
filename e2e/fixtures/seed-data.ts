@@ -46,6 +46,7 @@ export const TASK_IDS = {
 } as const
 
 const NOW = '2026-02-14T10:00:00.000Z'
+const RECENT_COMPLETED = new Date(Date.now() - 3600_000).toISOString() // 1 hour ago — always within 24h auto-hide window
 
 // ── Projects ────────────────────────────────────────────────────────────────
 const projects = [
@@ -116,7 +117,7 @@ const tasks = [
   makeTask({ id: TASK_IDS.doingTask1, sectionId: SECTION_IDS.doing, description: 'Implement auth flow', order: 0 }),
 
   // Done section — one completed task
-  makeTask({ id: TASK_IDS.doneTask1, sectionId: SECTION_IDS.done, description: 'Design database schema', completed: true, completedAt: NOW, order: 0 }),
+  makeTask({ id: TASK_IDS.doneTask1, sectionId: SECTION_IDS.done, description: 'Design database schema', completed: true, completedAt: RECENT_COMPLETED, order: 0 }),
 
   // Task with due date (today)
   makeTask({ id: TASK_IDS.withDueDate, description: 'Review PR by today', dueDate: '2026-02-14T12:00:00.000Z', order: 2 }),
@@ -161,6 +162,11 @@ const appStorePayload = {
     columnOrder: ['dueDate', 'priority', 'assignee', 'tags'],
     sortColumn: null,
     sortDirection: 'asc',
+    needsAttentionSort: false,
+    hideCompletedTasks: false,
+    autoHideThreshold: '24h',
+    showRecentlyCompleted: false,
+    keyboardShortcuts: {},
   },
   version: 1,
 }

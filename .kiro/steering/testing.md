@@ -8,22 +8,19 @@ inclusion: always
 
 ## Update Tests With Every Change
 
-When modifying any source file that has a co-located or related test file, update the tests in the same pass:
-- Add tests for new behavior, remove tests for deleted behavior, fix tests broken by refactors.
-- Look for test files matching `*.test.ts`, `*.test.tsx` next to the source or in the same feature folder.
-- If a changed module has no tests yet, note it but don't create tests unless the user asks.
+When modifying any source file with a co-located test file (`*.test.ts`, `*.test.tsx`), update tests in the same pass. If a changed module has no tests yet, note it but don't create tests unless asked.
 
 ## Run Tests After Every Change
 
-After finishing edits (source + tests), run the relevant test suite:
-- Single file: `npx vitest run <path-to-test-file>`
-- Broader changes: `npx vitest run`
-- E2E-impacting changes: mention that `npm run test:e2e` should be run manually.
-
-Fix any failures before considering the task done. If a test fails, diagnose and fix the root cause — don't delete or skip the test.
+After edits, run `npx vitest run` (single file or broad). For e2e-impacting changes, run `npm run test:e2e`. Fix failures before marking done.
 
 ## Conventions
 
 - Unit tests: Vitest + React Testing Library + fast-check
 - E2E tests: Playwright (in `e2e/`)
 - Use `vitest run` (single execution), never watch mode
+
+## jsdom Limitations
+
+- `scrollIntoView`, `getBoundingClientRect` don't exist in jsdom — use optional chaining in hooks/effects.
+- When a hook exposes a consumer API (like `getCellProps`), verify the consumer actually calls it.

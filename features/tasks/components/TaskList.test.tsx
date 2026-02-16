@@ -77,7 +77,7 @@ describe('TaskList', () => {
       />
     );
 
-    expect(screen.getByText('No tasks yet')).toBeInTheDocument();
+    expect(screen.getByText('No tasks — press n to create one')).toBeInTheDocument();
   });
 
   it('should render tasks grouped by sections', () => {

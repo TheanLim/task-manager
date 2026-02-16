@@ -124,8 +124,10 @@ export function Layout({ children, sidebar, header }: LayoutProps) {
         <aside
           ref={sidebarRef}
           className={cn(
-            "relative bg-card flex-shrink-0 transition-[transform,margin] duration-200 ease-out overflow-hidden dark:border-r dark:border-white/5",
-            !sidebarOpen && "pointer-events-none"
+            "relative bg-card flex-shrink-0 overflow-hidden dark:border-r dark:border-white/5",
+            sidebarOpen 
+              ? "transition-[transform,margin] duration-200 ease-out" 
+              : "pointer-events-none transition-[transform,margin,visibility] duration-200 ease-out invisible"
           )}
           style={{
             width: sidebarWidth,

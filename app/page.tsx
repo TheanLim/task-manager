@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, Suspense, useCallback } from 'react';
+import { useEffect, Suspense, useCallback, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Layout } from '@/components/Layout';
 import { ProjectList } from '@/features/projects/components/ProjectList';
@@ -24,6 +24,20 @@ import { Toast } from '@/components/ui/toast';
 import { SharedStateDialog } from '@/features/sharing/components/SharedStateDialog';
 import { useDialogManager } from '@/lib/hooks/useDialogManager';
 import { useSharedStateLoader, handleLoadSharedState } from '@/features/sharing/hooks/useSharedStateLoader';
+import { useGlobalShortcuts } from '@/features/keyboard/hooks/useGlobalShortcuts';
+import { getDefaultShortcutMap, mergeShortcutMaps } from '@/features/keyboard/services/shortcutService';
+import { ShortcutHelpOverlay } from '@/features/keyboard/components/ShortcutHelpOverlay';
+import { useKeyboardNavStore } from '@/features/keyboard/stores/keyboardNavStore';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 function HomeContent() {
   const searchParams = useSearchParams();
@@ -60,6 +74,58 @@ function HomeContent() {
   } = useDataStore();
 
   const { settings, setActiveProject } = useAppStore();
+
+  // Keyboard shortcuts
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [deleteConfirmTaskId, setDeleteConfirmTaskId] = useState<string | null>(null);
+  const keyboardShortcuts = useAppStore(s => s.keyboardShortcuts);
+  const shortcutMap = mergeShortcutMaps(getDefaultShortcutMap(), keyboardShortcuts);
+  const focusedTaskId = useKeyboardNavStore(s => s.focusedTaskId);
+
+  useGlobalShortcuts({
+    onNewTask: () => {
+      // Create task in the same section as the focused task (if any)
+      const taskId = useKeyboardNavStore.getState().focusedTaskId;
+      if (taskId) {
+        const task = tasks.find(t => t.id === taskId);
+        handleNewTask(task?.sectionId ?? undefined);
+      } else {
+        handleNewTask();
+      }
+    },
+    onSearch: () => { /* TODO: wire to search input focus when SearchBar is added to the header */ },
+    onHelp: () => setHelpOpen(true),
+    onEditTask: () => {
+      const taskId = useKeyboardNavStore.getState().focusedTaskId;
+      if (!taskId) return;
+      const row = document.querySelector(`tr[data-task-id="${taskId}"]`);
+      const editable = row?.querySelector('[data-inline-editable]') as HTMLElement;
+      editable?.click();
+    },
+    onOpenTask: () => {
+      const taskId = useKeyboardNavStore.getState().focusedTaskId;
+      if (taskId) handleTaskClick(taskId);
+    },
+    onToggleComplete: () => {
+      const taskId = useKeyboardNavStore.getState().focusedTaskId;
+      if (taskId) handleTaskComplete(taskId, !tasks.find(t => t.id === taskId)?.completed);
+    },
+    onDeleteTask: () => {
+      const taskId = useKeyboardNavStore.getState().focusedTaskId;
+      if (taskId) {
+        setDeleteConfirmTaskId(taskId);
+      }
+    },
+    onAddSubtask: () => {
+      const taskId = useKeyboardNavStore.getState().focusedTaskId;
+      if (taskId) {
+        const task = tasks.find(t => t.id === taskId);
+        handleNewTask(task?.sectionId ?? undefined, taskId);
+      }
+    },
+    isTaskFocused: !!focusedTaskId,
+    shortcutMap,
+  });
 
   // --- Shared state loading via useSharedStateLoader ---
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -236,6 +302,11 @@ function HomeContent() {
       }
     }
     dm.resetTaskDialogContext();
+    // Refocus the grid table after dialog closes — use setTimeout to wait for React re-render
+    setTimeout(() => {
+      const table = document.querySelector('table[role="grid"]') as HTMLElement;
+      table?.focus();
+    }, 100);
   };
 
   const handleTaskClick = (taskId: string) => {
@@ -564,6 +635,52 @@ function HomeContent() {
           onClose={() => dm.dismissToast()}
         />
       )}
+
+      <ShortcutHelpOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />
+
+      {/* Delete confirmation dialog triggered by 'x' shortcut */}
+      <AlertDialog open={!!deleteConfirmTaskId} onOpenChange={(open) => {
+        if (!open) setDeleteConfirmTaskId(null);
+      }}>
+        <AlertDialogContent onCloseAutoFocus={(e) => {
+          // Prevent Radix from returning focus to body — focus the table instead
+          e.preventDefault();
+          const table = document.querySelector('table[role="grid"]') as HTMLElement;
+          table?.focus();
+        }}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Task</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteConfirmTaskId && (() => {
+                const taskToDelete = tasks.find(t => t.id === deleteConfirmTaskId);
+                const subtaskCount = taskToDelete ? getSubtasks(deleteConfirmTaskId).length : 0;
+                return (
+                  <>
+                    Are you sure you want to delete &ldquo;{taskToDelete?.description}&rdquo;?
+                    {subtaskCount > 0 && (
+                      <> This will also delete {subtaskCount} subtask{subtaskCount !== 1 ? 's' : ''}.</>
+                    )}
+                    {' '}This action cannot be undone.
+                  </>
+                );
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteConfirmTaskId) {
+                  deleteTask(deleteConfirmTaskId);
+                  if (dm.taskDetailPanel.selectedTaskId === deleteConfirmTaskId) dm.deselectTask();
+                }
+                setDeleteConfirmTaskId(null);
+              }}
+            >Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Layout>
   );
 }

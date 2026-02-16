@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { AppSettings, TimeManagementSystem, UUID } from '@/types';
 import type { AutoHideThreshold } from '@/lib/schemas';
+import type { ShortcutAction, ShortcutMap } from '@/features/keyboard/types';
 
 // Column identifiers for the task table (excluding 'name' which is always first)
 export type TaskColumnId = 'dueDate' | 'priority' | 'assignee' | 'tags' | 'project';
@@ -25,6 +26,7 @@ interface AppStore {
   hideCompletedTasks: boolean; // Whether to hide completed tasks in All Tasks Normal mode
   autoHideThreshold: AutoHideThreshold; // Time threshold for auto-hiding completed tasks
   showRecentlyCompleted: boolean; // Whether to show recently auto-hidden completed tasks
+  keyboardShortcuts: Partial<ShortcutMap>; // User overrides only (not the full map)
   
   setActiveProject: (projectId: UUID | null) => void;
   setTimeManagementSystem: (system: TimeManagementSystem) => void;
@@ -40,6 +42,8 @@ interface AppStore {
   setHideCompletedTasks: (hide: boolean) => void;
   setAutoHideThreshold: (threshold: AutoHideThreshold) => void;
   setShowRecentlyCompleted: (show: boolean) => void;
+  setKeyboardShortcut: (action: ShortcutAction, key: string) => void;
+  resetKeyboardShortcuts: () => void;
 }
 
 export const useAppStore = create<AppStore>()(
@@ -60,6 +64,7 @@ export const useAppStore = create<AppStore>()(
       hideCompletedTasks: false,
       autoHideThreshold: '24h' as AutoHideThreshold,
       showRecentlyCompleted: false,
+      keyboardShortcuts: {},
       
       setActiveProject: (projectId) => set((state) => ({
         settings: { ...state.settings, activeProjectId: projectId }
@@ -115,6 +120,15 @@ export const useAppStore = create<AppStore>()(
       setAutoHideThreshold: (threshold) => set({ autoHideThreshold: threshold }),
       
       setShowRecentlyCompleted: (show) => set({ showRecentlyCompleted: show }),
+      
+      setKeyboardShortcut: (action, key) => set((state) => ({
+        keyboardShortcuts: {
+          ...state.keyboardShortcuts,
+          [action]: { ...state.keyboardShortcuts[action], key } as ShortcutMap[ShortcutAction],
+        },
+      })),
+      
+      resetKeyboardShortcuts: () => set({ keyboardShortcuts: {} }),
     }),
     {
       name: 'task-management-settings',

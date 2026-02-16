@@ -158,3 +158,31 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Grid cell focus indicator for keyboard navigation */
+[data-grid-row][data-grid-col].grid-cell-active {
+  box-shadow: inset 0 0 0 2px hsl(var(--accent-brand));
+  background: hsl(var(--accent-brand) / 0.05);
+}
+
+/* Active row highlight for keyboard navigation */
+tr[data-kb-active="true"] {
+  box-shadow: inset 0 0 0 2px hsl(var(--accent-brand));
+  background: hsl(var(--accent-brand) / 0.05) !important;
+  transition: box-shadow 0.3s ease-out, background 0.3s ease-out;
+}
+
+tr:not([data-kb-active="true"]) {
+  transition: box-shadow 0.5s ease-out, background 0.5s ease-out;
+}
+
+tr[data-kb-active="true"] td.sticky {
+  background: hsl(var(--accent-brand) / 0.05) !important;
+  transition: background 0.3s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-grid-row][data-grid-col].grid-cell-active {
+    transition: none !important;
+  }
+}

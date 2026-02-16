@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useAppStore } from './appStore';
 import { TimeManagementSystem } from '@/types';
+import type { ShortcutBinding } from '@/features/keyboard/types';
 
 describe('useAppStore', () => {
   beforeEach(() => {
@@ -12,6 +13,7 @@ describe('useAppStore', () => {
       result.current.setTimeManagementSystem(TimeManagementSystem.NONE);
       result.current.setShowOnlyActionableTasks(false);
       result.current.setTheme('system');
+      result.current.resetKeyboardShortcuts();
     });
   });
 
@@ -211,6 +213,76 @@ describe('useAppStore', () => {
         showOnlyActionableTasks: true,
         theme: 'light'
       });
+    });
+  });
+
+  describe('Keyboard Shortcuts', () => {
+    it('should have empty keyboardShortcuts by default', () => {
+      const { result } = renderHook(() => useAppStore());
+      expect(result.current.keyboardShortcuts).toEqual({});
+    });
+
+    it('should set a keyboard shortcut override', () => {
+      const { result } = renderHook(() => useAppStore());
+      const binding: ShortcutBinding = {
+        key: 't',
+        label: 'New task',
+        category: 'Global',
+        description: 'Create a new task',
+      };
+
+      act(() => {
+        // First populate the full binding, then override the key
+        result.current.setKeyboardShortcut('global.newTask', 't');
+      });
+
+      expect(result.current.keyboardShortcuts['global.newTask']).toBeDefined();
+      expect(result.current.keyboardShortcuts['global.newTask']?.key).toBe('t');
+    });
+
+    it('should set multiple shortcut overrides independently', () => {
+      const { result } = renderHook(() => useAppStore());
+
+      act(() => {
+        result.current.setKeyboardShortcut('global.newTask', 't');
+      });
+      act(() => {
+        result.current.setKeyboardShortcut('global.search', 'f');
+      });
+
+      expect(result.current.keyboardShortcuts['global.newTask']?.key).toBe('t');
+      expect(result.current.keyboardShortcuts['global.search']?.key).toBe('f');
+    });
+
+    it('should reset all keyboard shortcuts to empty', () => {
+      const { result } = renderHook(() => useAppStore());
+
+      act(() => {
+        result.current.setKeyboardShortcut('global.newTask', 't');
+        result.current.setKeyboardShortcut('task.edit', 'i');
+      });
+
+      expect(Object.keys(result.current.keyboardShortcuts).length).toBe(2);
+
+      act(() => {
+        result.current.resetKeyboardShortcuts();
+      });
+
+      expect(result.current.keyboardShortcuts).toEqual({});
+    });
+
+    it('should overwrite an existing shortcut override', () => {
+      const { result } = renderHook(() => useAppStore());
+
+      act(() => {
+        result.current.setKeyboardShortcut('global.newTask', 't');
+      });
+      expect(result.current.keyboardShortcuts['global.newTask']?.key).toBe('t');
+
+      act(() => {
+        result.current.setKeyboardShortcut('global.newTask', 'c');
+      });
+      expect(result.current.keyboardShortcuts['global.newTask']?.key).toBe('c');
     });
   });
 });
