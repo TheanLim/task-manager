@@ -8,7 +8,7 @@ export const AutoHideThresholdSchema = z.enum(['24h', '48h', '1w', 'never']);
 
 // Entity schemas
 export const ProjectSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().min(1),
   name: z.string().min(1).max(200),
   description: z.string(),
   viewMode: ViewModeSchema,
@@ -19,9 +19,9 @@ export const ProjectSchema = z.object({
 });
 
 export const TaskSchema = z.object({
-  id: z.string().uuid(),
-  projectId: z.string().uuid().nullable(),
-  parentTaskId: z.string().uuid().nullable(),
+  id: z.string().min(1),
+  projectId: z.string().min(1).nullable(),
+  parentTaskId: z.string().min(1).nullable(),
   sectionId: z.string().nullable(),
   description: z.string().min(1).max(500),
   notes: z.string(),
@@ -51,9 +51,9 @@ export const SectionSchema = z.object({
 });
 
 export const TaskDependencySchema = z.object({
-  id: z.string().uuid(),
-  blockingTaskId: z.string().uuid(),
-  blockedTaskId: z.string().uuid(),
+  id: z.string().min(1),
+  blockingTaskId: z.string().min(1),
+  blockedTaskId: z.string().min(1),
   createdAt: z.string().datetime(),
 });
 
@@ -77,7 +77,7 @@ export const TMSStateSchema = z.object({
 });
 
 export const AppSettingsSchema = z.object({
-  activeProjectId: z.string().uuid().nullable(),
+  activeProjectId: z.string().min(1).nullable(),
   timeManagementSystem: TimeManagementSystemSchema,
   showOnlyActionableTasks: z.boolean(),
   theme: z.enum(['light', 'dark', 'system']),

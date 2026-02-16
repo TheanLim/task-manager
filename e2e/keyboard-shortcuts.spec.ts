@@ -7,6 +7,38 @@ import { seedDatabase, PROJECT_ID, TASK_IDS } from './fixtures/seed-data'
  * and interaction with existing UI (detail panel, inline edit, dialogs).
  */
 
+/**
+ * Helper: focus a specific task row for keyboard shortcuts.
+ * Clicks the row's checkbox area (not the text) to avoid triggering inline edit,
+ * then escapes any accidental edit mode and refocuses the table.
+ */
+async function focusTaskRow(page: import('@playwright/test').Page, taskText: string) {
+  const table = page.locator('main').locator('table[role="grid"]')
+  const row = table.locator('tr[data-task-id]', { has: page.getByText(taskText, { exact: true }) })
+  await expect(row).toBeVisible({ timeout: 5000 })
+  // Click the checkbox button to set focus on the row without triggering inline edit
+  const checkbox = row.locator('button[aria-label="Mark as complete"], button[aria-label="Mark as incomplete"]').first()
+  if (await checkbox.isVisible()) {
+    // Click near the checkbox but not ON it (to avoid toggling completion)
+    // Instead, click the grip handle area or the expand/collapse area
+    await row.locator('td').first().click({ position: { x: 30, y: 10 } })
+  } else {
+    await row.locator('td').first().click({ position: { x: 30, y: 10 } })
+  }
+  await page.waitForTimeout(100)
+  // If inline edit was triggered, escape it
+  const editSpan = page.locator('[contenteditable="true"][role="textbox"]')
+  if (await editSpan.isVisible().catch(() => false)) {
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(100)
+  }
+  // Ensure table has focus
+  await table.focus()
+  await page.waitForTimeout(100)
+  // Verify the row is active
+  await expect(page.locator('tr[data-kb-active="true"]')).toContainText(taskText, { timeout: 3000 })
+}
+
 test.describe('Keyboard Shortcuts: Seeded Data', () => {
   test.beforeEach(async ({ page }) => {
     await seedDatabase(page)
@@ -100,13 +132,11 @@ test.describe('Keyboard Shortcuts: Seeded Data', () => {
   // ── Task Context: Enter opens detail panel ──
 
   test('Enter opens task detail panel for focused row', async ({ page }) => {
-    const table = page.locator('table[role="grid"]')
-    await table.focus()
-    await page.keyboard.press('j')
+    await focusTaskRow(page, 'Set up CI pipeline')
     await page.keyboard.press('Enter')
-    // Detail panel should appear with task info
-    // The panel has a close button and shows task details
-    await expect(page.getByLabel('Close panel').or(page.getByLabel('Collapse'))).toBeVisible({ timeout: 5000 })
+    // Detail panel should appear — look for the task description in the panel
+    const panel = page.locator('.animate-slide-in-right')
+    await expect(panel).toBeVisible({ timeout: 5000 })
     // Escape closes it
     await page.keyboard.press('Escape')
     await page.waitForTimeout(300)
@@ -350,14 +380,11 @@ test.describe('Keyboard Shortcuts: CRUD Flows', () => {
 
   test('delete task via x, confirm, task disappears', async ({ page }) => {
     const main = page.locator('main')
-    await expect(main.getByText('Set up CI pipeline')).toBeVisible()
-    const table = main.locator('table[role="grid"]')
-    await table.click()
-    await page.keyboard.press('j')
-    await page.waitForTimeout(300)
+    await focusTaskRow(page, 'Set up CI pipeline')
     await page.keyboard.press('x')
     const dialog = page.getByRole('alertdialog')
     await expect(dialog).toBeVisible()
+    await expect(dialog.getByText('Set up CI pipeline')).toBeVisible()
     await dialog.getByRole('button', { name: /delete/i }).click()
     await expect(dialog).not.toBeVisible()
     await page.waitForTimeout(500)
@@ -396,17 +423,17 @@ test.describe('Keyboard Shortcuts: CRUD Flows', () => {
   })
 
   test('open detail panel via Enter, close via Escape, continue navigating', async ({ page }) => {
-    const table = page.locator('table[role="grid"]')
-    await table.focus()
-    await page.keyboard.press('j')
+    await focusTaskRow(page, 'Set up CI pipeline')
     await page.keyboard.press('Enter')
     await page.waitForTimeout(500)
     // Panel should be open
-    await expect(page.getByLabel('Close panel').or(page.getByLabel('Collapse'))).toBeVisible({ timeout: 5000 })
+    const panel = page.locator('.animate-slide-in-right')
+    await expect(panel).toBeVisible({ timeout: 5000 })
     // Escape closes panel
     await page.keyboard.press('Escape')
     await page.waitForTimeout(500)
     // Navigate again
+    const table = page.locator('main').locator('table[role="grid"]')
     await table.focus()
     await page.keyboard.press('j')
     await page.keyboard.press('j')
@@ -437,24 +464,42 @@ test.describe('Keyboard Shortcuts: CRUD Flows', () => {
     await expect(page.locator('tr[data-kb-active="true"]')).toBeVisible({ timeout: 3000 })
   })
 
-  // TODO: Fix delete-then-navigate — the x shortcut deletes all tasks instead of one.
-  // Root cause: visibleTasks ordering doesn't match DOM rendering order, so focusedTaskId
-  // points to the wrong task. Needs investigation into tasksBySection sort consistency.
-  // test('navigate with j, delete via x, then continue navigating with j', async ({ page }) => {
-  //   ...
-  // })
+  // ── TDD: Delete via x should delete ONLY the focused task ──
+
+  test('x deletes only the focused task, not all tasks', async ({ page }) => {
+    const main = page.locator('main')
+    const table = main.locator('table[role="grid"]')
+    await focusTaskRow(page, 'Write unit tests')
+    const tasksBefore = await table.locator('tr[data-task-id]').count()
+    await page.keyboard.press('x')
+    const dialog = page.getByRole('alertdialog')
+    await expect(dialog).toBeVisible({ timeout: 5000 })
+    await expect(dialog.getByText('Write unit tests')).toBeVisible()
+    await dialog.getByRole('button', { name: /delete/i }).click()
+    await expect(dialog).not.toBeVisible()
+    await page.waitForTimeout(500)
+    await expect(main.getByText('Write unit tests', { exact: true })).not.toBeVisible({ timeout: 5000 })
+    const tasksAfter = await table.locator('tr[data-task-id]').count()
+    expect(tasksAfter).toBe(tasksBefore - 1)
+    await expect(main.getByText('Set up CI pipeline')).toBeVisible()
+    await expect(main.getByText('Implement auth flow')).toBeVisible()
+  })
+
+  test('after x delete, j/k navigation still works', async ({ page }) => {
+    await focusTaskRow(page, 'Write unit tests')
+    await page.keyboard.press('x')
+    await page.getByRole('alertdialog').getByRole('button', { name: /delete/i }).click()
+    await page.waitForTimeout(500)
+    await page.keyboard.press('j')
+    await expect(page.locator('tr[data-kb-active="true"]')).toBeVisible({ timeout: 5000 })
+    await page.keyboard.press('k')
+    await expect(page.locator('tr[data-kb-active="true"]')).toBeVisible({ timeout: 3000 })
+  })
 
   test('press n while focused on Doing section task creates task in Doing section', async ({ page }) => {
     const main = page.locator('main')
     const table = main.locator('table[role="grid"]')
-    // Use keyboard to navigate to a Doing section task
-    await table.click()
-    // Use ] to jump to next section (Doing)
-    await page.keyboard.press('j')
-    await page.waitForTimeout(200)
-    await page.keyboard.press(']')
-    await page.waitForTimeout(200)
-    // Press n to create a new task
+    await focusTaskRow(page, 'Implement auth flow')
     await page.keyboard.press('n')
     const dialog = page.getByRole('dialog', { name: /create new task|new task/i })
     await expect(dialog).toBeVisible({ timeout: 5000 })
@@ -464,29 +509,40 @@ test.describe('Keyboard Shortcuts: CRUD Flows', () => {
     await expect(dialog).not.toBeVisible()
     await page.waitForTimeout(500)
     await expect(main.getByText('New Doing task via keyboard')).toBeVisible()
-    // Verify it's NOT in the To Do section — check it appears after "Doing" in DOM order
     const rows = await table.locator('tr').allTextContents()
     const doingIdx = rows.findIndex(r => r.includes('Doing'))
+    const doneIdx = rows.findIndex(r => r.includes('Done'))
     const newTaskIdx = rows.findIndex(r => r.includes('New Doing task via keyboard'))
     expect(newTaskIdx).toBeGreaterThan(doingIdx)
+    expect(newTaskIdx).toBeLessThan(doneIdx)
+  })
+
+  test('press n while focused on Done section task creates task in Done section', async ({ page }) => {
+    const main = page.locator('main')
+    const table = main.locator('table[role="grid"]')
+    await focusTaskRow(page, 'Design database schema')
+    await page.keyboard.press('n')
+    const dialog = page.getByRole('dialog', { name: /create new task|new task/i })
+    await expect(dialog).toBeVisible({ timeout: 5000 })
+    const descInput = dialog.locator('input, textarea, [contenteditable]').first()
+    await descInput.fill('New Done task via keyboard')
+    await dialog.getByRole('button', { name: 'Create Task' }).click()
+    await expect(dialog).not.toBeVisible()
+    await page.waitForTimeout(500)
+    await expect(main.getByText('New Done task via keyboard')).toBeVisible()
+    const rows = await table.locator('tr').allTextContents()
+    const doneIdx = rows.findIndex(r => r.includes('Done'))
+    const newTaskIdx = rows.findIndex(r => r.includes('New Done task via keyboard'))
+    expect(newTaskIdx).toBeGreaterThan(doneIdx)
   })
 
   test('press a on Doing section task adds subtask under that task', async ({ page }) => {
-    const main = page.locator('main')
-    const table = main.locator('table[role="grid"]')
-    // Navigate to Implement auth flow using keyboard
-    await table.click()
-    await page.keyboard.press('j')
-    await page.waitForTimeout(100)
-    // Use ] to jump to Doing section
-    await page.keyboard.press(']')
-    await page.waitForTimeout(200)
-    // Press a to add subtask
+    await focusTaskRow(page, 'Implement auth flow')
     await page.keyboard.press('a')
     const dialog = page.getByRole('dialog', { name: /create new task|new task/i })
     await expect(dialog).toBeVisible({ timeout: 5000 })
     const descInput = dialog.locator('input, textarea, [contenteditable]').first()
-    await descInput.fill('Subtask via keyboard shortcut')
+    await descInput.fill('Auth subtask via keyboard')
     await dialog.getByRole('button', { name: 'Create Task' }).click()
     await expect(dialog).not.toBeVisible()
   })
@@ -762,11 +818,7 @@ test.describe('Keyboard Shortcuts: Cross-Feature Interactions', () => {
 
   test('delete task via x, verify task disappears', async ({ page }) => {
     const main = page.locator('main')
-    await expect(main.getByText('Set up CI pipeline')).toBeVisible()
-    const table = main.locator('table[role="grid"]')
-    await table.click()
-    await page.keyboard.press('j')
-    await page.waitForTimeout(300)
+    await focusTaskRow(page, 'Set up CI pipeline')
     await page.keyboard.press('x')
     await page.getByRole('alertdialog').getByRole('button', { name: /delete/i }).click()
     await page.waitForTimeout(500)
