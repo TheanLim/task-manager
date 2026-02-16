@@ -140,6 +140,13 @@ export function useKeyboardNavigation(
   const onEnterPressRef = useRef(onEnterPress);
   onSpacePressRef.current = onSpacePress;
   onEnterPressRef.current = onEnterPress;
+  // Keep refs for values that change frequently to avoid stale closures
+  const visibleRowTaskIdsRef = useRef(visibleRowTaskIds);
+  visibleRowTaskIdsRef.current = visibleRowTaskIds;
+  const visibleRowCountRef = useRef(visibleRowCount);
+  visibleRowCountRef.current = visibleRowCount;
+  const sectionStartIndicesRef = useRef(sectionStartIndices);
+  sectionStartIndicesRef.current = sectionStartIndices;
   const FADE_DELAY = 2000; // ms before highlight fades
 
   /** Show the highlight on the active row and reset the fade timer */
@@ -311,24 +318,24 @@ export function useKeyboardNavigation(
 
   const moveTo = useCallback(
     (direction: MoveDirection) => {
-      if (!activeCell || visibleRowCount === 0) return;
-      const bounds = { rows: visibleRowCount, columns: columnCount, pageSize: visibleRowCount };
+      if (!activeCell || visibleRowCountRef.current === 0) return;
+      const bounds = { rows: visibleRowCountRef.current, columns: columnCount, pageSize: visibleRowCountRef.current };
       const next = moveActiveCell(activeCell, direction, bounds);
-      const taskId = visibleRowTaskIds[next.row] ?? null;
+      const taskId = visibleRowTaskIdsRef.current[next.row] ?? null;
       updateActiveCell({ ...next, taskId });
     },
-    [activeCell, visibleRowCount, columnCount, visibleRowTaskIds],
+    [activeCell, columnCount, updateActiveCell],
   );
 
   const onTableKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (isDragging) return;
-      if (visibleRowCount === 0) return;
+      if (visibleRowCountRef.current === 0) return;
       if (isInputContext(document.activeElement)) return;
 
       // Initialize active cell on first keyboard interaction
       if (!activeCell) {
-        const taskId = visibleRowTaskIds[0] ?? null;
+        const taskId = visibleRowTaskIdsRef.current[0] ?? null;
         updateActiveCell({ row: 0, column: 0, taskId });
         // Directly highlight the first row (can't use showHighlight — activeCell is stale in this closure)
         if (taskId && tableRef.current) {
@@ -355,14 +362,14 @@ export function useKeyboardNavigation(
       if (key === ' ' && !ctrl && !shiftKey) {
         e.preventDefault();
         e.stopPropagation();
-        const taskId = activeCell.taskId ?? visibleRowTaskIds[activeCell.row];
+        const taskId = activeCell.taskId ?? visibleRowTaskIdsRef.current[activeCell.row];
         if (taskId) onSpacePressRef.current?.(taskId);
         return;
       }
       if (key === 'Enter' && !ctrl && !shiftKey) {
         e.preventDefault();
         e.stopPropagation();
-        const taskId = activeCell.taskId ?? visibleRowTaskIds[activeCell.row];
+        const taskId = activeCell.taskId ?? visibleRowTaskIdsRef.current[activeCell.row];
         if (taskId) onEnterPressRef.current?.(taskId);
         return;
       }
@@ -412,22 +419,22 @@ export function useKeyboardNavigation(
           direction = VIM_KEY_MAP[key];
         }
         // Section skip: [ → previous section, ] → next section
-        else if (key === '[' && sectionStartIndices.length > 0) {
+        else if (key === '[' && sectionStartIndicesRef.current.length > 0) {
           // Find the previous section start before current row
-          const prevSection = [...sectionStartIndices].reverse().find(i => i < activeCell.row);
+          const prevSection = [...sectionStartIndicesRef.current].reverse().find(i => i < activeCell.row);
           if (prevSection !== undefined) {
-            const taskId = visibleRowTaskIds[prevSection] ?? null;
+            const taskId = visibleRowTaskIdsRef.current[prevSection] ?? null;
             updateActiveCell({ row: prevSection, column: activeCell.column, taskId });
             showHighlight();
           }
           e.preventDefault();
           e.stopPropagation();
           return;
-        } else if (key === ']' && sectionStartIndices.length > 0) {
+        } else if (key === ']' && sectionStartIndicesRef.current.length > 0) {
           // Find the next section start after current row
-          const nextSection = sectionStartIndices.find(i => i > activeCell.row);
+          const nextSection = sectionStartIndicesRef.current.find(i => i > activeCell.row);
           if (nextSection !== undefined) {
-            const taskId = visibleRowTaskIds[nextSection] ?? null;
+            const taskId = visibleRowTaskIdsRef.current[nextSection] ?? null;
             updateActiveCell({ row: nextSection, column: activeCell.column, taskId });
             showHighlight();
           }
@@ -447,7 +454,7 @@ export function useKeyboardNavigation(
         moveTo(direction);
       }
     },
-    [isDragging, visibleRowCount, activeCell, moveTo],
+    [isDragging, activeCell, moveTo, showHighlight, updateActiveCell, tableRef],
   );
 
   return {

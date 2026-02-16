@@ -59,6 +59,10 @@ interface TaskRowProps {
   showReinsertButton?: boolean;
   onReinsert?: (taskId: string) => void;
   hideCompletedSubtasks?: boolean;
+  /** Controlled subtask expansion state (lifted from parent). Falls back to local state if undefined. */
+  subtasksExpanded?: boolean;
+  /** Callback to toggle subtask expansion (lifted from parent). */
+  onToggleSubtasks?: (taskId: string) => void;
 }
 
 export function TaskRow({
@@ -67,9 +71,19 @@ export function TaskRow({
   draggedTaskId = null, dragOverTaskId = null, depth = 0, isSelected = false,
   taskWasExpanded = false, onSetTaskWasExpanded, showProjectColumn = false,
   projectName, onProjectClick, flatMode = false, columnOrder,
-  showReinsertButton = false, onReinsert, hideCompletedSubtasks = false
+  showReinsertButton = false, onReinsert, hideCompletedSubtasks = false,
+  subtasksExpanded: controlledExpanded, onToggleSubtasks,
 }: TaskRowProps) {
-  const [subtasksExpanded, setSubtasksExpanded] = useState(false);
+  const [localExpanded, setLocalExpanded] = useState(false);
+  // Use controlled state if provided, otherwise fall back to local state
+  const subtasksExpanded = controlledExpanded ?? localExpanded;
+  const setSubtasksExpanded = (expanded: boolean) => {
+    if (onToggleSubtasks) {
+      onToggleSubtasks(task.id);
+    } else {
+      setLocalExpanded(expanded);
+    }
+  };
   const [isEditingTags, setIsEditingTags] = useState(false);
   const [tagInput, setTagInput] = useState('');
   const [justCompleted, setJustCompleted] = useState(false);
@@ -91,7 +105,7 @@ export function TaskRow({
 
   useEffect(() => {
     if (flatMode && subtasksExpanded) setSubtasksExpanded(false);
-  }, [flatMode]);
+  }, [flatMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isDragging = draggedTaskId === task.id;
   const isDragOver = dragOverTaskId === task.id;
@@ -315,6 +329,7 @@ export function TaskRow({
               showReinsertButton={showReinsertButton}
               onReinsert={onReinsert}
               hideCompletedSubtasks={hideCompletedSubtasks}
+              onToggleSubtasks={onToggleSubtasks}
             />
           ))}
           {onAddSubtask && (

@@ -15,8 +15,8 @@ describe('ShortcutHelpOverlay', () => {
     vi.clearAllMocks();
     // Return empty overrides — use defaults
     (useAppStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
-      (selector: (s: { keyboardShortcuts: Record<string, unknown> }) => unknown) =>
-        selector({ keyboardShortcuts: {} }),
+      (selector: (s: { keyboardShortcuts: Record<string, unknown>; setKeyboardShortcut: unknown; resetKeyboardShortcuts: unknown }) => unknown) =>
+        selector({ keyboardShortcuts: {}, setKeyboardShortcut: vi.fn(), resetKeyboardShortcuts: vi.fn() }),
     );
   });
 
@@ -69,7 +69,7 @@ describe('ShortcutHelpOverlay', () => {
 
   it('reflects user-customized key bindings', () => {
     (useAppStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
-      (selector: (s: { keyboardShortcuts: Record<string, unknown> }) => unknown) =>
+      (selector: (s: { keyboardShortcuts: Record<string, unknown>; setKeyboardShortcut: unknown; resetKeyboardShortcuts: unknown }) => unknown) =>
         selector({
           keyboardShortcuts: {
             'global.newTask': {
@@ -79,6 +79,8 @@ describe('ShortcutHelpOverlay', () => {
               description: 'Create a new task',
             },
           },
+          setKeyboardShortcut: vi.fn(),
+          resetKeyboardShortcuts: vi.fn(),
         }),
     );
 
@@ -105,5 +107,47 @@ describe('ShortcutHelpOverlay', () => {
     render(<ShortcutHelpOverlay open={true} onClose={mockOnClose} />);
     const dialog = screen.getByRole('dialog');
     expect(dialog.className).toContain('animate-slide-in-right');
+  });
+
+  it('shows "Edit shortcuts…" link in the overlay', () => {
+    render(<ShortcutHelpOverlay open={true} onClose={mockOnClose} />);
+    expect(screen.getByText('Edit shortcuts…')).toBeInTheDocument();
+  });
+
+  it('switches to settings view when "Edit shortcuts…" is clicked', () => {
+    render(<ShortcutHelpOverlay open={true} onClose={mockOnClose} />);
+    fireEvent.click(screen.getByText('Edit shortcuts…'));
+    // Settings view shows "Edit Shortcuts" heading and "Reset to defaults" button
+    expect(screen.getByText('Edit Shortcuts')).toBeInTheDocument();
+    expect(screen.getByText('Reset to defaults')).toBeInTheDocument();
+    // The "Edit shortcuts…" link should no longer be visible
+    expect(screen.queryByText('Edit shortcuts…')).not.toBeInTheDocument();
+  });
+
+  it('shows back button in settings view', () => {
+    render(<ShortcutHelpOverlay open={true} onClose={mockOnClose} />);
+    fireEvent.click(screen.getByText('Edit shortcuts…'));
+    expect(screen.getByLabelText('Back to shortcuts')).toBeInTheDocument();
+  });
+
+  it('returns to shortcut list when back button is clicked', () => {
+    render(<ShortcutHelpOverlay open={true} onClose={mockOnClose} />);
+    fireEvent.click(screen.getByText('Edit shortcuts…'));
+    fireEvent.click(screen.getByLabelText('Back to shortcuts'));
+    // Should be back to the shortcut list
+    expect(screen.getByText('Edit shortcuts…')).toBeInTheDocument();
+    expect(screen.queryByText('Reset to defaults')).not.toBeInTheDocument();
+  });
+
+  it('Escape closes settings view first, then overlay on second press', () => {
+    render(<ShortcutHelpOverlay open={true} onClose={mockOnClose} />);
+    fireEvent.click(screen.getByText('Edit shortcuts…'));
+    // First Escape closes settings
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(mockOnClose).not.toHaveBeenCalled();
+    expect(screen.getByText('Edit shortcuts…')).toBeInTheDocument();
+    // Second Escape closes overlay
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(mockOnClose).toHaveBeenCalledTimes(1);
   });
 });

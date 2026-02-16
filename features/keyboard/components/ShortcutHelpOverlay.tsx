@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import { getDefaultShortcutMap, mergeShortcutMaps } from '../services/shortcutService';
+import { ShortcutSettings } from './ShortcutSettings';
 import type { ShortcutBinding } from '../types';
 
 interface ShortcutHelpOverlayProps {
@@ -42,6 +43,7 @@ export function ShortcutHelpOverlay({ open, onClose }: ShortcutHelpOverlayProps)
   const previousFocusRef = useRef<Element | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const keyboardShortcuts = useAppStore((s) => s.keyboardShortcuts);
+  const [showSettings, setShowSettings] = useState(false);
 
   const shortcutMap = mergeShortcutMaps(getDefaultShortcutMap(), keyboardShortcuts);
 
@@ -62,19 +64,25 @@ export function ShortcutHelpOverlay({ open, onClose }: ShortcutHelpOverlayProps)
       if (e.key === 'Escape') {
         e.stopPropagation();
         e.preventDefault();
-        onClose();
+        // Close settings first if open, then the overlay
+        if (showSettings) {
+          setShowSettings(false);
+        } else {
+          onClose();
+        }
       }
     };
 
     document.addEventListener('keydown', handleEscape, { capture: true });
     return () => document.removeEventListener('keydown', handleEscape, { capture: true });
-  }, [open, onClose]);
+  }, [open, onClose, showSettings]);
 
   // Return focus to previously focused element on close
   useEffect(() => {
     if (!open && previousFocusRef.current) {
       const el = previousFocusRef.current;
       previousFocusRef.current = null;
+      setShowSettings(false);
       if (el instanceof HTMLElement) {
         requestAnimationFrame(() => el.focus());
       }
@@ -114,37 +122,65 @@ export function ShortcutHelpOverlay({ open, onClose }: ShortcutHelpOverlayProps)
       className="fixed inset-y-0 right-0 z-50 w-[400px] bg-card border-l dark:border-white/5 shadow-elevation-overlay animate-slide-in-right overflow-y-auto outline-none"
     >
       <div className="flex items-center justify-between px-5 py-4 border-b dark:border-white/5">
-        <h2 className="text-base font-semibold text-foreground">Keyboard Shortcuts</h2>
-        <button
-          onClick={onClose}
-          className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          aria-label="Close"
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <path d="M4 4l8 8M12 4l-8 8" />
-          </svg>
-        </button>
+        <h2 className="text-base font-semibold text-foreground">
+          {showSettings ? 'Edit Shortcuts' : 'Keyboard Shortcuts'}
+        </h2>
+        <div className="flex items-center gap-2">
+          {showSettings && (
+            <button
+              onClick={() => setShowSettings(false)}
+              className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors text-xs"
+              aria-label="Back to shortcuts"
+            >
+              ← Back
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            aria-label="Close"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M4 4l8 8M12 4l-8 8" />
+            </svg>
+          </button>
+        </div>
       </div>
 
-      <div className="px-5 py-4 space-y-6">
-        {grouped.map(({ category, entries }) => (
-          <section key={category}>
-            <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3">
-              {category}
-            </h3>
-            <ul className="space-y-1.5">
-              {entries.map(([action, binding]) => (
-                <li key={action} className="flex items-center justify-between py-1">
-                  <span className="text-sm text-foreground">{binding.label}</span>
-                  <kbd className="px-2 py-0.5 rounded bg-muted text-xs font-mono border border-border">
-                    {formatKeyForDisplay(binding.key)}
-                  </kbd>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))}
-      </div>
+      {showSettings ? (
+        <div className="px-5 py-4">
+          <ShortcutSettings />
+        </div>
+      ) : (
+        <div className="px-5 py-4 space-y-6">
+          {grouped.map(({ category, entries }) => (
+            <section key={category}>
+              <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3">
+                {category}
+              </h3>
+              <ul className="space-y-1.5">
+                {entries.map(([action, binding]) => (
+                  <li key={action} className="flex items-center justify-between py-1">
+                    <span className="text-sm text-foreground">{binding.label}</span>
+                    <kbd className="px-2 py-0.5 rounded bg-muted text-xs font-mono border border-border">
+                      {formatKeyForDisplay(binding.key)}
+                    </kbd>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+
+          <div className="pt-2 border-t dark:border-white/5">
+            <button
+              onClick={() => setShowSettings(true)}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Edit shortcuts…
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

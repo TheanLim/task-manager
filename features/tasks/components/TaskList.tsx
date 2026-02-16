@@ -15,7 +15,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Task, Section } from '@/types';
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useCallback } from 'react';
 import { InlineEditable } from '@/components/InlineEditable';
 import { validateSectionName } from '@/lib/validation';
 import { useDataStore } from '@/stores/dataStore';
@@ -85,6 +85,20 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [sectionToDelete, setSectionToDelete] = useState<string | null>(null);
   const { updateTask, updateSection, deleteSection, addSection, projects } = useDataStore();
+
+  // Subtask expansion state — lifted from TaskRow for navigation awareness
+  const [expandedTaskIds, setExpandedTaskIds] = useState<Set<string>>(new Set());
+  const handleToggleSubtasks = useCallback((taskId: string) => {
+    setExpandedTaskIds(prev => {
+      const next = new Set(prev);
+      if (next.has(taskId)) {
+        next.delete(taskId);
+      } else {
+        next.add(taskId);
+      }
+      return next;
+    });
+  }, []);
 
   // Keyboard navigation
   const tableRef = useRef<HTMLTableElement>(null);
@@ -571,17 +585,38 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
   })();
 
   // Compute flat list of visible task IDs in display order for keyboard navigation
+  // Matches the DOM render order: sections sorted by order, then unsectioned tasks
+  // Includes expanded subtasks inline after their parent
   const visibleTasks = useMemo(() => {
     const result: Task[] = [];
+
+    // Helper: recursively add a task and its expanded subtasks
+    const addTaskAndChildren = (task: Task) => {
+      result.push(task);
+      if (expandedTaskIds.has(task.id)) {
+        // Get subtasks from the full task list (subtasks have parentTaskId set)
+        const subtasks = tasks
+          .filter(t => t.parentTaskId === task.id)
+          .sort((a, b) => a.order - b.order);
+        for (const subtask of subtasks) {
+          addTaskAndChildren(subtask);
+        }
+      }
+    };
+
     const sortedSections = [...sections].sort((a, b) => a.order - b.order);
     for (const section of sortedSections) {
       if (section.collapsed) continue;
       const sectionTasks = tasksBySection[section.id] || [];
-      result.push(...sectionTasks);
+      for (const task of sectionTasks) {
+        addTaskAndChildren(task);
+      }
     }
-    result.push(...unsectionedTasks);
+    for (const task of unsectionedTasks) {
+      addTaskAndChildren(task);
+    }
     return result;
-  }, [sections, tasksBySection, unsectionedTasks]);
+  }, [sections, tasksBySection, unsectionedTasks, tasks, expandedTaskIds]);
 
   // Compute section start indices for [ and ] navigation
   const sectionStartIndices = useMemo(() => {
@@ -594,14 +629,28 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
       if (sectionTasks.length > 0) {
         indices.push(idx);
       }
-      idx += sectionTasks.length;
+      // Count visible tasks in this section (including expanded subtasks)
+      for (const task of sectionTasks) {
+        idx++;
+        // Count expanded subtasks recursively
+        const countExpanded = (parentId: string): number => {
+          if (!expandedTaskIds.has(parentId)) return 0;
+          const children = tasks.filter(t => t.parentTaskId === parentId);
+          let count = children.length;
+          for (const child of children) {
+            count += countExpanded(child.id);
+          }
+          return count;
+        };
+        idx += countExpanded(task.id);
+      }
     }
     // Unsectioned tasks start index
     if (unsectionedTasks.length > 0) {
       indices.push(idx);
     }
     return indices;
-  }, [sections, tasksBySection, unsectionedTasks]);
+  }, [sections, tasksBySection, unsectionedTasks, tasks, expandedTaskIds]);
 
   // Wire keyboard navigation
   const shortcutMap = mergeShortcutMaps(getDefaultShortcutMap(), keyboardShortcuts);
@@ -820,6 +869,8 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                       showReinsertButton={showReinsertButton}
                       onReinsert={onReinsert}
                       hideCompletedSubtasks={hideCompletedSubtasks}
+                      subtasksExpanded={expandedTaskIds.has(task.id)}
+                      onToggleSubtasks={handleToggleSubtasks}
                     />
                   ))}
 
@@ -912,6 +963,8 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                     showReinsertButton={showReinsertButton}
                     onReinsert={onReinsert}
                     hideCompletedSubtasks={hideCompletedSubtasks}
+                    subtasksExpanded={expandedTaskIds.has(task.id)}
+                    onToggleSubtasks={handleToggleSubtasks}
                   />
                 ))}
               </>
