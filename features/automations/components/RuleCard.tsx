@@ -145,8 +145,14 @@ export function RuleCard({
               sectionId: rule.action.sectionId,
               dateOption: rule.action.dateOption,
               position: rule.action.position,
+              cardTitle: rule.action.cardTitle,
+              cardDateOption: rule.action.cardDateOption,
+              specificMonth: rule.action.specificMonth,
+              specificDay: rule.action.specificDay,
+              monthTarget: rule.action.monthTarget,
             }}
             sections={sections}
+            filters={rule.filters}
           />
 
           {/* Type badges with arrow */}

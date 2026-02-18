@@ -19,6 +19,7 @@ export function RuleDialogStepTrigger({
   // Group triggers by category
   const cardMoveTriggers = TRIGGER_META.filter((t) => t.category === 'card_move');
   const cardChangeTriggers = TRIGGER_META.filter((t) => t.category === 'card_change');
+  const sectionChangeTriggers = TRIGGER_META.filter((t) => t.category === 'section_change');
 
   const handleTriggerTypeChange = (type: string) => {
     const triggerMeta = TRIGGER_META.find((t) => t.type === type);
@@ -83,6 +84,33 @@ export function RuleDialogStepTrigger({
         </CardHeader>
         <CardContent className="space-y-3">
           {cardChangeTriggers.map((triggerMeta) => (
+            <label
+              key={triggerMeta.type}
+              className="flex items-start gap-3 cursor-pointer"
+            >
+              <input
+                type="radio"
+                name="trigger"
+                value={triggerMeta.type}
+                checked={trigger.type === triggerMeta.type}
+                onChange={(e) => handleTriggerTypeChange(e.target.value)}
+                className="mt-0.5 h-4 w-4 cursor-pointer text-accent-brand focus:ring-accent-brand"
+              />
+              <div className="flex-1">
+                <span className="text-sm">{triggerMeta.label}</span>
+              </div>
+            </label>
+          ))}
+        </CardContent>
+      </Card>
+
+      {/* Section Change Category */}
+      <Card className="border-l-4 border-l-violet-500">
+        <CardHeader>
+          <CardTitle className="text-base">Section Change</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {sectionChangeTriggers.map((triggerMeta) => (
             <label
               key={triggerMeta.type}
               className="flex items-start gap-3 cursor-pointer"

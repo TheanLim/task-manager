@@ -5,6 +5,7 @@ import type {
   AutomationRule,
   TriggerType,
 } from '../types';
+import { evaluateFilters, type FilterContext } from './filterPredicates';
 
 /**
  * Builds an index of automation rules grouped by trigger type for O(1) lookup.
@@ -40,7 +41,7 @@ export function buildRuleIndex(
  *
  * @param event - The domain event to evaluate
  * @param rules - Array of automation rules to evaluate against
- * @param context - Read-only evaluation context (not used in current implementation but required for interface)
+ * @param context - Read-only evaluation context containing tasks and sections
  * @returns Array of actions to execute
  */
 export function evaluateRules(
@@ -53,58 +54,127 @@ export function evaluateRules(
   // Build index for efficient lookup
   const ruleIndex = buildRuleIndex(rules);
 
-  // Only process task.updated events (task.created and task.deleted don't trigger automations)
-  if (event.type !== 'task.updated') {
+  // Create filter context for date-based filter evaluation
+  const filterContext: FilterContext = {
+    now: new Date(),
+  };
+
+  // Helper function to check if a rule's filters match the task
+  const passesFilters = (rule: AutomationRule, taskId: string): boolean => {
+    // Empty filters array matches all tasks (backward compatible)
+    if (!rule.filters || rule.filters.length === 0) {
+      return true;
+    }
+
+    // Find the task in the context
+    const task = context.allTasks.find((t) => t.id === taskId);
+    if (!task) {
+      return false; // Task not found, skip rule
+    }
+
+    // Evaluate all filters with AND logic
+    return evaluateFilters(rule.filters, task, filterContext);
+  };
+
+  // Handle task.created events
+  if (event.type === 'task.created') {
+    const sectionId = event.changes.sectionId as string | undefined;
+    
+    // Match card_created_in_section triggers
+    const createdInSectionRules = ruleIndex.get('card_created_in_section') ?? [];
+    for (const rule of createdInSectionRules) {
+      if (rule.trigger.sectionId === sectionId && passesFilters(rule, event.entityId)) {
+        actions.push(createRuleAction(rule, event.entityId));
+      }
+    }
+    
     return actions;
   }
 
-  // Check for section change (card moved)
-  if (
-    'sectionId' in event.changes &&
-    event.changes.sectionId !== event.previousValues.sectionId
-  ) {
-    const newSectionId = event.changes.sectionId as string | undefined;
-    const oldSectionId = event.previousValues.sectionId as string | undefined;
-
-    // Match card_moved_into_section triggers
-    const movedIntoRules = ruleIndex.get('card_moved_into_section') ?? [];
-    for (const rule of movedIntoRules) {
-      if (rule.trigger.sectionId === newSectionId) {
-        actions.push(createRuleAction(rule, event.entityId));
-      }
+  // Handle section.created events
+  if (event.type === 'section.created') {
+    // Match section_created triggers (no filter evaluation for section events)
+    const sectionCreatedRules = ruleIndex.get('section_created') ?? [];
+    for (const rule of sectionCreatedRules) {
+      // Section events don't have filters, so we just match the trigger
+      // Note: createRuleAction expects a targetEntityId, which for section events is the section ID
+      actions.push(createRuleAction(rule, event.entityId));
     }
-
-    // Match card_moved_out_of_section triggers
-    const movedOutOfRules = ruleIndex.get('card_moved_out_of_section') ?? [];
-    for (const rule of movedOutOfRules) {
-      if (rule.trigger.sectionId === oldSectionId) {
-        actions.push(createRuleAction(rule, event.entityId));
-      }
-    }
+    
+    return actions;
   }
 
-  // Check for completed status change
-  if (
-    'completed' in event.changes &&
-    event.changes.completed !== event.previousValues.completed
-  ) {
-    const newCompleted = event.changes.completed as boolean;
-    const oldCompleted = event.previousValues.completed as boolean;
-
-    // Match card_marked_complete triggers
-    if (newCompleted === true && oldCompleted === false) {
-      const markedCompleteRules = ruleIndex.get('card_marked_complete') ?? [];
-      for (const rule of markedCompleteRules) {
+  // Handle section.updated events
+  if (event.type === 'section.updated') {
+    // Check for name change (section renamed)
+    if (
+      'name' in event.changes &&
+      event.changes.name !== event.previousValues.name
+    ) {
+      // Match section_renamed triggers (no filter evaluation for section events)
+      const sectionRenamedRules = ruleIndex.get('section_renamed') ?? [];
+      for (const rule of sectionRenamedRules) {
         actions.push(createRuleAction(rule, event.entityId));
       }
     }
+    
+    return actions;
+  }
 
-    // Match card_marked_incomplete triggers
-    if (newCompleted === false && oldCompleted === true) {
-      const markedIncompleteRules =
-        ruleIndex.get('card_marked_incomplete') ?? [];
-      for (const rule of markedIncompleteRules) {
-        actions.push(createRuleAction(rule, event.entityId));
+  // Handle task.updated events
+  if (event.type === 'task.updated') {
+    // Check for section change (card moved)
+    if (
+      'sectionId' in event.changes &&
+      event.changes.sectionId !== event.previousValues.sectionId
+    ) {
+      const newSectionId = event.changes.sectionId as string | undefined;
+      const oldSectionId = event.previousValues.sectionId as string | undefined;
+
+      // Match card_moved_into_section triggers
+      const movedIntoRules = ruleIndex.get('card_moved_into_section') ?? [];
+      for (const rule of movedIntoRules) {
+        if (rule.trigger.sectionId === newSectionId && passesFilters(rule, event.entityId)) {
+          actions.push(createRuleAction(rule, event.entityId));
+        }
+      }
+
+      // Match card_moved_out_of_section triggers
+      const movedOutOfRules = ruleIndex.get('card_moved_out_of_section') ?? [];
+      for (const rule of movedOutOfRules) {
+        if (rule.trigger.sectionId === oldSectionId && passesFilters(rule, event.entityId)) {
+          actions.push(createRuleAction(rule, event.entityId));
+        }
+      }
+    }
+
+    // Check for completed status change
+    if (
+      'completed' in event.changes &&
+      event.changes.completed !== event.previousValues.completed
+    ) {
+      const newCompleted = event.changes.completed as boolean;
+      const oldCompleted = event.previousValues.completed as boolean;
+
+      // Match card_marked_complete triggers
+      if (newCompleted === true && oldCompleted === false) {
+        const markedCompleteRules = ruleIndex.get('card_marked_complete') ?? [];
+        for (const rule of markedCompleteRules) {
+          if (passesFilters(rule, event.entityId)) {
+            actions.push(createRuleAction(rule, event.entityId));
+          }
+        }
+      }
+
+      // Match card_marked_incomplete triggers
+      if (newCompleted === false && oldCompleted === true) {
+        const markedIncompleteRules =
+          ruleIndex.get('card_marked_incomplete') ?? [];
+        for (const rule of markedIncompleteRules) {
+          if (passesFilters(rule, event.entityId)) {
+            actions.push(createRuleAction(rule, event.entityId));
+          }
+        }
       }
     }
   }
@@ -139,6 +209,11 @@ function createRuleAction(
           : action.type === 'mark_card_incomplete'
             ? false
             : undefined,
+      specificMonth: action.specificMonth ?? undefined,
+      specificDay: action.specificDay ?? undefined,
+      monthTarget: action.monthTarget ?? undefined,
+      cardTitle: action.cardTitle ?? undefined,
+      cardDateOption: action.cardDateOption ?? undefined,
     },
   };
 }

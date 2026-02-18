@@ -14,9 +14,11 @@ describe('RuleDialogStepReview', () => {
 
   const defaultProps = {
     trigger: { type: 'card_moved_into_section' as const, sectionId: 'section-1' },
-    action: { type: 'mark_card_complete' as const, sectionId: null, dateOption: null, position: null },
+    action: { type: 'mark_card_complete' as const, sectionId: null, dateOption: null, position: null, cardTitle: null, cardDateOption: null, specificMonth: null, specificDay: null, monthTarget: null },
+    filters: [],
     ruleName: '',
     onRuleNameChange: vi.fn(),
+    onFiltersChange: vi.fn(),
     sections: mockSections,
     onNavigateToStep: vi.fn(),
     onSave: vi.fn(),
@@ -43,7 +45,7 @@ describe('RuleDialogStepReview', () => {
   it('applies correct category color borders to THEN block for move action', () => {
     const props = {
       ...defaultProps,
-      action: { type: 'move_card_to_top_of_section' as const, sectionId: 'section-2', dateOption: null, position: 'top' as const },
+      action: { type: 'move_card_to_top_of_section' as const, sectionId: 'section-2', dateOption: null, position: 'top' as const, cardTitle: null, cardDateOption: null, specificMonth: null, specificDay: null, monthTarget: null },
     };
     const { container } = render(<RuleDialogStepReview {...props} />);
     
@@ -63,7 +65,7 @@ describe('RuleDialogStepReview', () => {
   it('applies correct category color borders to THEN block for date action', () => {
     const props = {
       ...defaultProps,
-      action: { type: 'set_due_date' as const, sectionId: null, dateOption: 'today' as const, position: null },
+      action: { type: 'set_due_date' as const, sectionId: null, dateOption: 'today' as const, position: null, cardTitle: null, cardDateOption: null, specificMonth: null, specificDay: null, monthTarget: null },
     };
     const { container } = render(<RuleDialogStepReview {...props} />);
     
@@ -90,6 +92,197 @@ describe('RuleDialogStepReview', () => {
     const onNavigateToStep = vi.fn();
     
     render(<RuleDialogStepReview {...defaultProps} onNavigateToStep={onNavigateToStep} />);
+    
+    const thenBlock = screen.getByText('THEN').closest('div')?.parentElement;
+    expect(thenBlock).toBeInTheDocument();
+    
+    await user.click(thenBlock!);
+    expect(onNavigateToStep).toHaveBeenCalledWith(1);
+  });
+
+  it('does not render IF block when no filters are configured', () => {
+    render(<RuleDialogStepReview {...defaultProps} />);
+    
+    expect(screen.queryByText('IF')).not.toBeInTheDocument();
+  });
+
+  it('renders IF block with filter badges when filters are configured', () => {
+    const props = {
+      ...defaultProps,
+      filters: [
+        { type: 'in_section' as const, sectionId: 'section-2' },
+        { type: 'has_due_date' as const },
+      ],
+    };
+    render(<RuleDialogStepReview {...props} />);
+    
+    expect(screen.getByText('IF')).toBeInTheDocument();
+    expect(screen.getByText('in "In Progress"')).toBeInTheDocument();
+    expect(screen.getByText('has due date')).toBeInTheDocument();
+  });
+
+  it('renders section filter badges with correct descriptions', () => {
+    const props = {
+      ...defaultProps,
+      filters: [
+        { type: 'in_section' as const, sectionId: 'section-3' },
+        { type: 'not_in_section' as const, sectionId: 'section-1' },
+      ],
+    };
+    render(<RuleDialogStepReview {...props} />);
+    
+    expect(screen.getByText('in "Done"')).toBeInTheDocument();
+    expect(screen.getByText('not in "To Do"')).toBeInTheDocument();
+  });
+
+  it('renders date presence filter badges with correct descriptions', () => {
+    const props = {
+      ...defaultProps,
+      filters: [
+        { type: 'has_due_date' as const },
+        { type: 'no_due_date' as const },
+        { type: 'is_overdue' as const },
+      ],
+    };
+    render(<RuleDialogStepReview {...props} />);
+    
+    expect(screen.getByText('has due date')).toBeInTheDocument();
+    expect(screen.getByText('no due date')).toBeInTheDocument();
+    expect(screen.getByText('is overdue')).toBeInTheDocument();
+  });
+
+  it('renders positive date range filter badges with correct descriptions', () => {
+    const props = {
+      ...defaultProps,
+      filters: [
+        { type: 'due_today' as const },
+        { type: 'due_tomorrow' as const },
+        { type: 'due_this_week' as const },
+        { type: 'due_next_week' as const },
+        { type: 'due_this_month' as const },
+        { type: 'due_next_month' as const },
+      ],
+    };
+    render(<RuleDialogStepReview {...props} />);
+    
+    expect(screen.getByText('due today')).toBeInTheDocument();
+    expect(screen.getByText('due tomorrow')).toBeInTheDocument();
+    expect(screen.getByText('due this week')).toBeInTheDocument();
+    expect(screen.getByText('due next week')).toBeInTheDocument();
+    expect(screen.getByText('due this month')).toBeInTheDocument();
+    expect(screen.getByText('due next month')).toBeInTheDocument();
+  });
+
+  it('renders negative date range filter badges with correct descriptions', () => {
+    const props = {
+      ...defaultProps,
+      filters: [
+        { type: 'not_due_today' as const },
+        { type: 'not_due_tomorrow' as const },
+        { type: 'not_due_this_week' as const },
+        { type: 'not_due_next_week' as const },
+        { type: 'not_due_this_month' as const },
+        { type: 'not_due_next_month' as const },
+      ],
+    };
+    render(<RuleDialogStepReview {...props} />);
+    
+    expect(screen.getByText('not due today')).toBeInTheDocument();
+    expect(screen.getByText('not due tomorrow')).toBeInTheDocument();
+    expect(screen.getByText('not due this week')).toBeInTheDocument();
+    expect(screen.getByText('not due next week')).toBeInTheDocument();
+    expect(screen.getByText('not due this month')).toBeInTheDocument();
+    expect(screen.getByText('not due next month')).toBeInTheDocument();
+  });
+
+  it('renders comparison filter badges with correct descriptions', () => {
+    const props = {
+      ...defaultProps,
+      filters: [
+        { type: 'due_in_less_than' as const, value: 3, unit: 'days' as const },
+        { type: 'due_in_more_than' as const, value: 7, unit: 'working_days' as const },
+        { type: 'due_in_exactly' as const, value: 5, unit: 'days' as const },
+        { type: 'due_in_between' as const, minValue: 2, maxValue: 10, unit: 'working_days' as const },
+      ],
+    };
+    render(<RuleDialogStepReview {...props} />);
+    
+    expect(screen.getByText('due in < 3 days')).toBeInTheDocument();
+    expect(screen.getByText('due in > 7 working days')).toBeInTheDocument();
+    expect(screen.getByText('due in exactly 5 days')).toBeInTheDocument();
+    expect(screen.getByText('due in 2-10 working days')).toBeInTheDocument();
+  });
+
+  it('calls onFiltersChange when filter X button is clicked', async () => {
+    const user = userEvent.setup();
+    const onFiltersChange = vi.fn();
+    const props = {
+      ...defaultProps,
+      filters: [
+        { type: 'has_due_date' as const },
+        { type: 'due_today' as const },
+      ],
+      onFiltersChange,
+    };
+    render(<RuleDialogStepReview {...props} />);
+    
+    const removeButtons = screen.getAllByLabelText('Remove filter');
+    expect(removeButtons).toHaveLength(2);
+    
+    await user.click(removeButtons[0]);
+    
+    expect(onFiltersChange).toHaveBeenCalledWith([{ type: 'due_today' }]);
+  });
+
+  it('calls onNavigateToStep(1) when IF block is clicked', async () => {
+    const user = userEvent.setup();
+    const onNavigateToStep = vi.fn();
+    const props = {
+      ...defaultProps,
+      filters: [{ type: 'has_due_date' as const }],
+      onNavigateToStep,
+    };
+    render(<RuleDialogStepReview {...props} />);
+    
+    const ifBlock = screen.getByText('IF').closest('div')?.parentElement;
+    expect(ifBlock).toBeInTheDocument();
+    
+    await user.click(ifBlock!);
+    expect(onNavigateToStep).toHaveBeenCalledWith(1);
+  });
+
+  it('applies purple border to IF block', () => {
+    const props = {
+      ...defaultProps,
+      filters: [{ type: 'has_due_date' as const }],
+    };
+    const { container } = render(<RuleDialogStepReview {...props} />);
+    
+    const ifCard = container.querySelector('.border-l-purple-500');
+    expect(ifCard).toBeInTheDocument();
+  });
+
+  it('renders multiple arrows when filters are present', () => {
+    const props = {
+      ...defaultProps,
+      filters: [{ type: 'has_due_date' as const }],
+    };
+    const { container } = render(<RuleDialogStepReview {...props} />);
+    
+    // Should have 3 arrows: WHEN -> IF, IF -> THEN
+    const arrows = container.querySelectorAll('svg');
+    expect(arrows.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('calls onNavigateToStep(1) when THEN block is clicked (with filters)', async () => {
+    const user = userEvent.setup();
+    const onNavigateToStep = vi.fn();
+    const props = {
+      ...defaultProps,
+      filters: [{ type: 'has_due_date' as const }],
+      onNavigateToStep,
+    };
+    render(<RuleDialogStepReview {...props} />);
     
     const thenBlock = screen.getByText('THEN').closest('div')?.parentElement;
     expect(thenBlock).toBeInTheDocument();
@@ -163,7 +356,7 @@ describe('RuleDialogStepReview', () => {
   it('renders move action with position and section', () => {
     const props = {
       ...defaultProps,
-      action: { type: 'move_card_to_bottom_of_section' as const, sectionId: 'section-3', dateOption: null, position: 'bottom' as const },
+      action: { type: 'move_card_to_bottom_of_section' as const, sectionId: 'section-3', dateOption: null, position: 'bottom' as const, cardTitle: null, cardDateOption: null, specificMonth: null, specificDay: null, monthTarget: null },
     };
     render(<RuleDialogStepReview {...props} />);
     
@@ -173,7 +366,7 @@ describe('RuleDialogStepReview', () => {
   it('renders set due date action with date option', () => {
     const props = {
       ...defaultProps,
-      action: { type: 'set_due_date' as const, sectionId: null, dateOption: 'tomorrow' as const, position: null },
+      action: { type: 'set_due_date' as const, sectionId: null, dateOption: 'tomorrow' as const, position: null, cardTitle: null, cardDateOption: null, specificMonth: null, specificDay: null, monthTarget: null },
     };
     render(<RuleDialogStepReview {...props} />);
     
@@ -183,7 +376,7 @@ describe('RuleDialogStepReview', () => {
   it('renders next working day correctly', () => {
     const props = {
       ...defaultProps,
-      action: { type: 'set_due_date' as const, sectionId: null, dateOption: 'next_working_day' as const, position: null },
+      action: { type: 'set_due_date' as const, sectionId: null, dateOption: 'next_working_day' as const, position: null, cardTitle: null, cardDateOption: null, specificMonth: null, specificDay: null, monthTarget: null },
     };
     render(<RuleDialogStepReview {...props} />);
     
@@ -203,7 +396,7 @@ describe('RuleDialogStepReview', () => {
   it('shows placeholder when action section is missing', () => {
     const props = {
       ...defaultProps,
-      action: { type: 'move_card_to_top_of_section' as const, sectionId: null, dateOption: null, position: 'top' as const },
+      action: { type: 'move_card_to_top_of_section' as const, sectionId: null, dateOption: null, position: 'top' as const, cardTitle: null, cardDateOption: null, specificMonth: null, specificDay: null, monthTarget: null },
     };
     render(<RuleDialogStepReview {...props} />);
     

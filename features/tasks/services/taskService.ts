@@ -58,7 +58,7 @@ export class TaskService {
           this.emitEvent({
             type: 'task.deleted',
             entityId: taskToDelete.id,
-            projectId: taskToDelete.projectId,
+            projectId: taskToDelete.projectId || '',
             changes: {},
             previousValues: { ...taskToDelete },
             depth: 0,
@@ -90,7 +90,7 @@ export class TaskService {
         this.emitEvent({
           type: 'task.updated',
           entityId: taskId,
-          projectId: task.projectId,
+          projectId: task.projectId || '',
           changes: {
             completed,
             completedAt: completed ? now : null,
@@ -122,7 +122,7 @@ export class TaskService {
             this.emitEvent({
               type: 'task.updated',
               entityId: id,
-              projectId: descendantTask.projectId,
+              projectId: descendantTask.projectId || '',
               changes: {
                 completed: true,
                 completedAt: now,

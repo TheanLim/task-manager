@@ -177,10 +177,34 @@ export const useDataStore = create<DataStore>()(
       // Section Actions
       addSection: (section) => {
         sectionRepository.create(section);
+        // Emit section.created domain event
+        emitDomainEvent({
+          type: 'section.created',
+          entityId: section.id,
+          projectId: section.projectId || '',
+          changes: { ...section },
+          previousValues: {},
+          depth: 0,
+        });
       },
       
       updateSection: (id, updates) => {
-        sectionRepository.update(id, { ...updates, updatedAt: new Date().toISOString() });
+        // Capture previous values before mutation
+        const previousSection = sectionRepository.findById(id);
+        if (!previousSection) return;
+        
+        const updatedSection = { ...updates, updatedAt: new Date().toISOString() };
+        sectionRepository.update(id, updatedSection);
+        
+        // Emit section.updated domain event with changes and previous values
+        emitDomainEvent({
+          type: 'section.updated',
+          entityId: id,
+          projectId: previousSection.projectId || '',
+          changes: updatedSection,
+          previousValues: previousSection,
+          depth: 0,
+        });
       },
       
       deleteSection: (id) => {

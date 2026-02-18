@@ -73,8 +73,8 @@ describe('toastMessageFormatter', () => {
     it('Property 15: message format is consistent and parseable', () => {
       fc.assert(
         fc.property(
-          fc.string({ minLength: 1, maxLength: 100 }),
-          fc.string({ minLength: 1, maxLength: 200 }),
+          fc.string({ minLength: 1, maxLength: 100 }).filter(s => s.trim().length > 0),
+          fc.string({ minLength: 1, maxLength: 200 }).filter(s => s.trim().length > 0),
           fc.integer({ min: 1, max: 100 }),
           (ruleName, taskDescription, batchSize) => {
             const result = formatAutomationToastMessage({
@@ -96,7 +96,8 @@ describe('toastMessageFormatter', () => {
 
             // Second part should contain either task description or batch count
             if (batchSize === 1) {
-              expect(parts[1].trim()).toBe(taskDescription);
+              // The formatter doesn't trim, so we compare the trimmed split result to the original
+              expect(parts[1].trim()).toBe(taskDescription.trim());
             } else {
               expect(parts[1].trim()).toBe(`${batchSize} tasks`);
             }

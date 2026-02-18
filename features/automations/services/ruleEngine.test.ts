@@ -531,3 +531,335 @@ describe('Property 7: Rule engine disabled/broken rule filtering', () => {
     );
   });
 });
+
+// ============================================================================
+// Property 16: New triggers match only their corresponding event types
+// **Validates: Requirements 7.3, 7.8**
+// ============================================================================
+
+describe('Property 16: New triggers match only their corresponding event types', () => {
+  it('Feature: automations-filters-dates, Property 16: task.created events match card_created_in_section but NOT card_moved_into_section', () => {
+    fc.assert(
+      fc.property(
+        idArb,
+        idArb,
+        idArb,
+        evaluationContextArb,
+        (entityId, projectId, sectionId, context) => {
+          // Create two rules: one for card_created_in_section, one for card_moved_into_section
+          const createdRule: AutomationRule = {
+            id: 'created-rule',
+            projectId,
+            name: 'Created Rule',
+            trigger: {
+              type: 'card_created_in_section',
+              sectionId,
+            },
+            filters: [],
+            action: {
+              type: 'mark_card_complete',
+              sectionId: null,
+              dateOption: null,
+              position: null,
+              cardTitle: null,
+              cardDateOption: null,
+              specificMonth: null,
+              specificDay: null,
+              monthTarget: null,
+            },
+            enabled: true,
+            brokenReason: null,
+            executionCount: 0,
+            lastExecutedAt: null,
+            order: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+
+          const movedRule: AutomationRule = {
+            ...createdRule,
+            id: 'moved-rule',
+            name: 'Moved Rule',
+            trigger: {
+              type: 'card_moved_into_section',
+              sectionId,
+            },
+          };
+
+          // Create a task.created event
+          const createdEvent: DomainEvent = {
+            type: 'task.created',
+            entityId,
+            projectId,
+            changes: { sectionId },
+            previousValues: {},
+            depth: 0,
+          };
+
+          const actions = evaluateRules(createdEvent, [createdRule, movedRule], context);
+
+          // Should match only the card_created_in_section rule
+          expect(actions).toHaveLength(1);
+          expect(actions[0].ruleId).toBe('created-rule');
+        },
+      ),
+      { numRuns: 100 },
+    );
+  });
+
+  it('Feature: automations-filters-dates, Property 16: task.updated with sectionId change matches card_moved_into_section but NOT card_created_in_section', () => {
+    fc.assert(
+      fc.property(
+        idArb,
+        idArb,
+        idArb,
+        evaluationContextArb,
+        (entityId, projectId, sectionId, context) => {
+          // Create two rules: one for card_created_in_section, one for card_moved_into_section
+          const createdRule: AutomationRule = {
+            id: 'created-rule',
+            projectId,
+            name: 'Created Rule',
+            trigger: {
+              type: 'card_created_in_section',
+              sectionId,
+            },
+            filters: [],
+            action: {
+              type: 'mark_card_complete',
+              sectionId: null,
+              dateOption: null,
+              position: null,
+              cardTitle: null,
+              cardDateOption: null,
+              specificMonth: null,
+              specificDay: null,
+              monthTarget: null,
+            },
+            enabled: true,
+            brokenReason: null,
+            executionCount: 0,
+            lastExecutedAt: null,
+            order: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+
+          const movedRule: AutomationRule = {
+            ...createdRule,
+            id: 'moved-rule',
+            name: 'Moved Rule',
+            trigger: {
+              type: 'card_moved_into_section',
+              sectionId,
+            },
+          };
+
+          // Create a task.updated event with sectionId change
+          const updatedEvent: DomainEvent = {
+            type: 'task.updated',
+            entityId,
+            projectId,
+            changes: { sectionId },
+            previousValues: { sectionId: 'old-section' },
+            depth: 0,
+          };
+
+          const actions = evaluateRules(updatedEvent, [createdRule, movedRule], context);
+
+          // Should match only the card_moved_into_section rule
+          expect(actions).toHaveLength(1);
+          expect(actions[0].ruleId).toBe('moved-rule');
+        },
+      ),
+      { numRuns: 100 },
+    );
+  });
+});
+
+// ============================================================================
+// Property 17: Section triggers match events in the same project
+// **Validates: Requirements 7.5, 7.7**
+// ============================================================================
+
+describe('Property 17: Section triggers match events in the same project', () => {
+  it('Feature: automations-filters-dates, Property 17: section.created events match section_created triggers in the same project', () => {
+    fc.assert(
+      fc.property(
+        idArb,
+        idArb,
+        evaluationContextArb,
+        (entityId, projectId, context) => {
+          // Create a section_created rule
+          const rule: AutomationRule = {
+            id: 'section-created-rule',
+            projectId,
+            name: 'Section Created Rule',
+            trigger: {
+              type: 'section_created',
+              sectionId: null,
+            },
+            filters: [],
+            action: {
+              type: 'mark_card_complete',
+              sectionId: null,
+              dateOption: null,
+              position: null,
+              cardTitle: null,
+              cardDateOption: null,
+              specificMonth: null,
+              specificDay: null,
+              monthTarget: null,
+            },
+            enabled: true,
+            brokenReason: null,
+            executionCount: 0,
+            lastExecutedAt: null,
+            order: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+
+          // Create a section.created event
+          const event: DomainEvent = {
+            type: 'section.created',
+            entityId,
+            projectId,
+            changes: {},
+            previousValues: {},
+            depth: 0,
+          };
+
+          const actions = evaluateRules(event, [rule], context);
+
+          // Should match the section_created rule
+          expect(actions).toHaveLength(1);
+          expect(actions[0].ruleId).toBe('section-created-rule');
+        },
+      ),
+      { numRuns: 100 },
+    );
+  });
+
+  it('Feature: automations-filters-dates, Property 17: section.updated with name change matches section_renamed triggers in the same project', () => {
+    fc.assert(
+      fc.property(
+        idArb,
+        idArb,
+        fc.string({ minLength: 1 }),
+        fc.string({ minLength: 1 }),
+        evaluationContextArb,
+        (entityId, projectId, oldName, newName, context) => {
+          // Ensure names are different
+          if (oldName === newName) {
+            newName = newName + '-modified';
+          }
+
+          // Create a section_renamed rule
+          const rule: AutomationRule = {
+            id: 'section-renamed-rule',
+            projectId,
+            name: 'Section Renamed Rule',
+            trigger: {
+              type: 'section_renamed',
+              sectionId: null,
+            },
+            filters: [],
+            action: {
+              type: 'mark_card_complete',
+              sectionId: null,
+              dateOption: null,
+              position: null,
+              cardTitle: null,
+              cardDateOption: null,
+              specificMonth: null,
+              specificDay: null,
+              monthTarget: null,
+            },
+            enabled: true,
+            brokenReason: null,
+            executionCount: 0,
+            lastExecutedAt: null,
+            order: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+
+          // Create a section.updated event with name change
+          const event: DomainEvent = {
+            type: 'section.updated',
+            entityId,
+            projectId,
+            changes: { name: newName },
+            previousValues: { name: oldName },
+            depth: 0,
+          };
+
+          const actions = evaluateRules(event, [rule], context);
+
+          // Should match the section_renamed rule
+          expect(actions).toHaveLength(1);
+          expect(actions[0].ruleId).toBe('section-renamed-rule');
+        },
+      ),
+      { numRuns: 100 },
+    );
+  });
+
+  it('Feature: automations-filters-dates, Property 17: section.updated without name change does NOT match section_renamed triggers', () => {
+    fc.assert(
+      fc.property(
+        idArb,
+        idArb,
+        evaluationContextArb,
+        (entityId, projectId, context) => {
+          // Create a section_renamed rule
+          const rule: AutomationRule = {
+            id: 'section-renamed-rule',
+            projectId,
+            name: 'Section Renamed Rule',
+            trigger: {
+              type: 'section_renamed',
+              sectionId: null,
+            },
+            filters: [],
+            action: {
+              type: 'mark_card_complete',
+              sectionId: null,
+              dateOption: null,
+              position: null,
+              cardTitle: null,
+              cardDateOption: null,
+              specificMonth: null,
+              specificDay: null,
+              monthTarget: null,
+            },
+            enabled: true,
+            brokenReason: null,
+            executionCount: 0,
+            lastExecutedAt: null,
+            order: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+
+          // Create a section.updated event without name change
+          const event: DomainEvent = {
+            type: 'section.updated',
+            entityId,
+            projectId,
+            changes: { order: 5 },
+            previousValues: { order: 3 },
+            depth: 0,
+          };
+
+          const actions = evaluateRules(event, [rule], context);
+
+          // Should NOT match the section_renamed rule
+          expect(actions).toHaveLength(0);
+        },
+      ),
+      { numRuns: 100 },
+    );
+  });
+});
