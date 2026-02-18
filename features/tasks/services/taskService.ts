@@ -1,6 +1,7 @@
 import type { UUID } from '@/types';
 import type { Task } from '@/lib/schemas';
 import type { TaskRepository, DependencyRepository } from '@/lib/repositories/types';
+import type { DomainEvent } from '@/features/automations/types';
 
 /**
  * Returns the effective last action time for a task.
@@ -13,7 +14,8 @@ export function getEffectiveLastActionTime(task: Task): string {
 export class TaskService {
   constructor(
     private taskRepo: TaskRepository,
-    private depRepo: DependencyRepository
+    private depRepo: DependencyRepository,
+    private emitEvent?: (event: DomainEvent) => void
   ) {}
 
   /**
@@ -47,7 +49,22 @@ export class TaskService {
 
     // Delete tasks bottom-up (children first, root last)
     for (let i = allIds.length - 1; i >= 0; i--) {
-      this.taskRepo.delete(allIds[i]);
+      const taskToDelete = this.taskRepo.findById(allIds[i]);
+      if (taskToDelete) {
+        this.taskRepo.delete(allIds[i]);
+        
+        // Emit task.deleted event
+        if (this.emitEvent) {
+          this.emitEvent({
+            type: 'task.deleted',
+            entityId: taskToDelete.id,
+            projectId: taskToDelete.projectId,
+            changes: {},
+            previousValues: { ...taskToDelete },
+            depth: 0,
+          });
+        }
+      }
     }
   }
 
@@ -58,19 +75,66 @@ export class TaskService {
   cascadeComplete(taskId: UUID, completed: boolean): void {
     const now = new Date().toISOString();
 
-    this.taskRepo.update(taskId, {
-      completed,
-      completedAt: completed ? now : null,
-    });
+    // Get the task before updating to capture previous values
+    const task = this.taskRepo.findById(taskId);
+    if (task) {
+      const previousValues = { ...task };
+      
+      this.taskRepo.update(taskId, {
+        completed,
+        completedAt: completed ? now : null,
+      });
+
+      // Emit task.updated event
+      if (this.emitEvent) {
+        this.emitEvent({
+          type: 'task.updated',
+          entityId: taskId,
+          projectId: task.projectId,
+          changes: {
+            completed,
+            completedAt: completed ? now : null,
+          },
+          previousValues: {
+            completed: previousValues.completed,
+            completedAt: previousValues.completedAt,
+          },
+          depth: 0,
+        });
+      }
+    }
 
     if (completed) {
       // Cascade completion to all descendants
       const descendantIds = this.collectDescendantIds(taskId);
       for (const id of descendantIds) {
-        this.taskRepo.update(id, {
-          completed: true,
-          completedAt: now,
-        });
+        const descendantTask = this.taskRepo.findById(id);
+        if (descendantTask) {
+          const previousValues = { ...descendantTask };
+          
+          this.taskRepo.update(id, {
+            completed: true,
+            completedAt: now,
+          });
+
+          // Emit task.updated event for each descendant
+          if (this.emitEvent) {
+            this.emitEvent({
+              type: 'task.updated',
+              entityId: id,
+              projectId: descendantTask.projectId,
+              changes: {
+                completed: true,
+                completedAt: now,
+              },
+              previousValues: {
+                completed: previousValues.completed,
+                completedAt: previousValues.completedAt,
+              },
+              depth: 0,
+            });
+          }
+        }
       }
     }
   }

@@ -7,8 +7,11 @@ import {
   taskRepository,
   sectionRepository,
   dependencyRepository,
+  automationRuleRepository,
 } from './dataStore';
+import { subscribeToDomainEvents } from '@/features/automations/events';
 import type { Project, Task, Section, TaskDependency } from '@/types';
+import type { AutomationRule } from '@/features/automations/types';
 import { Priority, ViewMode } from '@/types';
 
 describe('useDataStore', () => {
@@ -969,5 +972,303 @@ describe('Property 8: Store-repository synchronization', () => {
       ),
       PROPERTY_CONFIG,
     );
+  });
+});
+
+
+describe('Automation Rules Integration', () => {
+  beforeEach(() => {
+    localStorageBackend.reset();
+  });
+
+  it('should sync automation rules from repository to store', () => {
+    const rule: AutomationRule = {
+      id: 'rule-1',
+      projectId: 'project-1',
+      name: 'Test Rule',
+      trigger: {
+        type: 'card_moved_into_section',
+        sectionId: 'section-1',
+      },
+      action: {
+        type: 'mark_card_complete',
+        sectionId: null,
+        dateOption: null,
+        position: null,
+      },
+      enabled: true,
+      brokenReason: null,
+      executionCount: 0,
+      lastExecutedAt: null,
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    // Create rule directly in repository
+    automationRuleRepository.create(rule);
+
+    // Store should be synced via subscription
+    const rules = useDataStore.getState().automationRules;
+    expect(rules).toHaveLength(1);
+    expect(rules[0]).toEqual(rule);
+  });
+
+  it('should keep automation rules in sync after mutations', () => {
+    const rule: AutomationRule = {
+      id: 'rule-1',
+      projectId: 'project-1',
+      name: 'Test Rule',
+      trigger: {
+        type: 'card_moved_into_section',
+        sectionId: 'section-1',
+      },
+      action: {
+        type: 'mark_card_complete',
+        sectionId: null,
+        dateOption: null,
+        position: null,
+      },
+      enabled: true,
+      brokenReason: null,
+      executionCount: 0,
+      lastExecutedAt: null,
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    automationRuleRepository.create(rule);
+    expect(useDataStore.getState().automationRules).toEqual(automationRuleRepository.findAll());
+
+    automationRuleRepository.update('rule-1', { name: 'Updated Rule' });
+    expect(useDataStore.getState().automationRules).toEqual(automationRuleRepository.findAll());
+
+    automationRuleRepository.delete('rule-1');
+    expect(useDataStore.getState().automationRules).toEqual(automationRuleRepository.findAll());
+  });
+
+  it('should delete automation rules when project is deleted', () => {
+    const project: Project = {
+      id: 'project-1',
+      name: 'Test Project',
+      description: '',
+      viewMode: ViewMode.LIST,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const rule: AutomationRule = {
+      id: 'rule-1',
+      projectId: 'project-1',
+      name: 'Test Rule',
+      trigger: {
+        type: 'card_moved_into_section',
+        sectionId: 'section-1',
+      },
+      action: {
+        type: 'mark_card_complete',
+        sectionId: null,
+        dateOption: null,
+        position: null,
+      },
+      enabled: true,
+      brokenReason: null,
+      executionCount: 0,
+      lastExecutedAt: null,
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    useDataStore.getState().addProject(project);
+    automationRuleRepository.create(rule);
+
+    expect(useDataStore.getState().automationRules).toHaveLength(1);
+
+    useDataStore.getState().deleteProject('project-1');
+
+    // Automation rules should be deleted via projectService.cascadeDelete
+    expect(useDataStore.getState().automationRules).toHaveLength(0);
+  });
+});
+
+describe('Domain Event Emission', () => {
+  beforeEach(() => {
+    localStorageBackend.reset();
+  });
+
+  it('should emit task.created event when adding a task', () => {
+    let eventEmitted = false;
+    let emittedEvent: any = null;
+
+    // Subscribe to domain events
+    const unsubscribe = subscribeToDomainEvents((event) => {
+      if (event.type === 'task.created') {
+        eventEmitted = true;
+        emittedEvent = event;
+      }
+    });
+
+    const task: Task = {
+      id: 'task-1',
+      projectId: 'project-1',
+      parentTaskId: null,
+      sectionId: null,
+      description: 'Test Task',
+      notes: '',
+      assignee: '',
+      priority: Priority.NONE,
+      tags: [],
+      dueDate: null,
+      completed: false,
+      completedAt: null,
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    useDataStore.getState().addTask(task);
+
+    expect(eventEmitted).toBe(true);
+    expect(emittedEvent).toBeDefined();
+    expect(emittedEvent.type).toBe('task.created');
+    expect(emittedEvent.entityId).toBe('task-1');
+    expect(emittedEvent.projectId).toBe('project-1');
+
+    unsubscribe();
+  });
+
+  it('should emit task.updated event when updating a task', () => {
+    let eventEmitted = false;
+    let emittedEvent: any = null;
+
+    const task: Task = {
+      id: 'task-1',
+      projectId: 'project-1',
+      parentTaskId: null,
+      sectionId: null,
+      description: 'Test Task',
+      notes: '',
+      assignee: '',
+      priority: Priority.NONE,
+      tags: [],
+      dueDate: null,
+      completed: false,
+      completedAt: null,
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    useDataStore.getState().addTask(task);
+
+    // Subscribe after task creation to only catch update event
+    const unsubscribe = subscribeToDomainEvents((event) => {
+      if (event.type === 'task.updated') {
+        eventEmitted = true;
+        emittedEvent = event;
+      }
+    });
+
+    useDataStore.getState().updateTask('task-1', { description: 'Updated Task' });
+
+    expect(eventEmitted).toBe(true);
+    expect(emittedEvent).toBeDefined();
+    expect(emittedEvent.type).toBe('task.updated');
+    expect(emittedEvent.entityId).toBe('task-1');
+    expect(emittedEvent.changes.description).toBe('Updated Task');
+    expect(emittedEvent.previousValues.description).toBe('Test Task');
+
+    unsubscribe();
+  });
+
+  it('should emit task.deleted event when deleting a task', () => {
+    let eventEmitted = false;
+    let emittedEvent: any = null;
+
+    const task: Task = {
+      id: 'task-1',
+      projectId: 'project-1',
+      parentTaskId: null,
+      sectionId: null,
+      description: 'Test Task',
+      notes: '',
+      assignee: '',
+      priority: Priority.NONE,
+      tags: [],
+      dueDate: null,
+      completed: false,
+      completedAt: null,
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    useDataStore.getState().addTask(task);
+
+    // Subscribe after task creation to only catch delete event
+    const unsubscribe = subscribeToDomainEvents((event) => {
+      if (event.type === 'task.deleted') {
+        eventEmitted = true;
+        emittedEvent = event;
+      }
+    });
+
+    useDataStore.getState().deleteTask('task-1');
+
+    expect(eventEmitted).toBe(true);
+    expect(emittedEvent).toBeDefined();
+    expect(emittedEvent.type).toBe('task.deleted');
+    expect(emittedEvent.entityId).toBe('task-1');
+    expect(emittedEvent.previousValues.description).toBe('Test Task');
+
+    unsubscribe();
+  });
+
+  it('should emit task.updated event with correct changes and previousValues', () => {
+    let emittedEvent: any = null;
+
+    const task: Task = {
+      id: 'task-1',
+      projectId: 'project-1',
+      parentTaskId: null,
+      sectionId: 'section-1',
+      description: 'Original Description',
+      notes: '',
+      assignee: '',
+      priority: Priority.NONE,
+      tags: [],
+      dueDate: null,
+      completed: false,
+      completedAt: null,
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    useDataStore.getState().addTask(task);
+
+    const unsubscribe = subscribeToDomainEvents((event) => {
+      if (event.type === 'task.updated') {
+        emittedEvent = event;
+      }
+    });
+
+    useDataStore.getState().updateTask('task-1', {
+      description: 'New Description',
+      sectionId: 'section-2',
+      completed: true,
+    });
+
+    expect(emittedEvent).toBeDefined();
+    expect(emittedEvent.changes.description).toBe('New Description');
+    expect(emittedEvent.changes.sectionId).toBe('section-2');
+    expect(emittedEvent.changes.completed).toBe(true);
+    expect(emittedEvent.previousValues.description).toBe('Original Description');
+    expect(emittedEvent.previousValues.sectionId).toBe('section-1');
+    expect(emittedEvent.previousValues.completed).toBe(false);
+
+    unsubscribe();
   });
 });

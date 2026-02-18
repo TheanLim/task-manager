@@ -6,13 +6,15 @@ import type {
 } from '@/lib/repositories/types';
 import type { Project } from '@/lib/schemas';
 import type { TaskService } from '@/features/tasks/services/taskService';
+import type { AutomationRuleRepository } from '@/features/automations/repositories/types';
 
 export class ProjectService {
   constructor(
     private projectRepo: ProjectRepository,
     private sectionRepo: SectionRepository,
     private taskService: TaskService,
-    private taskRepo: TaskRepository
+    private taskRepo: TaskRepository,
+    private automationRuleRepo: AutomationRuleRepository
   ) {}
 
   /**
@@ -59,10 +61,18 @@ export class ProjectService {
   }
 
   /**
-   * Cascade-delete a project: remove all tasks (via TaskService for subtask/dependency cleanup),
+   * Cascade-delete a project: remove all automation rules, all tasks (via TaskService for subtask/dependency cleanup),
    * all sections, and the project itself.
+   *
+   * Validates Requirement: 8.3
    */
   cascadeDelete(projectId: UUID): void {
+    // Delete all automation rules for this project first
+    const rules = this.automationRuleRepo.findByProjectId(projectId);
+    for (const rule of rules) {
+      this.automationRuleRepo.delete(rule.id);
+    }
+
     // Find all project tasks, then cascade-delete only top-level ones
     // (TaskService.cascadeDelete handles subtasks and dependencies)
     const tasks = this.taskRepo.findByProjectId(projectId);

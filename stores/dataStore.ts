@@ -18,6 +18,11 @@ import { TaskService } from '@/features/tasks/services/taskService';
 import { ProjectService } from '@/features/projects/services/projectService';
 import { DependencyService } from '@/features/tasks/services/dependencyService';
 import { DependencyResolverImpl } from '@/features/tasks/dependencyResolver';
+import { emitDomainEvent, subscribeToDomainEvents } from '@/features/automations/events';
+import { LocalStorageAutomationRuleRepository } from '@/features/automations/repositories/localStorageAutomationRuleRepository';
+import { RuleExecutor } from '@/features/automations/services/ruleExecutor';
+import { AutomationService } from '@/features/automations/services/automationService';
+import type { AutomationRule } from '@/features/automations/types';
 
 // --- Repository & Service singletons ---
 export const localStorageBackend = new LocalStorageBackend();
@@ -26,6 +31,9 @@ export const taskRepository = new LocalStorageTaskRepository(localStorageBackend
 export const sectionRepository = new LocalStorageSectionRepository(localStorageBackend);
 export const dependencyRepository = new LocalStorageDependencyRepository(localStorageBackend);
 
+// Automation repository (separate localStorage key)
+export const automationRuleRepository = new LocalStorageAutomationRuleRepository();
+
 const dependencyResolver = new DependencyResolverImpl();
 export const taskService = new TaskService(taskRepository, dependencyRepository);
 export const projectService = new ProjectService(
@@ -33,8 +41,25 @@ export const projectService = new ProjectService(
   sectionRepository,
   taskService,
   taskRepository,
+  automationRuleRepository,
 );
 export const dependencyService = new DependencyService(dependencyRepository, dependencyResolver);
+
+// Automation services
+const ruleExecutor = new RuleExecutor(
+  taskRepository,
+  sectionRepository,
+  taskService,
+  automationRuleRepository
+);
+
+export const automationService = new AutomationService(
+  automationRuleRepository,
+  taskRepository,
+  sectionRepository,
+  taskService,
+  ruleExecutor
+);
 
 // Data Store Interface
 interface DataStore {
@@ -43,6 +68,7 @@ interface DataStore {
   tasks: Task[];
   sections: Section[];
   dependencies: TaskDependency[];
+  automationRules: AutomationRule[];
   
   // Project Actions
   addProject: (project: Project) => void;
@@ -80,6 +106,7 @@ export const useDataStore = create<DataStore>()(
       tasks: [],
       sections: [],
       dependencies: [],
+      automationRules: [],
       
       // Project Actions — delegate to services/repositories
       // Subscriptions handle state updates automatically
@@ -98,14 +125,53 @@ export const useDataStore = create<DataStore>()(
       // Task Actions
       addTask: (task) => {
         taskRepository.create(task);
+        // Emit task.created domain event
+        emitDomainEvent({
+          type: 'task.created',
+          entityId: task.id,
+          projectId: task.projectId || '',
+          changes: { ...task },
+          previousValues: {},
+          depth: 0,
+        });
       },
       
       updateTask: (id, updates) => {
-        taskRepository.update(id, { ...updates, updatedAt: new Date().toISOString() });
+        // Capture previous values before mutation
+        const previousTask = taskRepository.findById(id);
+        if (!previousTask) return;
+        
+        const updatedTask = { ...updates, updatedAt: new Date().toISOString() };
+        taskRepository.update(id, updatedTask);
+        
+        // Emit task.updated domain event with changes and previous values
+        emitDomainEvent({
+          type: 'task.updated',
+          entityId: id,
+          projectId: previousTask.projectId || '',
+          changes: updatedTask,
+          previousValues: previousTask,
+          depth: 0,
+        });
       },
       
       deleteTask: (id) => {
+        // Capture task data before deletion for event emission
+        const taskToDelete = taskRepository.findById(id);
+        if (!taskToDelete) return;
+        
         taskService.cascadeDelete(id);
+        
+        // Emit task.deleted domain event
+        // Note: taskService.cascadeDelete also emits events, but only if emitEvent callback is wired (task 10.1)
+        emitDomainEvent({
+          type: 'task.deleted',
+          entityId: id,
+          projectId: taskToDelete.projectId || '',
+          changes: {},
+          previousValues: { ...taskToDelete },
+          depth: 0,
+        });
       },
       
       // Section Actions
@@ -194,4 +260,14 @@ sectionRepository.subscribe((sections) => {
 
 dependencyRepository.subscribe((dependencies) => {
   useDataStore.setState({ dependencies });
+});
+
+// Subscribe automationRuleRepository to sync state to Zustand store (Requirement 8.4)
+automationRuleRepository.subscribe((automationRules) => {
+  useDataStore.setState({ automationRules });
+});
+
+// Subscribe automationService to domain events (Requirement 8.2)
+subscribeToDomainEvents((event) => {
+  automationService.handleEvent(event);
 });
