@@ -1474,3 +1474,90 @@ describe('create_card edge cases', () => {
     expect(newTask!.order).toBe(21); // maxOrder + 1
   });
 });
+
+// Trigger section sentinel resolution
+describe('create_card with TRIGGER_SECTION_SENTINEL', () => {
+  let taskRepo: MockTaskRepository;
+  let sectionRepo: MockSectionRepository;
+  let ruleRepo: MockAutomationRuleRepository;
+  let taskService: MockTaskService;
+  let executor: RuleExecutor;
+
+  beforeEach(() => {
+    taskRepo = new MockTaskRepository();
+    sectionRepo = new MockSectionRepository();
+    ruleRepo = new MockAutomationRuleRepository();
+    taskService = new MockTaskService();
+    executor = new RuleExecutor(taskRepo as any, sectionRepo as any, taskService as any, ruleRepo);
+  });
+
+  it('resolves __trigger_section__ to the triggering event entityId', () => {
+    // Create the section that will be "just created" by the trigger
+    const newSection: Section = {
+      id: 'new-section-abc',
+      projectId: 'proj-1',
+      name: 'Sprint 42',
+      order: 0,
+      collapsed: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    sectionRepo.create(newSection);
+
+    const action: RuleAction = {
+      ruleId: 'rule-1',
+      actionType: 'create_card',
+      targetEntityId: newSection.id,
+      params: {
+        sectionId: '__trigger_section__',
+        cardTitle: 'Standup Notes',
+      },
+    };
+
+    // section.created event — entityId is the new section's ID
+    const event: DomainEvent = {
+      type: 'section.created',
+      entityId: newSection.id,
+      projectId: 'proj-1',
+      changes: { name: 'Sprint 42' },
+      previousValues: {},
+      depth: 0,
+    };
+
+    const events = executor.executeActions([action], event);
+
+    // A task should have been created in the triggering section
+    const tasks = taskRepo.findAll();
+    expect(tasks.length).toBe(1);
+    expect(tasks[0].sectionId).toBe(newSection.id);
+    expect(tasks[0].description).toBe('Standup Notes');
+    expect(events.length).toBe(1);
+    expect(events[0].type).toBe('task.created');
+  });
+
+  it('skips when sentinel resolves to a non-existent section', () => {
+    const action: RuleAction = {
+      ruleId: 'rule-1',
+      actionType: 'create_card',
+      targetEntityId: 'ghost-section',
+      params: {
+        sectionId: '__trigger_section__',
+        cardTitle: 'Should not be created',
+      },
+    };
+
+    const event: DomainEvent = {
+      type: 'section.created',
+      entityId: 'ghost-section',
+      projectId: 'proj-1',
+      changes: {},
+      previousValues: {},
+      depth: 0,
+    };
+
+    const events = executor.executeActions([action], event);
+
+    expect(taskRepo.findAll().length).toBe(0);
+    expect(events.length).toBe(0);
+  });
+});

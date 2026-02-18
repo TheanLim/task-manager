@@ -376,13 +376,10 @@ export function RuleDialog({
   const steps = ['Trigger', 'Filters', 'Action', 'Review'];
   const showFilters = shouldShowFiltersStep();
   
-  // Adjust step display based on whether filters are shown
-  const getDisplayStep = (stepIndex: number): number => {
-    if (!showFilters && stepIndex >= 1) {
-      return stepIndex + 1; // Skip filters step in numbering
-    }
-    return stepIndex;
-  };
+  // Build visible steps array (excluding Filters if not applicable)
+  const visibleSteps = showFilters 
+    ? steps 
+    : steps.filter((_, idx) => idx !== 1); // Remove Filters step
   
   const getStepClickable = (stepIndex: number): boolean => {
     if (stepIndex === 0) return true;
@@ -410,13 +407,11 @@ export function RuleDialog({
 
             {/* Step Indicator - Full labels on larger screens, dots on mobile */}
             <div className="flex items-center justify-between mt-6" role="navigation" aria-label="Wizard steps">
-              {steps.map((stepName, index) => {
-                const stepIndex = index as WizardStep;
-                
-                // Skip Filters step in display if not applicable
-                if (stepIndex === 1 && !showFilters) {
-                  return null;
-                }
+              {visibleSteps.map((stepName, displayIndex) => {
+                // Map display index back to actual step index
+                const stepIndex: WizardStep = showFilters 
+                  ? (displayIndex as WizardStep)
+                  : (displayIndex === 0 ? 0 : displayIndex === 1 ? 2 : 3) as WizardStep;
                 
                 const isActive = currentStep === stepIndex;
                 const isComplete = currentStep > stepIndex;
@@ -441,7 +436,7 @@ export function RuleDialog({
                               : 'border-muted-foreground/30 bg-background text-muted-foreground'
                         }`}
                       >
-                        {getDisplayStep(index) + 1}
+                        {displayIndex + 1}
                       </div>
                       <span
                         className={`text-sm font-medium max-sm:hidden ${
@@ -453,7 +448,7 @@ export function RuleDialog({
                         {stepName}
                       </span>
                     </button>
-                    {index < steps.length - 1 && (stepIndex !== 0 || showFilters) && (
+                    {displayIndex < visibleSteps.length - 1 && (
                       <div
                         className={`mx-2 max-sm:mx-1 h-0.5 flex-1 ${
                           isComplete ? 'bg-accent-brand' : 'bg-muted-foreground/30'
@@ -496,6 +491,7 @@ export function RuleDialog({
                   action={action}
                   onActionChange={handleActionChange}
                   sections={sections}
+                  triggerType={trigger.type}
                 />
               )}
 

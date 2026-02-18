@@ -3,6 +3,7 @@ import type { AutomationRuleRepository } from '../repositories/types';
 import type { TaskService } from '@/features/tasks/services/taskService';
 import type { RuleAction, DomainEvent } from '../types';
 import { calculateRelativeDate } from './dateCalculations';
+import { TRIGGER_SECTION_SENTINEL } from './rulePreviewService';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
@@ -357,7 +358,11 @@ export class RuleExecutor {
     triggeringEvent: DomainEvent,
     events: DomainEvent[]
   ): void {
-    const targetSectionId = action.params.sectionId;
+    // Resolve target section: sentinel means "use the section from the triggering event"
+    let targetSectionId = action.params.sectionId;
+    if (targetSectionId === TRIGGER_SECTION_SENTINEL) {
+      targetSectionId = triggeringEvent.entityId;
+    }
     if (!targetSectionId) return;
 
     // Verify target section exists (Requirement 8.6)

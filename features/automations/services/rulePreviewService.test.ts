@@ -5,6 +5,7 @@ import {
   buildPreviewString,
   TRIGGER_META,
   ACTION_META,
+  TRIGGER_SECTION_SENTINEL,
   type TriggerConfig,
   type ActionConfig,
   type PreviewPart,
@@ -337,5 +338,33 @@ describe('rulePreviewService - Property Tests', () => {
     expect(sentence).toContain('with a due date');
     expect(sentence).toContain('moved into Archive');
     expect(sentence).toContain('mark as complete');
+  });
+
+  /**
+   * Unit test: Preview with trigger section sentinel shows "the triggering section"
+   */
+  it('shows "the triggering section" when action sectionId is the trigger sentinel', () => {
+    const trigger: TriggerConfig = {
+      type: 'section_created',
+      sectionId: null,
+    };
+    const action: ActionConfig = {
+      type: 'create_card',
+      sectionId: TRIGGER_SECTION_SENTINEL,
+      dateOption: null,
+      position: null,
+      cardTitle: 'Standup Notes',
+      cardDateOption: null,
+      specificMonth: null,
+      specificDay: null,
+      monthTarget: null,
+    };
+    const sectionLookup = () => undefined;
+
+    const parts = buildPreviewParts(trigger, action, sectionLookup);
+    const sentence = buildPreviewString(parts);
+
+    expect(sentence).toContain('the triggering section');
+    expect(sentence).toContain('Standup Notes');
   });
 });

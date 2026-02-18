@@ -2,6 +2,16 @@ import type { TriggerType, ActionType, RelativeDateOption } from '../schemas';
 import type { CardFilter } from '../types';
 
 // ============================================================================
+// Constants
+// ============================================================================
+
+/**
+ * Sentinel value for action.sectionId that means "use the section from the triggering event."
+ * Used when a section-level trigger (e.g. section_created) should target the newly created section.
+ */
+export const TRIGGER_SECTION_SENTINEL = '__trigger_section__';
+
+// ============================================================================
 // Types
 // ============================================================================
 
@@ -320,7 +330,10 @@ export function buildPreviewParts(
           parts.push({ type: 'text', content: 'create card "' });
           parts.push({ type: 'value', content: action.cardTitle });
           parts.push({ type: 'text', content: '"' });
-          if (action.sectionId) {
+          if (action.sectionId === TRIGGER_SECTION_SENTINEL) {
+            parts.push({ type: 'text', content: ' in ' });
+            parts.push({ type: 'value', content: 'the triggering section' });
+          } else if (action.sectionId) {
             const sectionName = sectionLookup(action.sectionId);
             parts.push({ type: 'text', content: ' in ' });
             parts.push({ type: 'value', content: sectionName || '___' });

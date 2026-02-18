@@ -35,12 +35,14 @@ interface RuleCardProps {
 const TRIGGER_CATEGORY_COLORS: Record<string, string> = {
   card_move: 'border-blue-500 bg-blue-500/10 text-blue-700 dark:text-blue-300',
   card_change: 'border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+  section_change: 'border-violet-500 bg-violet-500/10 text-violet-700 dark:text-violet-300',
 };
 
 const ACTION_CATEGORY_COLORS: Record<string, string> = {
   move: 'border-sky-500 bg-sky-500/10 text-sky-700 dark:text-sky-300',
   status: 'border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
   dates: 'border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+  create: 'border-purple-500 bg-purple-500/10 text-purple-700 dark:text-purple-300',
 };
 
 export function RuleCard({

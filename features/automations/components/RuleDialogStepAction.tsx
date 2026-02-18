@@ -15,25 +15,63 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { SectionPicker } from './SectionPicker';
 import { DateOptionSelect } from './DateOptionSelect';
-import { ACTION_META, type ActionConfig } from '../services/rulePreviewService';
+import { ACTION_META, TRIGGER_SECTION_SENTINEL, type ActionConfig } from '../services/rulePreviewService';
 import type { Section } from '@/lib/schemas';
 
 interface RuleDialogStepActionProps {
   action: ActionConfig;
   onActionChange: (action: ActionConfig) => void;
   sections: Section[];
+  triggerType?: string | null;
+}
+
+/**
+ * Determines if an action is compatible with a given trigger type.
+ * Section-level triggers (section_created, section_renamed) can only execute actions
+ * that don't require a card context (e.g., create_card).
+ * Card-level triggers can execute all card-level actions.
+ */
+function isActionCompatibleWithTrigger(actionType: string, triggerType: string | null | undefined): boolean {
+  if (!triggerType) return true;
+  
+  // Section-level triggers
+  const sectionLevelTriggers = ['section_created', 'section_renamed'];
+  if (sectionLevelTriggers.includes(triggerType)) {
+    // Section triggers can only create cards (no existing card to operate on)
+    const sectionCompatibleActions = ['create_card'];
+    return sectionCompatibleActions.includes(actionType);
+  }
+  
+  // Card-level triggers can execute all card-level actions
+  return true;
 }
 
 export function RuleDialogStepAction({
   action,
   onActionChange,
   sections,
+  triggerType,
 }: RuleDialogStepActionProps) {
-  // Group actions by category
-  const moveActions = ACTION_META.filter((a) => a.category === 'move');
-  const statusActions = ACTION_META.filter((a) => a.category === 'status');
-  const dateActions = ACTION_META.filter((a) => a.category === 'dates');
-  const createActions = ACTION_META.filter((a) => a.category === 'create');
+  // Group actions by category and filter by trigger compatibility
+  const moveActions = ACTION_META.filter((a) => 
+    a.category === 'move' && isActionCompatibleWithTrigger(a.type, triggerType)
+  );
+  const statusActions = ACTION_META.filter((a) => 
+    a.category === 'status' && isActionCompatibleWithTrigger(a.type, triggerType)
+  );
+  const dateActions = ACTION_META.filter((a) => 
+    a.category === 'dates' && isActionCompatibleWithTrigger(a.type, triggerType)
+  );
+  const createActions = ACTION_META.filter((a) => 
+    a.category === 'create' && isActionCompatibleWithTrigger(a.type, triggerType)
+  );
+  
+  // Check if any actions are available
+  const hasAnyActions = moveActions.length > 0 || statusActions.length > 0 || 
+                        dateActions.length > 0 || createActions.length > 0;
+
+  // Whether the current trigger is section-level (section_created, section_renamed)
+  const isSectionLevelTrigger = triggerType === 'section_created' || triggerType === 'section_renamed';
 
   const handleActionTypeChange = (type: string) => {
     const actionMeta = ACTION_META.find((a) => a.type === type);
@@ -112,12 +150,25 @@ export function RuleDialogStepAction({
 
   return (
     <div className="space-y-4">
+      {/* Show message when no actions are available */}
+      {!hasAnyActions && (
+        <div className="rounded-md bg-muted/50 border border-muted px-4 py-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            Section-level triggers don't currently support automated actions.
+          </p>
+          <p className="text-xs text-muted-foreground mt-2">
+            Card-level actions require a card context. Consider using a card-level trigger instead.
+          </p>
+        </div>
+      )}
+
       {/* Move Category */}
-      <Card className="border-l-4 border-l-sky-500">
-        <CardHeader>
-          <CardTitle className="text-base">Move</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
+      {moveActions.length > 0 && (
+        <Card className="border-l-4 border-l-sky-500">
+          <CardHeader>
+            <CardTitle className="text-base">Move</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
           {moveActions.map((actionMeta) => (
             <label
               key={actionMeta.type}
@@ -160,13 +211,15 @@ export function RuleDialogStepAction({
           ))}
         </CardContent>
       </Card>
+      )}
 
       {/* Status Category */}
-      <Card className="border-l-4 border-l-emerald-500">
-        <CardHeader>
-          <CardTitle className="text-base">Status</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
+      {statusActions.length > 0 && (
+        <Card className="border-l-4 border-l-emerald-500">
+          <CardHeader>
+            <CardTitle className="text-base">Status</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
           {statusActions.map((actionMeta) => (
             <label
               key={actionMeta.type}
@@ -187,13 +240,15 @@ export function RuleDialogStepAction({
           ))}
         </CardContent>
       </Card>
+      )}
 
       {/* Dates Category */}
-      <Card className="border-l-4 border-l-amber-500">
-        <CardHeader>
-          <CardTitle className="text-base">Dates</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
+      {dateActions.length > 0 && (
+        <Card className="border-l-4 border-l-amber-500">
+          <CardHeader>
+            <CardTitle className="text-base">Dates</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
           {dateActions.map((actionMeta) => (
             <label
               key={actionMeta.type}
@@ -226,9 +281,11 @@ export function RuleDialogStepAction({
           ))}
         </CardContent>
       </Card>
+      )}
 
       {/* Create/Remove Category */}
-      <Card className="border-l-4 border-l-amber-500">
+      {createActions.length > 0 && (
+        <Card className="border-l-4 border-l-amber-500">
         <CardHeader>
           <CardTitle className="text-base">Create/Remove</CardTitle>
         </CardHeader>
@@ -262,12 +319,38 @@ export function RuleDialogStepAction({
                   </div>
                 )}
                 {action.type === actionMeta.type && actionMeta.needsSection && (
-                  <SectionPicker
-                    sections={sections}
-                    value={action.sectionId}
-                    onChange={handleSectionChange}
-                    placeholder="Select section..."
-                  />
+                  isSectionLevelTrigger ? (
+                    <Select
+                      value={action.sectionId ?? undefined}
+                      onValueChange={handleSectionChange}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select section..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={TRIGGER_SECTION_SENTINEL}>
+                          📍 The triggering section
+                        </SelectItem>
+                        {sections.length > 0 && (
+                          <SelectGroup>
+                            <SelectLabel>Existing sections</SelectLabel>
+                            {sections.map((s) => (
+                              <SelectItem key={s.id} value={s.id}>
+                                {s.name}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <SectionPicker
+                      sections={sections}
+                      value={action.sectionId}
+                      onChange={handleSectionChange}
+                      placeholder="Select section..."
+                    />
+                  )
                 )}
                 {action.type === actionMeta.type && actionMeta.needsCardDateOption && (
                   <div className="space-y-2">
@@ -306,6 +389,7 @@ export function RuleDialogStepAction({
           ))}
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }
