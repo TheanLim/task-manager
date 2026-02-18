@@ -1,15 +1,16 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { ProjectTabs } from '@/features/projects/components/ProjectTabs';
 import { ProjectOverview } from '@/features/projects/components/ProjectOverview';
 import { TaskList } from '@/features/tasks/components/TaskList';
 import { TaskBoard } from '@/features/tasks/components/TaskBoard';
 import { TaskCalendar } from '@/features/tasks/components/TaskCalendar';
+import { AutomationTab } from '@/features/automations/components/AutomationTab';
 import { InlineEditable } from '@/components/InlineEditable';
 import { ShareButton } from '@/features/sharing/components/ShareButton';
-import { useDataStore } from '@/stores/dataStore';
+import { useDataStore, automationRuleRepository } from '@/stores/dataStore';
 import { useAppStore } from '@/stores/appStore';
 import { useFilteredTasks } from '@/features/tasks/hooks/useFilteredTasks';
 import { validateProjectName } from '@/lib/validation';
@@ -54,6 +55,32 @@ export function ProjectView({
   const projectTasks = activeProject ? tasks.filter(t => t.projectId === activeProject.id) : [];
   const projectSections = activeProject ? getSectionsByProjectId(activeProject.id) : [];
   const filteredTasks = useFilteredTasks(projectTasks);
+
+  // Compute enabled rule count for the automations tab badge (reactive to repository changes)
+  const [enabledRuleCount, setEnabledRuleCount] = useState(() => {
+    if (!activeProject) return 0;
+    const rules = automationRuleRepository.findByProjectId(activeProject.id);
+    return rules.filter(rule => rule.enabled).length;
+  });
+
+  useEffect(() => {
+    if (!activeProject) return;
+
+    // Update count immediately
+    const updateCount = () => {
+      const rules = automationRuleRepository.findByProjectId(activeProject.id);
+      setEnabledRuleCount(rules.filter(rule => rule.enabled).length);
+    };
+
+    updateCount();
+
+    // Subscribe to repository changes
+    const unsubscribe = automationRuleRepository.subscribe(() => {
+      updateCount();
+    });
+
+    return unsubscribe;
+  }, [activeProject]);
 
   // Navigate to a specific tab
   const navigateToTab = (tab: string) => {
@@ -104,6 +131,7 @@ export function ProjectView({
         <ProjectTabs
           activeTab={tabFromUrl}
           onTabChange={navigateToTab}
+          enabledRuleCount={enabledRuleCount}
         >
           {{
             overview: (
@@ -145,6 +173,12 @@ export function ProjectView({
                 tasks={filteredTasks}
                 onTaskClick={onTaskClick}
                 onTaskComplete={onTaskComplete}
+              />
+            ),
+            automations: (
+              <AutomationTab
+                projectId={activeProject.id}
+                sections={projectSections}
               />
             ),
           }}

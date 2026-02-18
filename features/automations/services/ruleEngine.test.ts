@@ -445,6 +445,7 @@ describe('Property 7: Rule engine disabled/broken rule filtering', () => {
             const state = i % 3;
             return {
               ...r,
+              id: `${r.id}-${i}`, // Ensure unique IDs
               enabled: state !== 1, // Every 3rd rule is disabled
               brokenReason: state === 2 ? 'section_deleted' : null, // Every 3rd rule is broken
               trigger: {
