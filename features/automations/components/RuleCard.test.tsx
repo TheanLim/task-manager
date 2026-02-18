@@ -1,0 +1,317 @@
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import * as fc from 'fast-check';
+import { RuleCard } from './RuleCard';
+import type { AutomationRule } from '../types';
+import type { Section } from '@/lib/schemas';
+
+// Mock sections for testing
+const mockSections: Section[] = [
+  { id: 'section-1', projectId: 'project-1', name: 'To Do', order: 0, createdAt: '2024-01-01T00:00:00Z', updatedAt: '2024-01-01T00:00:00Z' },
+  { id: 'section-2', projectId: 'project-1', name: 'In Progress', order: 1, createdAt: '2024-01-01T00:00:00Z', updatedAt: '2024-01-01T00:00:00Z' },
+  { id: 'section-3', projectId: 'project-1', name: 'Done', order: 2, createdAt: '2024-01-01T00:00:00Z', updatedAt: '2024-01-01T00:00:00Z' },
+];
+
+// Helper to create a mock rule
+function createMockRule(overrides?: Partial<AutomationRule>): AutomationRule {
+  return {
+    id: 'rule-1',
+    projectId: 'project-1',
+    name: 'Test Rule',
+    trigger: {
+      type: 'card_moved_into_section',
+      sectionId: 'section-1',
+    },
+    action: {
+      type: 'move_card_to_top_of_section',
+      sectionId: 'section-2',
+      dateOption: null,
+      position: 'top',
+    },
+    enabled: true,
+    brokenReason: null,
+    executionCount: 5,
+    lastExecutedAt: '2024-01-15T10:30:00Z',
+    order: 0,
+    createdAt: '2024-01-01T00:00:00Z',
+    updatedAt: '2024-01-01T00:00:00Z',
+    ...overrides,
+  };
+}
+
+describe('RuleCard', () => {
+  const mockHandlers = {
+    onEdit: vi.fn(),
+    onDuplicate: vi.fn(),
+    onDelete: vi.fn(),
+    onToggle: vi.fn(),
+  };
+
+  it('renders rule name', () => {
+    const rule = createMockRule({ name: 'My Automation Rule' });
+    render(<RuleCard rule={rule} sections={mockSections} {...mockHandlers} />);
+    
+    expect(screen.getByText('My Automation Rule')).toBeInTheDocument();
+  });
+
+  it('renders natural language description via RulePreview', () => {
+    const rule = createMockRule();
+    render(<RuleCard rule={rule} sections={mockSections} {...mockHandlers} />);
+    
+    // RulePreview should render the trigger and action
+    expect(screen.getByText(/When a card is/)).toBeInTheDocument();
+  });
+
+  it('renders trigger and action type badges', () => {
+    const rule = createMockRule();
+    render(<RuleCard rule={rule} sections={mockSections} {...mockHandlers} />);
+    
+    expect(screen.getByText('moved into section')).toBeInTheDocument();
+    expect(screen.getByText('move to top of section')).toBeInTheDocument();
+  });
+
+  it('renders execution stats', () => {
+    const rule = createMockRule({ executionCount: 10 });
+    render(<RuleCard rule={rule} sections={mockSections} {...mockHandlers} />);
+    
+    expect(screen.getByText(/Ran 10 times/)).toBeInTheDocument();
+    expect(screen.getByText(/Last fired/)).toBeInTheDocument();
+  });
+
+  it('renders "time" singular when executionCount is 1', () => {
+    const rule = createMockRule({ executionCount: 1 });
+    render(<RuleCard rule={rule} sections={mockSections} {...mockHandlers} />);
+    
+    expect(screen.getByText(/Ran 1 time/)).toBeInTheDocument();
+  });
+
+  it('renders "Never" when lastExecutedAt is null', () => {
+    const rule = createMockRule({ lastExecutedAt: null });
+    render(<RuleCard rule={rule} sections={mockSections} {...mockHandlers} />);
+    
+    expect(screen.getByText(/Last fired Never/)).toBeInTheDocument();
+  });
+
+  it('renders enabled switch with correct aria-label', () => {
+    const rule = createMockRule({ name: 'Test Automation' });
+    render(<RuleCard rule={rule} sections={mockSections} {...mockHandlers} />);
+    
+    const switchElement = screen.getByRole('switch', { name: 'Enable rule Test Automation' });
+    expect(switchElement).toBeInTheDocument();
+    expect(switchElement).toBeChecked();
+  });
+
+  it('calls onToggle when switch is clicked', async () => {
+    const user = userEvent.setup();
+    const rule = createMockRule();
+    render(<RuleCard rule={rule} sections={mockSections} {...mockHandlers} />);
+    
+    const switchElement = screen.getByRole('switch');
+    await user.click(switchElement);
+    
+    expect(mockHandlers.onToggle).toHaveBeenCalledWith('rule-1');
+  });
+
+  it('renders actions menu with Edit, Duplicate, Delete options', async () => {
+    const user = userEvent.setup();
+    const rule = createMockRule();
+    render(<RuleCard rule={rule} sections={mockSections} {...mockHandlers} />);
+    
+    const menuButton = screen.getByRole('button', { name: /open menu/i });
+    await user.click(menuButton);
+    
+    expect(screen.getByText('Edit')).toBeInTheDocument();
+    expect(screen.getByText('Duplicate')).toBeInTheDocument();
+    expect(screen.getByText('Delete')).toBeInTheDocument();
+  });
+
+  it('calls onEdit when Edit is clicked', async () => {
+    const user = userEvent.setup();
+    const rule = createMockRule();
+    render(<RuleCard rule={rule} sections={mockSections} {...mockHandlers} />);
+    
+    const menuButton = screen.getByRole('button', { name: /open menu/i });
+    await user.click(menuButton);
+    
+    const editButton = screen.getByText('Edit');
+    await user.click(editButton);
+    
+    expect(mockHandlers.onEdit).toHaveBeenCalledWith('rule-1');
+  });
+
+  it('calls onDuplicate when Duplicate is clicked', async () => {
+    const user = userEvent.setup();
+    const rule = createMockRule();
+    render(<RuleCard rule={rule} sections={mockSections} {...mockHandlers} />);
+    
+    const menuButton = screen.getByRole('button', { name: /open menu/i });
+    await user.click(menuButton);
+    
+    const duplicateButton = screen.getByText('Duplicate');
+    await user.click(duplicateButton);
+    
+    expect(mockHandlers.onDuplicate).toHaveBeenCalledWith('rule-1');
+  });
+
+  it('calls onDelete when Delete is clicked', async () => {
+    const user = userEvent.setup();
+    const rule = createMockRule();
+    render(<RuleCard rule={rule} sections={mockSections} {...mockHandlers} />);
+    
+    const menuButton = screen.getByRole('button', { name: /open menu/i });
+    await user.click(menuButton);
+    
+    const deleteButton = screen.getByText('Delete');
+    await user.click(deleteButton);
+    
+    expect(mockHandlers.onDelete).toHaveBeenCalledWith('rule-1');
+  });
+
+  describe('disabled state', () => {
+    it('renders with reduced opacity when disabled', () => {
+      const rule = createMockRule({ enabled: false });
+      const { container } = render(<RuleCard rule={rule} sections={mockSections} {...mockHandlers} />);
+      
+      const card = container.querySelector('.opacity-60');
+      expect(card).toBeInTheDocument();
+    });
+
+    it('renders "Paused" badge when disabled', () => {
+      const rule = createMockRule({ enabled: false });
+      render(<RuleCard rule={rule} sections={mockSections} {...mockHandlers} />);
+      
+      expect(screen.getByText('Paused')).toBeInTheDocument();
+    });
+
+    it('switch is unchecked when disabled', () => {
+      const rule = createMockRule({ enabled: false });
+      render(<RuleCard rule={rule} sections={mockSections} {...mockHandlers} />);
+      
+      const switchElement = screen.getByRole('switch');
+      expect(switchElement).not.toBeChecked();
+    });
+  });
+
+  describe('broken state', () => {
+    it('renders warning icon when brokenReason is set', () => {
+      const rule = createMockRule({ brokenReason: 'section_deleted' });
+      const { container } = render(<RuleCard rule={rule} sections={mockSections} {...mockHandlers} />);
+      
+      // AlertTriangle icon should be present (check for the SVG with specific class)
+      const icon = container.querySelector('.lucide-triangle-alert');
+      expect(icon).toBeInTheDocument();
+    });
+
+    it('shows tooltip with broken reason message on hover', async () => {
+      const user = userEvent.setup();
+      const rule = createMockRule({ brokenReason: 'section_deleted' });
+      const { container } = render(<RuleCard rule={rule} sections={mockSections} {...mockHandlers} />);
+      
+      const icon = container.querySelector('.lucide-triangle-alert');
+      expect(icon).toBeInTheDocument();
+      
+      if (icon) {
+        await user.hover(icon);
+        
+        // Tooltip should appear - use getAllByText since tooltip may be duplicated in DOM
+        const tooltips = await screen.findAllByText('This rule references a deleted section');
+        expect(tooltips.length).toBeGreaterThan(0);
+      }
+    });
+  });
+
+  describe('time formatting', () => {
+    it('formats recent execution as "Just now"', () => {
+      const now = new Date();
+      const rule = createMockRule({ lastExecutedAt: now.toISOString() });
+      render(<RuleCard rule={rule} sections={mockSections} {...mockHandlers} />);
+      
+      expect(screen.getByText(/Last fired Just now/)).toBeInTheDocument();
+    });
+
+    it('formats execution in minutes', () => {
+      const now = new Date();
+      const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+      const rule = createMockRule({ lastExecutedAt: fiveMinutesAgo.toISOString() });
+      render(<RuleCard rule={rule} sections={mockSections} {...mockHandlers} />);
+      
+      expect(screen.getByText(/Last fired 5m ago/)).toBeInTheDocument();
+    });
+
+    it('formats execution in hours', () => {
+      const now = new Date();
+      const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+      const rule = createMockRule({ lastExecutedAt: twoHoursAgo.toISOString() });
+      render(<RuleCard rule={rule} sections={mockSections} {...mockHandlers} />);
+      
+      expect(screen.getByText(/Last fired 2h ago/)).toBeInTheDocument();
+    });
+
+    it('formats execution in days', () => {
+      const now = new Date();
+      const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+      const rule = createMockRule({ lastExecutedAt: threeDaysAgo.toISOString() });
+      render(<RuleCard rule={rule} sections={mockSections} {...mockHandlers} />);
+      
+      expect(screen.getByText(/Last fired 3d ago/)).toBeInTheDocument();
+    });
+  });
+
+  describe('Property 11: Rule card renders correct visual state', () => {
+    it('validates Requirements 9.2, 9.3, 9.4, 14.4', () => {
+      fc.assert(
+        fc.property(
+          // Generate random automation rules with varying states
+          fc.record({
+            id: fc.hexaString({ minLength: 8, maxLength: 16 }),
+            projectId: fc.hexaString({ minLength: 8, maxLength: 16 }),
+            name: fc.string({ minLength: 3, maxLength: 30 }).map(s => s.trim() || 'Test Rule'),
+            enabled: fc.boolean(),
+            brokenReason: fc.oneof(fc.constant(null), fc.constant('section_deleted')),
+            executionCount: fc.nat({ max: 1000 }),
+            lastExecutedAt: fc.oneof(
+              fc.constant(null),
+              fc.date({ min: new Date('2024-01-01'), max: new Date() }).map(d => d.toISOString())
+            ),
+          }),
+          (ruleData) => {
+            const rule = createMockRule(ruleData as any);
+            const { container } = render(
+              <RuleCard rule={rule} sections={mockSections} {...mockHandlers} />
+            );
+
+            // Assert: name is present (check heading exists with the name)
+            const heading = container.querySelector('h3');
+            expect(heading).toBeInTheDocument();
+            expect(heading?.textContent).toBe(rule.name);
+
+            // Assert: description is present (RulePreview renders)
+            expect(screen.getByText(/When a card is/)).toBeInTheDocument();
+
+            // Assert: correct opacity for disabled state
+            if (!rule.enabled) {
+              const card = container.querySelector('.opacity-60');
+              expect(card).toBeInTheDocument();
+              expect(screen.getByText('Paused')).toBeInTheDocument();
+            }
+
+            // Assert: warning icon for broken state
+            if (rule.brokenReason !== null) {
+              const icon = container.querySelector('.lucide-triangle-alert');
+              expect(icon).toBeInTheDocument();
+            }
+
+            // Assert: aria-label contains rule name
+            const switchElement = screen.getByRole('switch');
+            expect(switchElement).toHaveAttribute('aria-label', `Enable rule ${rule.name}`);
+
+            // Cleanup for next iteration
+            container.remove();
+          }
+        ),
+        { numRuns: 100 }
+      );
+    });
+  });
+});

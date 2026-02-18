@@ -7,9 +7,11 @@ import {
   LocalStorageSectionRepository,
   LocalStorageDependencyRepository,
 } from '@/lib/repositories/localStorageRepositories';
+import { LocalStorageAutomationRuleRepository } from '@/features/automations/repositories/localStorageAutomationRuleRepository';
 import { TaskService } from '@/features/tasks/services/taskService';
 import { ProjectService } from './projectService';
 import type { Project, Task, Section, TaskDependency } from '@/lib/schemas';
+import type { AutomationRule } from '@/features/automations/types';
 
 const PROPERTY_CONFIG = { numRuns: 100 };
 
@@ -56,6 +58,32 @@ function makeSection(id: string, projectId: string, name: string, order: number)
     name,
     order,
     collapsed: false,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+function makeAutomationRule(id: string, projectId: string, order: number): AutomationRule {
+  const now = new Date().toISOString();
+  return {
+    id,
+    projectId,
+    name: `Rule ${order}`,
+    trigger: {
+      type: 'card_moved_into_section',
+      sectionId: null,
+    },
+    action: {
+      type: 'mark_card_complete',
+      sectionId: null,
+      dateOption: null,
+      position: null,
+    },
+    enabled: true,
+    brokenReason: null,
+    executionCount: 0,
+    lastExecutedAt: null,
+    order,
     createdAt: now,
     updatedAt: now,
   };
@@ -123,6 +151,7 @@ describe('Feature: architecture-refactor', () => {
   let sectionRepo: LocalStorageSectionRepository;
   let taskRepo: LocalStorageTaskRepository;
   let depRepo: LocalStorageDependencyRepository;
+  let automationRuleRepo: LocalStorageAutomationRuleRepository;
   let taskService: TaskService;
   let projectService: ProjectService;
 
@@ -133,8 +162,9 @@ describe('Feature: architecture-refactor', () => {
     sectionRepo = new LocalStorageSectionRepository(backend);
     taskRepo = new LocalStorageTaskRepository(backend);
     depRepo = new LocalStorageDependencyRepository(backend);
+    automationRuleRepo = new LocalStorageAutomationRuleRepository();
     taskService = new TaskService(taskRepo, depRepo);
-    projectService = new ProjectService(projectRepo, sectionRepo, taskService, taskRepo);
+    projectService = new ProjectService(projectRepo, sectionRepo, taskService, taskRepo, automationRuleRepo);
   });
 
   describe('Property 6: ProjectService cascade delete removes all project entities', () => {
@@ -155,8 +185,9 @@ describe('Feature: architecture-refactor', () => {
           const sr = new LocalStorageSectionRepository(b);
           const tr = new LocalStorageTaskRepository(b);
           const dr = new LocalStorageDependencyRepository(b);
+          const ar = new LocalStorageAutomationRuleRepository();
           const ts = new TaskService(tr, dr);
-          const ps = new ProjectService(pr, sr, ts, tr);
+          const ps = new ProjectService(pr, sr, ts, tr, ar);
 
           // Create the project
           pr.create(project);
@@ -221,8 +252,9 @@ describe('Feature: architecture-refactor', () => {
           const sr = new LocalStorageSectionRepository(b);
           const tr = new LocalStorageTaskRepository(b);
           const dr = new LocalStorageDependencyRepository(b);
+          const ar = new LocalStorageAutomationRuleRepository();
           const ts = new TaskService(tr, dr);
-          const ps = new ProjectService(pr, sr, ts, tr);
+          const ps = new ProjectService(pr, sr, ts, tr, ar);
 
           // Create project with defaults
           ps.createWithDefaults(project);
@@ -240,6 +272,61 @@ describe('Feature: architecture-refactor', () => {
             expect(section.projectId).toBe(project.id);
           }
         }),
+        PROPERTY_CONFIG,
+      );
+    });
+  });
+
+  describe('Property 14: Cascade delete removes project rules', () => {
+    it('Feature: automations-foundation, Property 14: Cascade delete removes project rules', () => {
+      /**
+       * **Validates: Requirements 8.3**
+       *
+       * For any project with associated automation rules, calling
+       * ProjectService.cascadeDelete(projectId) SHALL result in zero
+       * automation rules remaining for that projectId in the repository.
+       */
+      fc.assert(
+        fc.property(
+          fc.uuid(),
+          fc.array(fc.uuid(), { minLength: 1, maxLength: 5 }),
+          (projectId, ruleIds) => {
+            // Fresh state for each iteration
+            localStorage.clear();
+            const b = new LocalStorageBackend();
+            const pr = new LocalStorageProjectRepository(b);
+            const sr = new LocalStorageSectionRepository(b);
+            const tr = new LocalStorageTaskRepository(b);
+            const dr = new LocalStorageDependencyRepository(b);
+            const ar = new LocalStorageAutomationRuleRepository();
+            const ts = new TaskService(tr, dr);
+            const ps = new ProjectService(pr, sr, ts, tr, ar);
+
+            // Create the project
+            const project = makeProject(projectId);
+            pr.create(project);
+
+            // Create automation rules for this project
+            for (let i = 0; i < ruleIds.length; i++) {
+              const rule = makeAutomationRule(ruleIds[i], projectId, i);
+              ar.create(rule);
+            }
+
+            // Verify rules exist before deletion
+            const rulesBefore = ar.findByProjectId(projectId);
+            expect(rulesBefore).toHaveLength(ruleIds.length);
+
+            // Cascade delete the project
+            ps.cascadeDelete(projectId);
+
+            // Verify: zero automation rules remain for this project
+            const rulesAfter = ar.findByProjectId(projectId);
+            expect(rulesAfter).toHaveLength(0);
+
+            // Verify: the project itself is deleted
+            expect(pr.findById(projectId)).toBeUndefined();
+          },
+        ),
         PROPERTY_CONFIG,
       );
     });

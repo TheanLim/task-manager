@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import fc from 'fast-check';
 import { LocalStorageBackend } from '@/lib/repositories/localStorageBackend';
 import {
@@ -7,6 +7,7 @@ import {
 } from '@/lib/repositories/localStorageRepositories';
 import { TaskService, getEffectiveLastActionTime } from './taskService';
 import type { Task, TaskDependency } from '@/lib/schemas';
+import type { DomainEvent } from '@/features/automations/types';
 
 const PROPERTY_CONFIG = { numRuns: 100 };
 
@@ -691,3 +692,203 @@ describe('Feature: task-last-action-ordering, Property 4: Column sort overrides 
   });
 });
 
+
+describe('TaskService domain event emission', () => {
+  let backend: LocalStorageBackend;
+  let taskRepo: LocalStorageTaskRepository;
+  let depRepo: LocalStorageDependencyRepository;
+
+  beforeEach(() => {
+    localStorage.clear();
+    backend = new LocalStorageBackend();
+    taskRepo = new LocalStorageTaskRepository(backend);
+    depRepo = new LocalStorageDependencyRepository(backend);
+  });
+
+  describe('cascadeDelete emits task.deleted events', () => {
+    it('emits task.deleted event for single task', () => {
+      const events: DomainEvent[] = [];
+      const emitEvent = vi.fn((event: DomainEvent) => events.push(event));
+      const taskService = new TaskService(taskRepo, depRepo, emitEvent);
+
+      const task = makeTask('00000000-0000-4000-8000-000000000001', 'project-1', null);
+      taskRepo.create(task);
+
+      taskService.cascadeDelete(task.id);
+
+      expect(emitEvent).toHaveBeenCalledTimes(1);
+      expect(events[0]).toMatchObject({
+        type: 'task.deleted',
+        entityId: task.id,
+        projectId: 'project-1',
+        depth: 0,
+      });
+      expect(events[0].previousValues).toMatchObject({
+        id: task.id,
+        projectId: 'project-1',
+      });
+    });
+
+    it('emits task.deleted events for task tree', () => {
+      const events: DomainEvent[] = [];
+      const emitEvent = vi.fn((event: DomainEvent) => events.push(event));
+      const taskService = new TaskService(taskRepo, depRepo, emitEvent);
+
+      const parent = makeTask('00000000-0000-4000-8000-000000000001', 'project-1', null);
+      const child1 = makeTask('00000000-0000-4000-8000-000000000002', 'project-1', parent.id);
+      const child2 = makeTask('00000000-0000-4000-8000-000000000003', 'project-1', parent.id);
+
+      taskRepo.create(parent);
+      taskRepo.create(child1);
+      taskRepo.create(child2);
+
+      taskService.cascadeDelete(parent.id);
+
+      expect(emitEvent).toHaveBeenCalledTimes(3);
+      // Events should be emitted bottom-up (children first, parent last)
+      expect(events.map(e => e.entityId)).toEqual([child2.id, child1.id, parent.id]);
+      events.forEach(event => {
+        expect(event.type).toBe('task.deleted');
+        expect(event.projectId).toBe('project-1');
+        expect(event.depth).toBe(0);
+      });
+    });
+
+    it('does not emit events when emitEvent callback is not provided', () => {
+      const taskService = new TaskService(taskRepo, depRepo);
+
+      const task = makeTask('00000000-0000-4000-8000-000000000001', 'project-1', null);
+      taskRepo.create(task);
+
+      // Should not throw
+      expect(() => taskService.cascadeDelete(task.id)).not.toThrow();
+    });
+  });
+
+  describe('cascadeComplete emits task.updated events', () => {
+    it('emits task.updated event when completing a task', () => {
+      const events: DomainEvent[] = [];
+      const emitEvent = vi.fn((event: DomainEvent) => events.push(event));
+      const taskService = new TaskService(taskRepo, depRepo, emitEvent);
+
+      const task = makeTask('00000000-0000-4000-8000-000000000001', 'project-1', null);
+      task.completed = false;
+      task.completedAt = null;
+      taskRepo.create(task);
+
+      taskService.cascadeComplete(task.id, true);
+
+      expect(emitEvent).toHaveBeenCalledTimes(1);
+      expect(events[0]).toMatchObject({
+        type: 'task.updated',
+        entityId: task.id,
+        projectId: 'project-1',
+        depth: 0,
+      });
+      expect(events[0].changes).toMatchObject({
+        completed: true,
+      });
+      expect(events[0].changes.completedAt).toBeTruthy();
+      expect(events[0].previousValues).toMatchObject({
+        completed: false,
+        completedAt: null,
+      });
+    });
+
+    it('emits task.updated event when uncompleting a task', () => {
+      const events: DomainEvent[] = [];
+      const emitEvent = vi.fn((event: DomainEvent) => events.push(event));
+      const taskService = new TaskService(taskRepo, depRepo, emitEvent);
+
+      const task = makeTask('00000000-0000-4000-8000-000000000001', 'project-1', null);
+      task.completed = true;
+      task.completedAt = '2025-01-01T00:00:00.000Z';
+      taskRepo.create(task);
+
+      taskService.cascadeComplete(task.id, false);
+
+      expect(emitEvent).toHaveBeenCalledTimes(1);
+      expect(events[0]).toMatchObject({
+        type: 'task.updated',
+        entityId: task.id,
+        projectId: 'project-1',
+        depth: 0,
+      });
+      expect(events[0].changes).toMatchObject({
+        completed: false,
+        completedAt: null,
+      });
+      expect(events[0].previousValues).toMatchObject({
+        completed: true,
+        completedAt: '2025-01-01T00:00:00.000Z',
+      });
+    });
+
+    it('emits task.updated events for parent and all descendants when completing', () => {
+      const events: DomainEvent[] = [];
+      const emitEvent = vi.fn((event: DomainEvent) => events.push(event));
+      const taskService = new TaskService(taskRepo, depRepo, emitEvent);
+
+      const parent = makeTask('00000000-0000-4000-8000-000000000001', 'project-1', null);
+      parent.completed = false;
+      const child1 = makeTask('00000000-0000-4000-8000-000000000002', 'project-1', parent.id);
+      child1.completed = false;
+      const child2 = makeTask('00000000-0000-4000-8000-000000000003', 'project-1', parent.id);
+      child2.completed = false;
+
+      taskRepo.create(parent);
+      taskRepo.create(child1);
+      taskRepo.create(child2);
+
+      taskService.cascadeComplete(parent.id, true);
+
+      expect(emitEvent).toHaveBeenCalledTimes(3);
+      // Parent first, then descendants
+      expect(events[0].entityId).toBe(parent.id);
+      expect(events.slice(1).map(e => e.entityId)).toContain(child1.id);
+      expect(events.slice(1).map(e => e.entityId)).toContain(child2.id);
+      
+      events.forEach(event => {
+        expect(event.type).toBe('task.updated');
+        expect(event.projectId).toBe('project-1');
+        expect(event.depth).toBe(0);
+        expect(event.changes.completed).toBe(true);
+        expect(event.previousValues.completed).toBe(false);
+      });
+    });
+
+    it('emits only one event when uncompleting (no cascade)', () => {
+      const events: DomainEvent[] = [];
+      const emitEvent = vi.fn((event: DomainEvent) => events.push(event));
+      const taskService = new TaskService(taskRepo, depRepo, emitEvent);
+
+      const parent = makeTask('00000000-0000-4000-8000-000000000001', 'project-1', null);
+      parent.completed = true;
+      parent.completedAt = '2025-01-01T00:00:00.000Z';
+      const child1 = makeTask('00000000-0000-4000-8000-000000000002', 'project-1', parent.id);
+      child1.completed = true;
+      child1.completedAt = '2025-01-01T00:00:00.000Z';
+
+      taskRepo.create(parent);
+      taskRepo.create(child1);
+
+      taskService.cascadeComplete(parent.id, false);
+
+      // Only parent should be uncompleted, not children
+      expect(emitEvent).toHaveBeenCalledTimes(1);
+      expect(events[0].entityId).toBe(parent.id);
+      expect(events[0].changes.completed).toBe(false);
+    });
+
+    it('does not emit events when emitEvent callback is not provided', () => {
+      const taskService = new TaskService(taskRepo, depRepo);
+
+      const task = makeTask('00000000-0000-4000-8000-000000000001', 'project-1', null);
+      task.completed = false;
+      taskRepo.create(task);
+
+      // Should not throw
+      expect(() => taskService.cascadeComplete(task.id, true)).not.toThrow();
+    });
+  });
+});

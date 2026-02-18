@@ -34,6 +34,7 @@ export interface TaskDetailPanelState {
 export interface LoadingToastState {
   message: string;
   type: 'success' | 'error' | 'info';
+  duration?: number;
 }
 
 export interface DialogManagerState {
@@ -76,7 +77,7 @@ export interface DialogManagerActions {
   setIsResizingTaskPanel: (resizing: boolean) => void;
 
   // Loading toast
-  showToast: (message: string, type: 'success' | 'error' | 'info') => void;
+  showToast: (message: string, type: 'success' | 'error' | 'info', duration?: number) => void;
   dismissToast: () => void;
 }
 
@@ -219,8 +220,8 @@ export function useDialogManager(): UseDialogManagerReturn {
 
   // --- Toast actions ---
 
-  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info') => {
-    setLoadingToast({ message, type });
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info', duration?: number) => {
+    setLoadingToast({ message, type, duration });
   }, []);
 
   const dismissToast = useCallback(() => {

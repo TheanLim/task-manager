@@ -12,7 +12,7 @@ import { ProjectView } from '@/features/projects/components/ProjectView';
 import { GlobalTasksContainer } from '@/components/GlobalTasksContainer';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
-import { useDataStore } from '@/stores/dataStore';
+import { useDataStore, automationService } from '@/stores/dataStore';
 import { useAppStore } from '@/stores/appStore';
 import { useTMSStore } from '@/features/tms/stores/tmsStore';
 import { getTMSHandler } from '@/features/tms/handlers';
@@ -28,6 +28,7 @@ import { useGlobalShortcuts } from '@/features/keyboard/hooks/useGlobalShortcuts
 import { getDefaultShortcutMap, mergeShortcutMaps } from '@/features/keyboard/services/shortcutService';
 import { ShortcutHelpOverlay } from '@/features/keyboard/components/ShortcutHelpOverlay';
 import { useKeyboardNavStore } from '@/features/keyboard/stores/keyboardNavStore';
+import { formatAutomationToastMessage } from '@/features/automations/services/toastMessageFormatter';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -128,18 +129,30 @@ function HomeContent() {
   });
 
   // --- Shared state loading via useSharedStateLoader ---
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const onLoadResult = useCallback(
     (result: { message: string; type: 'success' | 'error' | 'info' }) => {
       dm.showToast(result.message, result.type);
     },
-    [dm.showToast]
+    [dm]
   );
 
   useSharedStateLoader({
     onSharedStateLoaded: dm.openSharedStateDialog,
     onLoadResult,
   });
+
+  // --- Wire automation service to toast notifications (Requirements 11.1, 11.2, 11.3) ---
+  useEffect(() => {
+    automationService.setRuleExecutionCallback((params) => {
+      const message = formatAutomationToastMessage(params);
+      dm.showToast(message, 'info', 5000);
+    });
+
+    // Cleanup: remove callback on unmount
+    return () => {
+      automationService.setRuleExecutionCallback(undefined);
+    };
+  }, [dm]);
 
   // --- Sync URL with active project and handle invalid project IDs ---
   useEffect(() => {
@@ -632,6 +645,7 @@ function HomeContent() {
         <Toast
           message={dm.loadingToast.message}
           type={dm.loadingToast.type}
+          duration={dm.loadingToast.duration}
           onClose={() => dm.dismissToast()}
         />
       )}
