@@ -1,14 +1,16 @@
 import { Badge } from '@/components/ui/badge';
 import { buildPreviewParts, type TriggerConfig, type ActionConfig } from '../services/rulePreviewService';
-import type { Section } from '@/features/projects/schemas';
+import type { Section } from '@/lib/schemas';
+import type { CardFilter } from '../types';
 
 interface RulePreviewProps {
   trigger: TriggerConfig;
   action: ActionConfig;
   sections: Section[];
+  filters?: CardFilter[];
 }
 
-export function RulePreview({ trigger, action, sections }: RulePreviewProps) {
+export function RulePreview({ trigger, action, sections, filters }: RulePreviewProps) {
   // Create section lookup function
   const sectionLookup = (id: string) => {
     const section = sections.find((s) => s.id === id);
@@ -16,7 +18,7 @@ export function RulePreview({ trigger, action, sections }: RulePreviewProps) {
   };
 
   // Build preview parts
-  const parts = buildPreviewParts(trigger, action, sectionLookup);
+  const parts = buildPreviewParts(trigger, action, sectionLookup, filters);
 
   return (
     <div

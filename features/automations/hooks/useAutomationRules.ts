@@ -93,6 +93,7 @@ export function useAutomationRules(projectId: string): UseAutomationRulesReturn 
           projectId: original.projectId,
           name: `Copy of ${original.name}`,
           trigger: original.trigger,
+          filters: original.filters,
           action: original.action,
           enabled: false,
           brokenReason: original.brokenReason,

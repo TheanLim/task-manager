@@ -629,17 +629,23 @@ describe('Property 9: Executor skips missing entities', () => {
           sectionRepo.clear();
           ruleRepo.clear();
 
+          // Ensure nonExistentTaskId doesn't match any existing task IDs
+          const uniqueTasks = existingTasks.map((t, idx) => ({
+            ...t,
+            id: `existing-${idx}`,
+          }));
+
           // Create some existing tasks
-          existingTasks.forEach(t => taskRepo.create(t as any));
+          uniqueTasks.forEach(t => taskRepo.create(t as any));
 
           // Capture initial state
           const initialTasks = taskRepo.findAll().map(t => ({ ...t }));
 
-          // Create action targeting non-existent task
+          // Create action targeting non-existent task (use a guaranteed non-existent ID)
           const action: RuleAction = {
             ruleId,
             actionType,
-            targetEntityId: nonExistentTaskId,
+            targetEntityId: `non-existent-${nonExistentTaskId}`,
             params: {
               sectionId: 'some-section',
               dateOption: 'today',
@@ -649,7 +655,7 @@ describe('Property 9: Executor skips missing entities', () => {
           // Create triggering event
           const event: DomainEvent = {
             type: 'task.updated',
-            entityId: nonExistentTaskId,
+            entityId: `non-existent-${nonExistentTaskId}`,
             projectId: 'test-project',
             changes: {},
             previousValues: {},
@@ -955,5 +961,603 @@ describe('Property 10: Executor updates rule metadata on success', () => {
       ),
       { numRuns: 100 },
     );
+  });
+});
+
+// Feature: automations-filters-dates, Property 18: create_card action produces a task with correct fields
+// **Validates: Requirements 8.4, 8.5**
+describe('Property 18: create_card action produces a task with correct fields', () => {
+  let taskRepo: MockTaskRepository;
+  let sectionRepo: MockSectionRepository;
+  let ruleRepo: MockAutomationRuleRepository;
+  let taskService: MockTaskService;
+  let executor: RuleExecutor;
+
+  beforeEach(() => {
+    taskRepo = new MockTaskRepository();
+    sectionRepo = new MockSectionRepository();
+    ruleRepo = new MockAutomationRuleRepository();
+    taskService = new MockTaskService();
+    executor = new RuleExecutor(taskRepo as any, sectionRepo as any, taskService as any, ruleRepo);
+  });
+
+  it('for any create_card action with valid title and sectionId, a new task exists with the specified title and sectionId', () => {
+    fc.assert(
+      fc.property(
+        sectionArb,
+        fc.string({ minLength: 1, maxLength: 200 }),
+        idArb,
+        (section, cardTitle, ruleId) => {
+          // Clear repositories
+          taskRepo.clear();
+          sectionRepo.clear();
+          ruleRepo.clear();
+
+          // Create target section
+          sectionRepo.create(section);
+
+          // Count initial tasks
+          const initialTaskCount = taskRepo.findAll().length;
+
+          // Create action
+          const action: RuleAction = {
+            ruleId,
+            actionType: 'create_card',
+            targetEntityId: 'trigger-entity-id', // Not used for create_card
+            params: {
+              sectionId: section.id,
+              cardTitle,
+            },
+          };
+
+          // Create triggering event
+          const event: DomainEvent = {
+            type: 'task.created',
+            entityId: 'some-task-id',
+            projectId: section.projectId || 'test-project',
+            changes: {},
+            previousValues: {},
+            depth: 0,
+          };
+
+          // Execute action
+          const events = executor.executeActions([action], event);
+
+          // Verify a new task was created
+          const allTasks = taskRepo.findAll();
+          expect(allTasks.length).toBe(initialTaskCount + 1);
+
+          // Find the newly created task
+          const newTask = allTasks.find(t => t.description === cardTitle && t.sectionId === section.id);
+          expect(newTask).toBeDefined();
+          expect(newTask!.description).toBe(cardTitle);
+          expect(newTask!.sectionId).toBe(section.id);
+          expect(newTask!.projectId).toBe(section.projectId);
+
+          // Verify a task.created event was emitted
+          expect(events.length).toBe(1);
+          expect(events[0].type).toBe('task.created');
+          expect(events[0].entityId).toBe(newTask!.id);
+        },
+      ),
+      { numRuns: 100 },
+    );
+  });
+
+  it('for any create_card action with a dateOption, the task dueDate is non-null', () => {
+    fc.assert(
+      fc.property(
+        sectionArb,
+        fc.string({ minLength: 1, maxLength: 200 }),
+        fc.constantFrom('today', 'tomorrow', 'next_working_day'),
+        idArb,
+        (section, cardTitle, dateOption, ruleId) => {
+          // Clear repositories
+          taskRepo.clear();
+          sectionRepo.clear();
+          ruleRepo.clear();
+
+          // Create target section
+          sectionRepo.create(section);
+
+          // Create action with dateOption
+          const action: RuleAction = {
+            ruleId,
+            actionType: 'create_card',
+            targetEntityId: 'trigger-entity-id',
+            params: {
+              sectionId: section.id,
+              cardTitle,
+              cardDateOption: dateOption as any,
+            },
+          };
+
+          // Create triggering event
+          const event: DomainEvent = {
+            type: 'task.created',
+            entityId: 'some-task-id',
+            projectId: section.projectId || 'test-project',
+            changes: {},
+            previousValues: {},
+            depth: 0,
+          };
+
+          // Execute action
+          executor.executeActions([action], event);
+
+          // Find the newly created task
+          const newTask = taskRepo.findAll().find(t => t.description === cardTitle);
+          expect(newTask).toBeDefined();
+          expect(newTask!.dueDate).not.toBeNull();
+
+          // Verify it's a valid ISO datetime string
+          const dueDate = new Date(newTask!.dueDate!);
+          expect(dueDate.toISOString()).toBe(newTask!.dueDate);
+        },
+      ),
+      { numRuns: 100 },
+    );
+  });
+
+  it('for any create_card action without a dateOption, the task dueDate is null', () => {
+    fc.assert(
+      fc.property(
+        sectionArb,
+        fc.string({ minLength: 1, maxLength: 200 }),
+        idArb,
+        (section, cardTitle, ruleId) => {
+          // Clear repositories
+          taskRepo.clear();
+          sectionRepo.clear();
+          ruleRepo.clear();
+
+          // Create target section
+          sectionRepo.create(section);
+
+          // Create action without dateOption
+          const action: RuleAction = {
+            ruleId,
+            actionType: 'create_card',
+            targetEntityId: 'trigger-entity-id',
+            params: {
+              sectionId: section.id,
+              cardTitle,
+              // No cardDateOption
+            },
+          };
+
+          // Create triggering event
+          const event: DomainEvent = {
+            type: 'task.created',
+            entityId: 'some-task-id',
+            projectId: section.projectId || 'test-project',
+            changes: {},
+            previousValues: {},
+            depth: 0,
+          };
+
+          // Execute action
+          executor.executeActions([action], event);
+
+          // Find the newly created task
+          const newTask = taskRepo.findAll().find(t => t.description === cardTitle);
+          expect(newTask).toBeDefined();
+          expect(newTask!.dueDate).toBeNull();
+        },
+      ),
+      { numRuns: 100 },
+    );
+  });
+
+  it('for any create_card action targeting a non-existent section, no task is created', () => {
+    fc.assert(
+      fc.property(
+        idArb,
+        fc.string({ minLength: 1, maxLength: 200 }),
+        idArb,
+        (nonExistentSectionId, cardTitle, ruleId) => {
+          // Clear repositories
+          taskRepo.clear();
+          sectionRepo.clear();
+          ruleRepo.clear();
+
+          // Count initial tasks
+          const initialTaskCount = taskRepo.findAll().length;
+
+          // Create action targeting non-existent section
+          const action: RuleAction = {
+            ruleId,
+            actionType: 'create_card',
+            targetEntityId: 'trigger-entity-id',
+            params: {
+              sectionId: nonExistentSectionId,
+              cardTitle,
+            },
+          };
+
+          // Create triggering event
+          const event: DomainEvent = {
+            type: 'task.created',
+            entityId: 'some-task-id',
+            projectId: 'test-project',
+            changes: {},
+            previousValues: {},
+            depth: 0,
+          };
+
+          // Execute action
+          const events = executor.executeActions([action], event);
+
+          // Verify no task was created
+          const finalTaskCount = taskRepo.findAll().length;
+          expect(finalTaskCount).toBe(initialTaskCount);
+
+          // Verify no events were emitted
+          expect(events.length).toBe(0);
+        },
+      ),
+      { numRuns: 100 },
+    );
+  });
+});
+
+// Unit tests for create_card edge cases
+describe('create_card edge cases', () => {
+  let taskRepo: MockTaskRepository;
+  let sectionRepo: MockSectionRepository;
+  let ruleRepo: MockAutomationRuleRepository;
+  let taskService: MockTaskService;
+  let executor: RuleExecutor;
+
+  beforeEach(() => {
+    taskRepo = new MockTaskRepository();
+    sectionRepo = new MockSectionRepository();
+    ruleRepo = new MockAutomationRuleRepository();
+    taskService = new MockTaskService();
+    executor = new RuleExecutor(taskRepo as any, sectionRepo as any, taskService as any, ruleRepo);
+  });
+
+  it('target section does not exist → action skipped', () => {
+    // Create action targeting non-existent section
+    const action: RuleAction = {
+      ruleId: 'test-rule',
+      actionType: 'create_card',
+      targetEntityId: 'trigger-entity-id',
+      params: {
+        sectionId: 'non-existent-section',
+        cardTitle: 'Test Card',
+      },
+    };
+
+    const event: DomainEvent = {
+      type: 'task.created',
+      entityId: 'some-task-id',
+      projectId: 'test-project',
+      changes: {},
+      previousValues: {},
+      depth: 0,
+    };
+
+    // Execute action
+    const events = executor.executeActions([action], event);
+
+    // Verify no task was created
+    expect(taskRepo.findAll().length).toBe(0);
+    expect(events.length).toBe(0);
+  });
+
+  it('cardDateOption provided → dueDate set correctly', () => {
+    // Create target section
+    const section: Section = {
+      id: 'test-section',
+      projectId: 'test-project',
+      name: 'Test Section',
+      order: 0,
+      collapsed: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    sectionRepo.create(section);
+
+    // Create action with dateOption
+    const action: RuleAction = {
+      ruleId: 'test-rule',
+      actionType: 'create_card',
+      targetEntityId: 'trigger-entity-id',
+      params: {
+        sectionId: section.id,
+        cardTitle: 'Test Card',
+        cardDateOption: 'tomorrow' as any,
+      },
+    };
+
+    const event: DomainEvent = {
+      type: 'task.created',
+      entityId: 'some-task-id',
+      projectId: 'test-project',
+      changes: {},
+      previousValues: {},
+      depth: 0,
+    };
+
+    // Execute action
+    executor.executeActions([action], event);
+
+    // Verify task was created with dueDate
+    const tasks = taskRepo.findAll();
+    expect(tasks.length).toBe(1);
+    expect(tasks[0].dueDate).not.toBeNull();
+
+    // Verify dueDate is tomorrow
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+
+    const taskDueDate = new Date(tasks[0].dueDate!);
+    expect(taskDueDate.toDateString()).toBe(tomorrow.toDateString());
+  });
+
+  it('no cardDateOption → dueDate is null', () => {
+    // Create target section
+    const section: Section = {
+      id: 'test-section',
+      projectId: 'test-project',
+      name: 'Test Section',
+      order: 0,
+      collapsed: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    sectionRepo.create(section);
+
+    // Create action without dateOption
+    const action: RuleAction = {
+      ruleId: 'test-rule',
+      actionType: 'create_card',
+      targetEntityId: 'trigger-entity-id',
+      params: {
+        sectionId: section.id,
+        cardTitle: 'Test Card',
+      },
+    };
+
+    const event: DomainEvent = {
+      type: 'task.created',
+      entityId: 'some-task-id',
+      projectId: 'test-project',
+      changes: {},
+      previousValues: {},
+      depth: 0,
+    };
+
+    // Execute action
+    executor.executeActions([action], event);
+
+    // Verify task was created without dueDate
+    const tasks = taskRepo.findAll();
+    expect(tasks.length).toBe(1);
+    expect(tasks[0].dueDate).toBeNull();
+  });
+
+  it('specific_date with month/day → correct date calculated', () => {
+    // Create target section
+    const section: Section = {
+      id: 'test-section',
+      projectId: 'test-project',
+      name: 'Test Section',
+      order: 0,
+      collapsed: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    sectionRepo.create(section);
+
+    // Create action with specific_date
+    const action: RuleAction = {
+      ruleId: 'test-rule',
+      actionType: 'create_card',
+      targetEntityId: 'trigger-entity-id',
+      params: {
+        sectionId: section.id,
+        cardTitle: 'Test Card',
+        cardDateOption: 'specific_date' as any,
+        specificMonth: 12,
+        specificDay: 25,
+      },
+    };
+
+    const event: DomainEvent = {
+      type: 'task.created',
+      entityId: 'some-task-id',
+      projectId: 'test-project',
+      changes: {},
+      previousValues: {},
+      depth: 0,
+    };
+
+    // Execute action
+    executor.executeActions([action], event);
+
+    // Verify task was created with correct dueDate
+    const tasks = taskRepo.findAll();
+    expect(tasks.length).toBe(1);
+    expect(tasks[0].dueDate).not.toBeNull();
+
+    const taskDueDate = new Date(tasks[0].dueDate!);
+    expect(taskDueDate.getMonth()).toBe(11); // December (0-indexed)
+    expect(taskDueDate.getDate()).toBe(25);
+  });
+
+  it('created task is positioned at bottom of section', () => {
+    // Create target section
+    const section: Section = {
+      id: 'test-section',
+      projectId: 'test-project',
+      name: 'Test Section',
+      order: 0,
+      collapsed: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    sectionRepo.create(section);
+
+    // Create existing tasks in the section
+    const existingTask1: Task = {
+      id: 'task-1',
+      projectId: 'test-project',
+      parentTaskId: null,
+      sectionId: section.id,
+      description: 'Existing Task 1',
+      notes: '',
+      assignee: '',
+      priority: 'none',
+      tags: [],
+      dueDate: null,
+      completed: false,
+      completedAt: null,
+      order: 10,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      lastActionAt: null,
+    };
+
+    const existingTask2: Task = {
+      id: 'task-2',
+      projectId: 'test-project',
+      parentTaskId: null,
+      sectionId: section.id,
+      description: 'Existing Task 2',
+      notes: '',
+      assignee: '',
+      priority: 'none',
+      tags: [],
+      dueDate: null,
+      completed: false,
+      completedAt: null,
+      order: 20,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      lastActionAt: null,
+    };
+
+    taskRepo.create(existingTask1 as any);
+    taskRepo.create(existingTask2 as any);
+
+    // Create action
+    const action: RuleAction = {
+      ruleId: 'test-rule',
+      actionType: 'create_card',
+      targetEntityId: 'trigger-entity-id',
+      params: {
+        sectionId: section.id,
+        cardTitle: 'New Card',
+      },
+    };
+
+    const event: DomainEvent = {
+      type: 'task.created',
+      entityId: 'some-task-id',
+      projectId: 'test-project',
+      changes: {},
+      previousValues: {},
+      depth: 0,
+    };
+
+    // Execute action
+    executor.executeActions([action], event);
+
+    // Verify new task is at bottom (order > all existing tasks)
+    const newTask = taskRepo.findAll().find(t => t.description === 'New Card');
+    expect(newTask).toBeDefined();
+    expect(newTask!.order).toBeGreaterThan(existingTask1.order);
+    expect(newTask!.order).toBeGreaterThan(existingTask2.order);
+    expect(newTask!.order).toBe(21); // maxOrder + 1
+  });
+});
+
+// Trigger section sentinel resolution
+describe('create_card with TRIGGER_SECTION_SENTINEL', () => {
+  let taskRepo: MockTaskRepository;
+  let sectionRepo: MockSectionRepository;
+  let ruleRepo: MockAutomationRuleRepository;
+  let taskService: MockTaskService;
+  let executor: RuleExecutor;
+
+  beforeEach(() => {
+    taskRepo = new MockTaskRepository();
+    sectionRepo = new MockSectionRepository();
+    ruleRepo = new MockAutomationRuleRepository();
+    taskService = new MockTaskService();
+    executor = new RuleExecutor(taskRepo as any, sectionRepo as any, taskService as any, ruleRepo);
+  });
+
+  it('resolves __trigger_section__ to the triggering event entityId', () => {
+    // Create the section that will be "just created" by the trigger
+    const newSection: Section = {
+      id: 'new-section-abc',
+      projectId: 'proj-1',
+      name: 'Sprint 42',
+      order: 0,
+      collapsed: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    sectionRepo.create(newSection);
+
+    const action: RuleAction = {
+      ruleId: 'rule-1',
+      actionType: 'create_card',
+      targetEntityId: newSection.id,
+      params: {
+        sectionId: '__trigger_section__',
+        cardTitle: 'Standup Notes',
+      },
+    };
+
+    // section.created event — entityId is the new section's ID
+    const event: DomainEvent = {
+      type: 'section.created',
+      entityId: newSection.id,
+      projectId: 'proj-1',
+      changes: { name: 'Sprint 42' },
+      previousValues: {},
+      depth: 0,
+    };
+
+    const events = executor.executeActions([action], event);
+
+    // A task should have been created in the triggering section
+    const tasks = taskRepo.findAll();
+    expect(tasks.length).toBe(1);
+    expect(tasks[0].sectionId).toBe(newSection.id);
+    expect(tasks[0].description).toBe('Standup Notes');
+    expect(events.length).toBe(1);
+    expect(events[0].type).toBe('task.created');
+  });
+
+  it('skips when sentinel resolves to a non-existent section', () => {
+    const action: RuleAction = {
+      ruleId: 'rule-1',
+      actionType: 'create_card',
+      targetEntityId: 'ghost-section',
+      params: {
+        sectionId: '__trigger_section__',
+        cardTitle: 'Should not be created',
+      },
+    };
+
+    const event: DomainEvent = {
+      type: 'section.created',
+      entityId: 'ghost-section',
+      projectId: 'proj-1',
+      changes: {},
+      previousValues: {},
+      depth: 0,
+    };
+
+    const events = executor.executeActions([action], event);
+
+    expect(taskRepo.findAll().length).toBe(0);
+    expect(events.length).toBe(0);
   });
 });

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -19,6 +20,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { RuleDialogStepTrigger } from './RuleDialogStepTrigger';
+import { RuleDialogStepFilters } from './RuleDialogStepFilters';
 import { RuleDialogStepAction } from './RuleDialogStepAction';
 import { RuleDialogStepReview } from './RuleDialogStepReview';
 import { RulePreview } from './RulePreview';
@@ -31,7 +33,7 @@ import {
   type TriggerConfig,
   type ActionConfig,
 } from '../services/rulePreviewService';
-import type { AutomationRule } from '../types';
+import type { AutomationRule, CardFilter } from '../types';
 import type { Section } from '@/lib/schemas';
 
 interface RuleDialogProps {
@@ -42,7 +44,7 @@ interface RuleDialogProps {
   editingRule?: AutomationRule | null;
 }
 
-type WizardStep = 0 | 1 | 2; // 0 = Trigger, 1 = Action, 2 = Review
+type WizardStep = 0 | 1 | 2 | 3; // 0 = Trigger, 1 = Filters, 2 = Action, 3 = Review
 
 export function RuleDialog({
   open,
@@ -59,11 +61,17 @@ export function RuleDialog({
     type: null,
     sectionId: null,
   });
+  const [filters, setFilters] = useState<CardFilter[]>([]);
   const [action, setAction] = useState<ActionConfig>({
     type: null,
     sectionId: null,
     dateOption: null,
     position: null,
+    cardTitle: null,
+    cardDateOption: null,
+    specificMonth: null,
+    specificDay: null,
+    monthTarget: null,
   });
   const [ruleName, setRuleName] = useState('');
   const [isDirty, setIsDirty] = useState(false);
@@ -73,6 +81,15 @@ export function RuleDialog({
   // Refs for focus management
   const stepContentRef = useRef<HTMLDivElement>(null);
 
+  // Helper to determine if filters step should be shown for the current trigger
+  const shouldShowFiltersStep = useCallback(() => {
+    if (!trigger.type) return true; // Show by default until trigger is selected
+    
+    // Section-level triggers skip the filters step
+    const sectionLevelTriggers = ['section_created', 'section_renamed'];
+    return !sectionLevelTriggers.includes(trigger.type);
+  }, [trigger.type]);
+
   // Pre-populate form when editing
   useEffect(() => {
     if (open && editingRule) {
@@ -80,18 +97,35 @@ export function RuleDialog({
         type: editingRule.trigger.type,
         sectionId: editingRule.trigger.sectionId,
       });
+      setFilters(editingRule.filters || []);
       setAction({
         type: editingRule.action.type,
         sectionId: editingRule.action.sectionId,
         dateOption: editingRule.action.dateOption,
         position: editingRule.action.position,
+        cardTitle: editingRule.action.cardTitle,
+        cardDateOption: editingRule.action.cardDateOption,
+        specificMonth: editingRule.action.specificMonth,
+        specificDay: editingRule.action.specificDay,
+        monthTarget: editingRule.action.monthTarget,
       });
       setRuleName(editingRule.name);
       setIsDirty(false);
     } else if (open && !editingRule) {
       // Reset form for new rule
       setTrigger({ type: null, sectionId: null });
-      setAction({ type: null, sectionId: null, dateOption: null, position: null });
+      setFilters([]);
+      setAction({
+        type: null,
+        sectionId: null,
+        dateOption: null,
+        position: null,
+        cardTitle: null,
+        cardDateOption: null,
+        specificMonth: null,
+        specificDay: null,
+        monthTarget: null,
+      });
       setRuleName('');
       setIsDirty(false);
       setCurrentStep(0);
@@ -101,6 +135,11 @@ export function RuleDialog({
   // Mark form as dirty when user makes changes
   const handleTriggerChange = useCallback((newTrigger: TriggerConfig) => {
     setTrigger(newTrigger);
+    setIsDirty(true);
+  }, []);
+
+  const handleFiltersChange = useCallback((newFilters: CardFilter[]) => {
+    setFilters(newFilters);
     setIsDirty(true);
   }, []);
 
@@ -135,8 +174,9 @@ export function RuleDialog({
   const isStepValid = useCallback(
     (step: WizardStep) => {
       if (step === 0) return isTriggerValid();
-      if (step === 1) return isActionValid();
-      if (step === 2) return isTriggerValid() && isActionValid();
+      if (step === 1) return true; // Filters step is always valid (can be empty)
+      if (step === 2) return isActionValid();
+      if (step === 3) return isTriggerValid() && isActionValid();
       return false;
     },
     [isTriggerValid, isActionValid]
@@ -159,34 +199,65 @@ export function RuleDialog({
   // Navigation handlers
   const handleNext = useCallback(() => {
     if (currentStep === 0 && isStepValid(0)) {
-      setCurrentStep(1);
+      // From Trigger step: skip Filters if section-level trigger, otherwise go to Filters
+      if (shouldShowFiltersStep()) {
+        setCurrentStep(1);
+      } else {
+        setCurrentStep(2);
+      }
     } else if (currentStep === 1 && isStepValid(1)) {
+      // From Filters step to Action step
       setCurrentStep(2);
+    } else if (currentStep === 2 && isStepValid(2)) {
+      // From Action step to Review step
+      setCurrentStep(3);
     }
-  }, [currentStep, isStepValid]);
+  }, [currentStep, isStepValid, shouldShowFiltersStep]);
 
   const handleBack = useCallback(() => {
-    if (currentStep > 0) {
-      setCurrentStep((prev) => (prev - 1) as WizardStep);
+    if (currentStep === 1) {
+      // From Filters back to Trigger
+      setCurrentStep(0);
+    } else if (currentStep === 2) {
+      // From Action: go back to Filters if shown, otherwise Trigger
+      if (shouldShowFiltersStep()) {
+        setCurrentStep(1);
+      } else {
+        setCurrentStep(0);
+      }
+    } else if (currentStep === 3) {
+      // From Review back to Action
+      setCurrentStep(2);
     }
-  }, [currentStep]);
+  }, [currentStep, shouldShowFiltersStep]);
+
+  const handleSkipFilters = useCallback(() => {
+    // Skip button on Filters step: clear filters and go to Action
+    setFilters([]);
+    setCurrentStep(2);
+  }, []);
 
   const handleNavigateToStep = useCallback(
     (step: WizardStep) => {
+      const showFilters = shouldShowFiltersStep();
+      
       // Can only navigate to a step if all preceding steps are valid
       if (step === 0) {
         setCurrentStep(0);
-      } else if (step === 1 && isStepValid(0)) {
+      } else if (step === 1 && showFilters && isStepValid(0)) {
         setCurrentStep(1);
-      } else if (step === 2 && isStepValid(0) && isStepValid(1)) {
+      } else if (step === 2 && isStepValid(0)) {
+        // Can go to Action if Trigger is valid (Filters is optional/skippable)
         setCurrentStep(2);
+      } else if (step === 3 && isStepValid(0) && isStepValid(2)) {
+        setCurrentStep(3);
       }
       
       // Announce step change for screen readers
-      const stepNames = ['Trigger', 'Action', 'Review'];
-      setStepAnnouncement(`Step ${step + 1} of 3: ${stepNames[step]}`);
+      const stepNames = ['Trigger', 'Filters', 'Action', 'Review'];
+      setStepAnnouncement(`Step ${step + 1} of 4: ${stepNames[step]}`);
     },
-    [isStepValid]
+    [isStepValid, shouldShowFiltersStep]
   );
 
   // Focus management: focus first interactive element when step changes
@@ -228,6 +299,11 @@ export function RuleDialog({
           sectionId: action.sectionId,
           dateOption: action.dateOption,
           position: action.position,
+          cardTitle: action.cardTitle,
+          cardDateOption: action.cardDateOption,
+          specificMonth: action.specificMonth,
+          specificDay: action.specificDay,
+          monthTarget: action.monthTarget,
         },
       });
     } else {
@@ -239,11 +315,17 @@ export function RuleDialog({
           type: trigger.type!,
           sectionId: trigger.sectionId,
         },
+        filters: filters,
         action: {
           type: action.type!,
           sectionId: action.sectionId,
           dateOption: action.dateOption,
           position: action.position,
+          cardTitle: action.cardTitle,
+          cardDateOption: action.cardDateOption,
+          specificMonth: action.specificMonth,
+          specificDay: action.specificDay,
+          monthTarget: action.monthTarget,
         },
         enabled: true,
         brokenReason: null,
@@ -257,6 +339,7 @@ export function RuleDialog({
     isSaveDisabled,
     ruleName,
     trigger,
+    filters,
     action,
     sections,
     editingRule,
@@ -290,7 +373,21 @@ export function RuleDialog({
   }, []);
 
   // Step indicator
-  const steps = ['Trigger', 'Action', 'Review'];
+  const steps = ['Trigger', 'Filters', 'Action', 'Review'];
+  const showFilters = shouldShowFiltersStep();
+  
+  // Build visible steps array (excluding Filters if not applicable)
+  const visibleSteps = showFilters 
+    ? steps 
+    : steps.filter((_, idx) => idx !== 1); // Remove Filters step
+  
+  const getStepClickable = (stepIndex: number): boolean => {
+    if (stepIndex === 0) return true;
+    if (stepIndex === 1 && showFilters) return isStepValid(0);
+    if (stepIndex === 2) return isStepValid(0);
+    if (stepIndex === 3) return isStepValid(0) && isStepValid(2);
+    return false;
+  };
 
   return (
     <>
@@ -301,18 +398,24 @@ export function RuleDialog({
               <DialogTitle>
                 {editingRule ? 'Edit Automation Rule' : 'Create Automation Rule'}
               </DialogTitle>
+              <DialogDescription>
+                {editingRule
+                  ? 'Modify the trigger, filters, and action for this automation rule.'
+                  : 'Create a new automation rule to automatically perform actions when certain events occur.'}
+              </DialogDescription>
             </DialogHeader>
 
             {/* Step Indicator - Full labels on larger screens, dots on mobile */}
             <div className="flex items-center justify-between mt-6" role="navigation" aria-label="Wizard steps">
-              {steps.map((stepName, index) => {
-                const stepIndex = index as WizardStep;
+              {visibleSteps.map((stepName, displayIndex) => {
+                // Map display index back to actual step index
+                const stepIndex: WizardStep = showFilters 
+                  ? (displayIndex as WizardStep)
+                  : (displayIndex === 0 ? 0 : displayIndex === 1 ? 2 : 3) as WizardStep;
+                
                 const isActive = currentStep === stepIndex;
                 const isComplete = currentStep > stepIndex;
-                const isClickable =
-                  stepIndex === 0 ||
-                  (stepIndex === 1 && isStepValid(0)) ||
-                  (stepIndex === 2 && isStepValid(0) && isStepValid(1));
+                const isClickable = getStepClickable(stepIndex);
 
                 return (
                   <div key={stepName} className="flex items-center flex-1">
@@ -333,7 +436,7 @@ export function RuleDialog({
                               : 'border-muted-foreground/30 bg-background text-muted-foreground'
                         }`}
                       >
-                        {index + 1}
+                        {displayIndex + 1}
                       </div>
                       <span
                         className={`text-sm font-medium max-sm:hidden ${
@@ -345,7 +448,7 @@ export function RuleDialog({
                         {stepName}
                       </span>
                     </button>
-                    {index < steps.length - 1 && (
+                    {displayIndex < visibleSteps.length - 1 && (
                       <div
                         className={`mx-2 max-sm:mx-1 h-0.5 flex-1 ${
                           isComplete ? 'bg-accent-brand' : 'bg-muted-foreground/30'
@@ -375,19 +478,31 @@ export function RuleDialog({
               )}
 
               {currentStep === 1 && (
-                <RuleDialogStepAction
-                  action={action}
-                  onActionChange={handleActionChange}
+                <RuleDialogStepFilters
+                  filters={filters}
+                  onFiltersChange={handleFiltersChange}
+                  onSkip={handleSkipFilters}
                   sections={sections}
                 />
               )}
 
               {currentStep === 2 && (
+                <RuleDialogStepAction
+                  action={action}
+                  onActionChange={handleActionChange}
+                  sections={sections}
+                  triggerType={trigger.type}
+                />
+              )}
+
+              {currentStep === 3 && (
                 <RuleDialogStepReview
                   trigger={trigger}
                   action={action}
+                  filters={filters}
                   ruleName={ruleName}
                   onRuleNameChange={handleRuleNameChange}
+                  onFiltersChange={handleFiltersChange}
                   sections={sections}
                   onNavigateToStep={handleNavigateToStep}
                   onSave={handleSave}
@@ -407,7 +522,7 @@ export function RuleDialog({
                 <p className="text-xs font-medium text-muted-foreground mb-2">
                   PREVIEW
                 </p>
-                <RulePreview trigger={trigger} action={action} sections={sections} />
+                <RulePreview trigger={trigger} action={action} sections={sections} filters={filters} />
               </div>
             </div>
           </div>
@@ -423,7 +538,7 @@ export function RuleDialog({
               >
                 Back
               </Button>
-              {currentStep < 2 ? (
+              {currentStep < 3 ? (
                 <Button
                   type="button"
                   onClick={handleNext}

@@ -54,10 +54,11 @@ describe('RuleDialog - Unit Tests', () => {
   });
 
   describe('Step Navigation', () => {
-    it('renders step indicator with three steps', () => {
+    it('renders step indicator with four steps', () => {
       render(<RuleDialog {...defaultProps} />);
       
       expect(screen.getByText('Trigger')).toBeInTheDocument();
+      expect(screen.getByText('Filters')).toBeInTheDocument();
       expect(screen.getByText('Action')).toBeInTheDocument();
       expect(screen.getByText('Review')).toBeInTheDocument();
     });
@@ -70,11 +71,11 @@ describe('RuleDialog - Unit Tests', () => {
       expect(screen.getByText(/Card Change/i)).toBeInTheDocument();
     });
 
-    it('advances to Action step when Next is clicked with valid trigger', async () => {
+    it('advances to Filters step when Next is clicked with valid card-level trigger', async () => {
       const user = userEvent.setup();
       render(<RuleDialog {...defaultProps} />);
       
-      // Select a trigger that doesn't need a section
+      // Select a card-level trigger that doesn't need a section
       const completeRadio = screen.getByLabelText(/marked complete/i);
       await user.click(completeRadio);
       
@@ -82,25 +83,77 @@ describe('RuleDialog - Unit Tests', () => {
       const nextButton = screen.getByRole('button', { name: /next/i });
       await user.click(nextButton);
       
-      // Should now be on Action step - check for action categories
+      // Should now be on Filters step
+      await waitFor(() => {
+        expect(screen.getByText(/Add optional filters/i)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Add filter/i })).toBeInTheDocument();
+      });
+    });
+
+    it('skips Filters step for section-level triggers', async () => {
+      const user = userEvent.setup();
+      render(<RuleDialog {...defaultProps} />);
+      
+      // Note: This test would need section_created or section_renamed triggers
+      // which are part of Phase 3. For now, we test that card-level triggers
+      // show the Filters step (tested above).
+      
+      // Select a card-level trigger
+      const completeRadio = screen.getByLabelText(/marked complete/i);
+      await user.click(completeRadio);
+      
+      // Click Next - should go to Filters
+      const nextButton = screen.getByRole('button', { name: /next/i });
+      await user.click(nextButton);
+      
+      // Verify we're on Filters step
+      await waitFor(() => {
+        expect(screen.getByText(/Add optional filters/i)).toBeInTheDocument();
+      });
+    });
+
+    it('advances from Filters to Action step', async () => {
+      const user = userEvent.setup();
+      render(<RuleDialog {...defaultProps} />);
+      
+      // Select trigger and advance to Filters
+      const completeRadio = screen.getByLabelText(/marked complete/i);
+      await user.click(completeRadio);
+      
+      let nextButton = screen.getByRole('button', { name: /next/i });
+      await user.click(nextButton);
+      
+      // On Filters step, click Next (or Skip)
+      await waitFor(() => {
+        expect(screen.getByText(/Add optional filters/i)).toBeInTheDocument();
+      });
+      
+      nextButton = screen.getByRole('button', { name: /next/i });
+      await user.click(nextButton);
+      
+      // Should now be on Action step
       await waitFor(() => {
         expect(screen.getByText('Status')).toBeInTheDocument();
         expect(screen.getByText('Dates')).toBeInTheDocument();
       });
     });
 
-    it('goes back to Trigger step when Back is clicked', async () => {
+    it('goes back from Filters to Trigger step when Back is clicked', async () => {
       const user = userEvent.setup();
       render(<RuleDialog {...defaultProps} />);
       
-      // Select trigger and advance
+      // Select trigger and advance to Filters
       const completeRadio = screen.getByLabelText(/marked complete/i);
       await user.click(completeRadio);
       
       const nextButton = screen.getByRole('button', { name: /next/i });
       await user.click(nextButton);
       
-      // Click Back
+      // On Filters step, click Back
+      await waitFor(() => {
+        expect(screen.getByText(/Add optional filters/i)).toBeInTheDocument();
+      });
+      
       const backButton = screen.getByRole('button', { name: /back/i });
       await user.click(backButton);
       
@@ -108,6 +161,38 @@ describe('RuleDialog - Unit Tests', () => {
       await waitFor(() => {
         expect(screen.getByText('Card Move')).toBeInTheDocument();
         expect(screen.getByText('Card Change')).toBeInTheDocument();
+      });
+    });
+
+    it('goes back from Action to Filters step when Back is clicked', async () => {
+      const user = userEvent.setup();
+      render(<RuleDialog {...defaultProps} />);
+      
+      // Navigate to Action step
+      const completeRadio = screen.getByLabelText(/marked complete/i);
+      await user.click(completeRadio);
+      
+      let nextButton = screen.getByRole('button', { name: /next/i });
+      await user.click(nextButton);
+      
+      await waitFor(() => {
+        expect(screen.getByText(/Add optional filters/i)).toBeInTheDocument();
+      });
+      
+      nextButton = screen.getByRole('button', { name: /next/i });
+      await user.click(nextButton);
+      
+      // On Action step, click Back
+      await waitFor(() => {
+        expect(screen.getByText('Status')).toBeInTheDocument();
+      });
+      
+      const backButton = screen.getByRole('button', { name: /back/i });
+      await user.click(backButton);
+      
+      // Should be back on Filters step
+      await waitFor(() => {
+        expect(screen.getByText(/Add optional filters/i)).toBeInTheDocument();
       });
     });
 
@@ -126,10 +211,35 @@ describe('RuleDialog - Unit Tests', () => {
       const completeRadio = screen.getByLabelText(/marked complete/i);
       await user.click(completeRadio);
       
-      // Click on Action step indicator
+      // Click on Action step indicator (step 2)
       const actionStepButton = screen.getByText('Action').closest('button');
       expect(actionStepButton).not.toBeDisabled();
       await user.click(actionStepButton!);
+      
+      // Should be on Action step
+      await waitFor(() => {
+        expect(screen.getByText('Status')).toBeInTheDocument();
+      });
+    });
+
+    it('Skip button on Filters step advances to Action', async () => {
+      const user = userEvent.setup();
+      render(<RuleDialog {...defaultProps} />);
+      
+      // Navigate to Filters step
+      const completeRadio = screen.getByLabelText(/marked complete/i);
+      await user.click(completeRadio);
+      
+      const nextButton = screen.getByRole('button', { name: /next/i });
+      await user.click(nextButton);
+      
+      // On Filters step, click Skip
+      await waitFor(() => {
+        expect(screen.getByText(/Add optional filters/i)).toBeInTheDocument();
+      });
+      
+      const skipButton = screen.getByRole('button', { name: /skip/i });
+      await user.click(skipButton);
       
       // Should be on Action step
       await waitFor(() => {
@@ -323,8 +433,16 @@ describe('RuleDialog - Property-Based Tests', () => {
     const completeRadio = screen.getByLabelText(/marked complete/i);
     await user.click(completeRadio);
 
-    // Advance to action step
-    const nextButton = screen.getByRole('button', { name: /next/i });
+    // Advance to Filters step
+    let nextButton = screen.getByRole('button', { name: /next/i });
+    await user.click(nextButton);
+
+    // Skip filters
+    await waitFor(() => {
+      expect(screen.getByText(/Add optional filters/i)).toBeInTheDocument();
+    });
+
+    nextButton = screen.getByRole('button', { name: /next/i });
     await user.click(nextButton);
 
     // Select action
@@ -336,8 +454,8 @@ describe('RuleDialog - Property-Based Tests', () => {
     await user.click(markCompleteRadio);
 
     // Advance to review
-    const nextButton2 = screen.getByRole('button', { name: /next/i });
-    await user.click(nextButton2);
+    nextButton = screen.getByRole('button', { name: /next/i });
+    await user.click(nextButton);
 
     // Save button should be enabled
     await waitFor(() => {
@@ -373,6 +491,14 @@ describe('RuleDialog - Property-Based Tests', () => {
     await user.click(completeRadio);
 
     let nextButton = screen.getByRole('button', { name: /next/i });
+    await user.click(nextButton);
+
+    // Skip filters
+    await waitFor(() => {
+      expect(screen.getByText(/Add optional filters/i)).toBeInTheDocument();
+    });
+
+    nextButton = screen.getByRole('button', { name: /next/i });
     await user.click(nextButton);
 
     await waitFor(() => {
@@ -433,6 +559,14 @@ describe('RuleDialog - Property-Based Tests', () => {
     let nextButton = screen.getByRole('button', { name: /next/i });
     await user.click(nextButton);
 
+    // Skip filters
+    await waitFor(() => {
+      expect(screen.getByText(/Add optional filters/i)).toBeInTheDocument();
+    });
+
+    nextButton = screen.getByRole('button', { name: /next/i });
+    await user.click(nextButton);
+
     await waitFor(() => {
       expect(screen.getByText(/Status/i)).toBeInTheDocument();
     });
@@ -484,11 +618,17 @@ describe('RuleDialog - Property-Based Tests', () => {
               type: triggerType,
               sectionId: triggerType.includes('moved') ? 'section-1' : null,
             },
+            filters: [],
             action: {
               type: actionType,
               sectionId: actionType.includes('move_card') ? 'section-2' : null,
               dateOption: actionType === 'set_due_date' ? 'today' : null,
               position: actionType.includes('move_card') ? 'top' : null,
+              cardTitle: null,
+              cardDateOption: null,
+              specificMonth: null,
+              specificDay: null,
+              monthTarget: null,
             },
             enabled: true,
             brokenReason: null,

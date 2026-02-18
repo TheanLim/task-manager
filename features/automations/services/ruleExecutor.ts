@@ -3,6 +3,8 @@ import type { AutomationRuleRepository } from '../repositories/types';
 import type { TaskService } from '@/features/tasks/services/taskService';
 import type { RuleAction, DomainEvent } from '../types';
 import { calculateRelativeDate } from './dateCalculations';
+import { TRIGGER_SECTION_SENTINEL } from './rulePreviewService';
+import { v4 as uuidv4 } from 'uuid';
 
 /**
  * RuleExecutor applies actions produced by the rule engine.
@@ -54,6 +56,21 @@ export class RuleExecutor {
    * @returns Array of domain events produced by this action
    */
   private executeAction(action: RuleAction, triggeringEvent: DomainEvent): DomainEvent[] {
+    const events: DomainEvent[] = [];
+
+    // Special case: create_card doesn't need an existing task
+    if (action.actionType === 'create_card') {
+      this.executeCreateCard(action, triggeringEvent, events);
+      
+      // Update rule execution metadata (Requirement 5.8)
+      if (events.length > 0) {
+        this.updateRuleMetadata(action.ruleId);
+      }
+      
+      return events;
+    }
+
+    // For all other actions, we need an existing task
     const task = this.taskRepo.findById(action.targetEntityId);
     
     // Skip if target entity doesn't exist (Requirement 5.7)
@@ -62,7 +79,6 @@ export class RuleExecutor {
     }
 
     const previousValues = { ...task };
-    const events: DomainEvent[] = [];
 
     switch (action.actionType) {
       case 'move_card_to_top_of_section':
@@ -274,8 +290,12 @@ export class RuleExecutor {
     const dateOption = action.params.dateOption;
     if (!dateOption) return;
 
-    // Calculate target date
-    const targetDate = calculateRelativeDate(dateOption);
+    // Calculate target date with optional parameters
+    const targetDate = calculateRelativeDate(dateOption, undefined, {
+      specificMonth: action.params.specificMonth,
+      specificDay: action.params.specificDay,
+      monthTarget: action.params.monthTarget,
+    });
     const dueDateString = targetDate.toISOString();
 
     // Update task
@@ -325,6 +345,88 @@ export class RuleExecutor {
       previousValues: {
         dueDate: previousValues.dueDate,
       },
+      triggeredByRule: action.ruleId,
+      depth: triggeringEvent.depth + 1,
+    });
+  }
+
+  /**
+   * Create card (Requirement 8.4, 8.5, 8.6)
+   */
+  private executeCreateCard(
+    action: RuleAction,
+    triggeringEvent: DomainEvent,
+    events: DomainEvent[]
+  ): void {
+    // Resolve target section: sentinel means "use the section from the triggering event"
+    let targetSectionId = action.params.sectionId;
+    if (targetSectionId === TRIGGER_SECTION_SENTINEL) {
+      targetSectionId = triggeringEvent.entityId;
+    }
+    if (!targetSectionId) return;
+
+    // Verify target section exists (Requirement 8.6)
+    const targetSection = this.sectionRepo.findById(targetSectionId);
+    if (!targetSection) return; // Skip silently
+
+    // Get card title from params
+    const cardTitle = action.params.cardTitle;
+    if (!cardTitle) return;
+
+    // Find all tasks in target section to calculate order
+    const tasksInSection = this.taskRepo
+      .findAll()
+      .filter(t => t.sectionId === targetSectionId);
+
+    // Calculate new order: one more than maximum order (bottom of section)
+    const maxOrder = tasksInSection.length > 0
+      ? Math.max(...tasksInSection.map(t => t.order))
+      : 0;
+    const newOrder = maxOrder + 1;
+
+    // Calculate due date if cardDateOption is provided (Requirement 8.5)
+    let dueDate: string | null = null;
+    if (action.params.cardDateOption) {
+      const targetDate = calculateRelativeDate(action.params.cardDateOption, undefined, {
+        specificMonth: action.params.specificMonth,
+        specificDay: action.params.specificDay,
+        monthTarget: action.params.monthTarget,
+      });
+      dueDate = targetDate.toISOString();
+    }
+
+    // Create new task (Requirement 8.4)
+    const now = new Date().toISOString();
+    const newTask = {
+      id: uuidv4(),
+      projectId: targetSection.projectId,
+      parentTaskId: null,
+      sectionId: targetSectionId,
+      description: cardTitle,
+      notes: '',
+      assignee: '',
+      priority: 'none' as const,
+      tags: [],
+      dueDate,
+      completed: false,
+      completedAt: null,
+      order: newOrder,
+      createdAt: now,
+      updatedAt: now,
+      lastActionAt: null,
+    };
+
+    this.taskRepo.create(newTask);
+
+    // Emit task.created domain event
+    events.push({
+      type: 'task.created',
+      entityId: newTask.id,
+      projectId: newTask.projectId || '',
+      changes: {
+        sectionId: targetSectionId,
+      },
+      previousValues: {},
       triggeredByRule: action.ruleId,
       depth: triggeringEvent.depth + 1,
     });

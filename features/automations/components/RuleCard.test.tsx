@@ -60,7 +60,7 @@ describe('RuleCard', () => {
     render(<RuleCard rule={rule} sections={mockSections} {...mockHandlers} />);
     
     // RulePreview should render the trigger and action
-    expect(screen.getByText(/When a card is/)).toBeInTheDocument();
+    expect(screen.getByText(/When a card/)).toBeInTheDocument();
   });
 
   it('renders trigger and action type badges', () => {
@@ -287,7 +287,7 @@ describe('RuleCard', () => {
             expect(heading?.textContent).toBe(rule.name);
 
             // Assert: description is present (RulePreview renders)
-            expect(screen.getByText(/When a card is/)).toBeInTheDocument();
+            expect(screen.getByText(/When a card/)).toBeInTheDocument();
 
             // Assert: correct opacity for disabled state
             if (!rule.enabled) {

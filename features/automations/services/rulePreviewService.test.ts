@@ -5,11 +5,13 @@ import {
   buildPreviewString,
   TRIGGER_META,
   ACTION_META,
+  TRIGGER_SECTION_SENTINEL,
   type TriggerConfig,
   type ActionConfig,
   type PreviewPart,
 } from './rulePreviewService';
 import type { TriggerType, ActionType, RelativeDateOption } from '../schemas';
+import type { CardFilter } from '../types';
 
 // ============================================================================
 // Arbitraries
@@ -62,6 +64,11 @@ const validActionConfigArb = fc
       sectionId: meta?.needsSection ? sectionId : null,
       dateOption: meta?.needsDateOption ? dateOption : null,
       position: meta?.needsPosition ? position : null,
+      cardTitle: null,
+      cardDateOption: null,
+      specificMonth: null,
+      specificDay: null,
+      monthTarget: null,
     };
   });
 
@@ -84,12 +91,28 @@ const incompleteTriggerConfigArb = fc.oneof(
 
 // Generate incomplete action config (null type or missing required fields)
 const incompleteActionConfigArb = fc.oneof(
-  fc.constant<ActionConfig>({ type: null, sectionId: null, dateOption: null, position: null }),
+  fc.constant<ActionConfig>({ type: null, sectionId: null, dateOption: null, position: null, cardTitle: null, cardDateOption: null, specificMonth: null, specificDay: null, monthTarget: null }),
   fc
     .constantFrom<ActionType>('move_card_to_top_of_section', 'move_card_to_bottom_of_section')
-    .map((type): ActionConfig => ({ type, sectionId: null, dateOption: null, position: null })),
-  fc.constant<ActionConfig>({ type: 'set_due_date', sectionId: null, dateOption: null, position: null })
+    .map((type): ActionConfig => ({ type, sectionId: null, dateOption: null, position: null, cardTitle: null, cardDateOption: null, specificMonth: null, specificDay: null, monthTarget: null })),
+  fc.constant<ActionConfig>({ type: 'set_due_date', sectionId: null, dateOption: null, position: null, cardTitle: null, cardDateOption: null, specificMonth: null, specificDay: null, monthTarget: null })
 );
+
+// Generate simple card filters for testing
+const simpleCardFilterArb = fc.oneof(
+  fc.record({ type: fc.constant('has_due_date' as const) }),
+  fc.record({ type: fc.constant('no_due_date' as const) }),
+  fc.record({ type: fc.constant('is_overdue' as const) }),
+  fc.record({ type: fc.constant('due_today' as const) }),
+  fc.record({ type: fc.constant('due_tomorrow' as const) })
+);
+
+const sectionCardFilterArb = fc.record({
+  type: fc.constantFrom('in_section' as const, 'not_in_section' as const),
+  sectionId: sectionIdArb,
+});
+
+const cardFilterArb = fc.oneof(simpleCardFilterArb, sectionCardFilterArb);
 
 // ============================================================================
 // Property Tests
@@ -202,5 +225,146 @@ describe('rulePreviewService - Property Tests', () => {
       ),
       { numRuns: 100 }
     );
+  });
+
+  /**
+   * Property 19: Rule preview includes filter descriptions
+   * **Validates: Requirements 11.3**
+   */
+  it('Property 19: includes filter descriptions in preview when filters are provided', () => {
+    fc.assert(
+      fc.property(
+        validTriggerConfigArb,
+        validActionConfigArb,
+        sectionLookupArb,
+        fc.array(cardFilterArb, { minLength: 1, maxLength: 3 }),
+        (trigger, action, sectionLookup, filters) => {
+          const parts = buildPreviewParts(trigger, action, sectionLookup, filters);
+          const sentence = buildPreviewString(parts);
+
+          // Assert: result is non-empty
+          expect(parts.length).toBeGreaterThan(0);
+          expect(sentence.trim()).not.toBe('');
+
+          // Assert: sentence contains filter-related text
+          // Check for common filter keywords based on filter types
+          const hasFilterKeywords = filters.some((filter) => {
+            if (filter.type === 'has_due_date') {
+              return sentence.includes('with a due date');
+            } else if (filter.type === 'no_due_date') {
+              return sentence.includes('without a due date');
+            } else if (filter.type === 'is_overdue') {
+              return sentence.includes('that is overdue');
+            } else if (filter.type === 'due_today') {
+              return sentence.includes('due today');
+            } else if (filter.type === 'due_tomorrow') {
+              return sentence.includes('due tomorrow');
+            } else if (filter.type === 'in_section' || filter.type === 'not_in_section') {
+              return sentence.includes('in "') || sentence.includes('not in "');
+            }
+            return false;
+          });
+
+          expect(hasFilterKeywords).toBe(true);
+
+          // Assert: sentence still starts with "When a card"
+          expect(sentence).toMatch(/^When a card /);
+        }
+      ),
+      { numRuns: 100 }
+    );
+  });
+
+  /**
+   * Unit test: Preview without filters works as before
+   */
+  it('generates preview without filters when filters parameter is omitted', () => {
+    const trigger: TriggerConfig = {
+      type: 'card_moved_into_section',
+      sectionId: 'section-1',
+    };
+    const action: ActionConfig = {
+      type: 'mark_card_complete',
+      sectionId: null,
+      dateOption: null,
+      position: null,
+      cardTitle: null,
+      cardDateOption: null,
+      specificMonth: null,
+      specificDay: null,
+      monthTarget: null,
+    };
+    const sectionLookup = (id: string) => (id === 'section-1' ? 'Done' : undefined);
+
+    const parts = buildPreviewParts(trigger, action, sectionLookup);
+    const sentence = buildPreviewString(parts);
+
+    expect(sentence).toBe('When a card is moved into Done, mark as complete');
+  });
+
+  /**
+   * Unit test: Preview with filters includes filter descriptions
+   */
+  it('generates preview with filter descriptions when filters are provided', () => {
+    const trigger: TriggerConfig = {
+      type: 'card_moved_into_section',
+      sectionId: 'section-archive',
+    };
+    const action: ActionConfig = {
+      type: 'mark_card_complete',
+      sectionId: null,
+      dateOption: null,
+      position: null,
+      cardTitle: null,
+      cardDateOption: null,
+      specificMonth: null,
+      specificDay: null,
+      monthTarget: null,
+    };
+    const filters: CardFilter[] = [
+      { type: 'in_section', sectionId: 'section-done' },
+      { type: 'has_due_date' },
+    ];
+    const sectionLookup = (id: string) => {
+      if (id === 'section-archive') return 'Archive';
+      if (id === 'section-done') return 'Done';
+      return undefined;
+    };
+
+    const parts = buildPreviewParts(trigger, action, sectionLookup, filters);
+    const sentence = buildPreviewString(parts);
+
+    expect(sentence).toContain('in "Done"');
+    expect(sentence).toContain('with a due date');
+    expect(sentence).toContain('moved into Archive');
+    expect(sentence).toContain('mark as complete');
+  });
+
+  /**
+   * Unit test: Preview with trigger section sentinel shows "the triggering section"
+   */
+  it('shows "the triggering section" when action sectionId is the trigger sentinel', () => {
+    const trigger: TriggerConfig = {
+      type: 'section_created',
+      sectionId: null,
+    };
+    const action: ActionConfig = {
+      type: 'create_card',
+      sectionId: TRIGGER_SECTION_SENTINEL,
+      dateOption: null,
+      position: null,
+      cardTitle: 'Standup Notes',
+      cardDateOption: null,
+      specificMonth: null,
+      specificDay: null,
+      monthTarget: null,
+    };
+    const sectionLookup = () => undefined;
+
+    const parts = buildPreviewParts(trigger, action, sectionLookup);
+    const sentence = buildPreviewString(parts);
+
+    expect(sentence).toContain('the triggering section');
+    expect(sentence).toContain('Standup Notes');
   });
 });

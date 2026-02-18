@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { ArrowDown } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { ArrowDown, X } from 'lucide-react';
 import {
   TRIGGER_META,
   ACTION_META,
@@ -14,23 +15,80 @@ import {
   type ActionConfig,
 } from '../services/rulePreviewService';
 import type { Section } from '@/lib/schemas';
+import type { CardFilter } from '../types';
 
 interface RuleDialogStepReviewProps {
   trigger: TriggerConfig;
   action: ActionConfig;
+  filters: CardFilter[];
   ruleName: string;
   onRuleNameChange: (name: string) => void;
+  onFiltersChange: (filters: CardFilter[]) => void;
   sections: Section[];
-  onNavigateToStep: (step: 0 | 1 | 2) => void;
+  onNavigateToStep: (step: 0 | 1 | 2 | 3) => void;
   onSave: () => void;
   isSaveDisabled: boolean;
+}
+
+/**
+ * Generates a human-readable description for a filter.
+ */
+function getFilterDescription(filter: CardFilter, sectionLookup: (id: string) => string | undefined): string {
+  switch (filter.type) {
+    case 'in_section':
+      return `in "${sectionLookup(filter.sectionId) || '___'}"`;
+    case 'not_in_section':
+      return `not in "${sectionLookup(filter.sectionId) || '___'}"`;
+    case 'has_due_date':
+      return 'has due date';
+    case 'no_due_date':
+      return 'no due date';
+    case 'is_overdue':
+      return 'is overdue';
+    case 'due_today':
+      return 'due today';
+    case 'due_tomorrow':
+      return 'due tomorrow';
+    case 'due_this_week':
+      return 'due this week';
+    case 'due_next_week':
+      return 'due next week';
+    case 'due_this_month':
+      return 'due this month';
+    case 'due_next_month':
+      return 'due next month';
+    case 'not_due_today':
+      return 'not due today';
+    case 'not_due_tomorrow':
+      return 'not due tomorrow';
+    case 'not_due_this_week':
+      return 'not due this week';
+    case 'not_due_next_week':
+      return 'not due next week';
+    case 'not_due_this_month':
+      return 'not due this month';
+    case 'not_due_next_month':
+      return 'not due next month';
+    case 'due_in_less_than':
+      return `due in < ${filter.value} ${filter.unit === 'working_days' ? 'working days' : 'days'}`;
+    case 'due_in_more_than':
+      return `due in > ${filter.value} ${filter.unit === 'working_days' ? 'working days' : 'days'}`;
+    case 'due_in_exactly':
+      return `due in exactly ${filter.value} ${filter.unit === 'working_days' ? 'working days' : 'days'}`;
+    case 'due_in_between':
+      return `due in ${filter.minValue}-${filter.maxValue} ${filter.unit === 'working_days' ? 'working days' : 'days'}`;
+    default:
+      return 'unknown filter';
+  }
 }
 
 export function RuleDialogStepReview({
   trigger,
   action,
+  filters,
   ruleName,
   onRuleNameChange,
+  onFiltersChange,
   sections,
   onNavigateToStep,
   onSave,
@@ -38,6 +96,12 @@ export function RuleDialogStepReview({
 }: RuleDialogStepReviewProps) {
   // Build section lookup
   const sectionLookup = (id: string) => sections.find((s) => s.id === id)?.name;
+
+  // Handle filter removal
+  const handleRemoveFilter = (index: number) => {
+    const newFilters = filters.filter((_, i) => i !== index);
+    onFiltersChange(newFilters);
+  };
 
   // Get trigger metadata and category color
   const triggerMeta = trigger.type
@@ -116,6 +180,51 @@ export function RuleDialogStepReview({
         <div className="flex justify-center">
           <ArrowDown className="h-5 w-5 text-muted-foreground" />
         </div>
+
+        {/* IF Block - Only show when filters are configured */}
+        {filters.length > 0 && (
+          <>
+            <Card
+              className="border-l-4 border-l-purple-500 cursor-pointer transition-colors hover:bg-accent/50"
+              onClick={() => onNavigateToStep(1)}
+            >
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  IF
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pb-4">
+                <div className="flex flex-wrap gap-2">
+                  {filters.map((filter, index) => (
+                    <Badge
+                      key={index}
+                      variant="secondary"
+                      className="flex items-center gap-1 pr-1"
+                    >
+                      <span>{getFilterDescription(filter, sectionLookup)}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveFilter(index);
+                        }}
+                        className="ml-1 rounded-sm hover:bg-accent/50 p-0.5"
+                        aria-label="Remove filter"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Arrow */}
+            <div className="flex justify-center">
+              <ArrowDown className="h-5 w-5 text-muted-foreground" />
+            </div>
+          </>
+        )}
 
         {/* THEN Block */}
         <Card

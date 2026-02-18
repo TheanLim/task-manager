@@ -1,4 +1,15 @@
 import type { TriggerType, ActionType, RelativeDateOption } from '../schemas';
+import type { CardFilter } from '../types';
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+/**
+ * Sentinel value for action.sectionId that means "use the section from the triggering event."
+ * Used when a section-level trigger (e.g. section_created) should target the newly created section.
+ */
+export const TRIGGER_SECTION_SENTINEL = '__trigger_section__';
 
 // ============================================================================
 // Types
@@ -19,6 +30,11 @@ export interface ActionConfig {
   sectionId: string | null;
   dateOption: RelativeDateOption | null;
   position: 'top' | 'bottom' | null;
+  cardTitle: string | null;
+  cardDateOption: RelativeDateOption | null;
+  specificMonth: number | null;
+  specificDay: number | null;
+  monthTarget: 'this_month' | 'next_month' | null;
 }
 
 // ============================================================================
@@ -27,18 +43,20 @@ export interface ActionConfig {
 
 export interface TriggerMeta {
   type: TriggerType;
-  category: 'card_move' | 'card_change';
+  category: 'card_move' | 'card_change' | 'section_change';
   label: string;
   needsSection: boolean;
 }
 
 export interface ActionMeta {
   type: ActionType;
-  category: 'move' | 'status' | 'dates';
+  category: 'move' | 'status' | 'dates' | 'create';
   label: string;
   needsSection: boolean;
   needsDateOption: boolean;
   needsPosition: boolean;
+  needsTitle?: boolean;
+  needsCardDateOption?: boolean;
 }
 
 export const TRIGGER_META: TriggerMeta[] = [
@@ -55,6 +73,12 @@ export const TRIGGER_META: TriggerMeta[] = [
     needsSection: true,
   },
   {
+    type: 'card_created_in_section',
+    category: 'card_move',
+    label: 'created in section',
+    needsSection: true,
+  },
+  {
     type: 'card_marked_complete',
     category: 'card_change',
     label: 'marked complete',
@@ -64,6 +88,18 @@ export const TRIGGER_META: TriggerMeta[] = [
     type: 'card_marked_incomplete',
     category: 'card_change',
     label: 'marked incomplete',
+    needsSection: false,
+  },
+  {
+    type: 'section_created',
+    category: 'section_change',
+    label: 'section created',
+    needsSection: false,
+  },
+  {
+    type: 'section_renamed',
+    category: 'section_change',
+    label: 'section renamed',
     needsSection: false,
   },
 ];
@@ -117,11 +153,76 @@ export const ACTION_META: ActionMeta[] = [
     needsDateOption: false,
     needsPosition: false,
   },
+  {
+    type: 'create_card',
+    category: 'create',
+    label: 'create new card',
+    needsSection: true,
+    needsDateOption: false,
+    needsPosition: false,
+    needsTitle: true,
+    needsCardDateOption: true,
+  },
 ];
 
 // ============================================================================
 // Preview Generation
 // ============================================================================
+
+/**
+ * Generates a human-readable description for a filter.
+ */
+function formatFilterDescription(
+  filter: CardFilter,
+  sectionLookup: (id: string) => string | undefined
+): string {
+  switch (filter.type) {
+    case 'in_section':
+      return `in "${sectionLookup(filter.sectionId) || '___'}"`;
+    case 'not_in_section':
+      return `not in "${sectionLookup(filter.sectionId) || '___'}"`;
+    case 'has_due_date':
+      return 'with a due date';
+    case 'no_due_date':
+      return 'without a due date';
+    case 'is_overdue':
+      return 'that is overdue';
+    case 'due_today':
+      return 'due today';
+    case 'due_tomorrow':
+      return 'due tomorrow';
+    case 'due_this_week':
+      return 'due this week';
+    case 'due_next_week':
+      return 'due next week';
+    case 'due_this_month':
+      return 'due this month';
+    case 'due_next_month':
+      return 'due next month';
+    case 'not_due_today':
+      return 'not due today';
+    case 'not_due_tomorrow':
+      return 'not due tomorrow';
+    case 'not_due_this_week':
+      return 'not due this week';
+    case 'not_due_next_week':
+      return 'not due next week';
+    case 'not_due_this_month':
+      return 'not due this month';
+    case 'not_due_next_month':
+      return 'not due next month';
+    case 'due_in_less_than':
+      return `due in less than ${filter.value} ${filter.unit === 'working_days' ? 'working days' : 'days'}`;
+    case 'due_in_more_than':
+      return `due in more than ${filter.value} ${filter.unit === 'working_days' ? 'working days' : 'days'}`;
+    case 'due_in_exactly':
+      return `due in exactly ${filter.value} ${filter.unit === 'working_days' ? 'working days' : 'days'}`;
+    case 'due_in_between':
+      return `due in ${filter.minValue}-${filter.maxValue} ${filter.unit === 'working_days' ? 'working days' : 'days'}`;
+    default:
+      return '';
+  }
+}
 
 /**
  * Builds an array of preview parts (text and value segments) for a rule configuration.
@@ -130,17 +231,36 @@ export const ACTION_META: ActionMeta[] = [
  * @param trigger - The trigger configuration
  * @param action - The action configuration
  * @param sectionLookup - Function to resolve section ID to section name
+ * @param filters - Optional array of card filters to include in the preview
  * @returns Array of preview parts that can be rendered as text or badges
  */
 export function buildPreviewParts(
   trigger: TriggerConfig,
   action: ActionConfig,
-  sectionLookup: (id: string) => string | undefined
+  sectionLookup: (id: string) => string | undefined,
+  filters?: CardFilter[]
 ): PreviewPart[] {
   const parts: PreviewPart[] = [];
 
   // Build trigger part
-  parts.push({ type: 'text', content: 'When a card is ' });
+  parts.push({ type: 'text', content: 'When a card ' });
+
+  // Add filter descriptions if present
+  if (filters && filters.length > 0) {
+    filters.forEach((filter, index) => {
+      const description = formatFilterDescription(filter, sectionLookup);
+      if (description) {
+        parts.push({ type: 'value', content: description });
+        if (index < filters.length - 1) {
+          parts.push({ type: 'text', content: ' and ' });
+        } else {
+          parts.push({ type: 'text', content: ' ' });
+        }
+      }
+    });
+  }
+
+  parts.push({ type: 'text', content: 'is ' });
 
   if (!trigger.type) {
     parts.push({ type: 'value', content: '___' });
@@ -160,6 +280,9 @@ export function buildPreviewParts(
             parts.push({ type: 'value', content: sectionName || '___' });
           } else if (triggerMeta.type === 'card_moved_out_of_section') {
             parts.push({ type: 'text', content: 'moved out of ' });
+            parts.push({ type: 'value', content: sectionName || '___' });
+          } else if (triggerMeta.type === 'card_created_in_section') {
+            parts.push({ type: 'text', content: 'created in ' });
             parts.push({ type: 'value', content: sectionName || '___' });
           }
         }
@@ -199,6 +322,23 @@ export function buildPreviewParts(
           const dateLabel = formatDateOption(action.dateOption);
           parts.push({ type: 'value', content: dateLabel });
         }
+      } else if (actionMeta.type === 'create_card') {
+        if (!action.cardTitle) {
+          parts.push({ type: 'text', content: 'create card ' });
+          parts.push({ type: 'value', content: '___' });
+        } else {
+          parts.push({ type: 'text', content: 'create card "' });
+          parts.push({ type: 'value', content: action.cardTitle });
+          parts.push({ type: 'text', content: '"' });
+          if (action.sectionId === TRIGGER_SECTION_SENTINEL) {
+            parts.push({ type: 'text', content: ' in ' });
+            parts.push({ type: 'value', content: 'the triggering section' });
+          } else if (action.sectionId) {
+            const sectionName = sectionLookup(action.sectionId);
+            parts.push({ type: 'text', content: ' in ' });
+            parts.push({ type: 'value', content: sectionName || '___' });
+          }
+        }
       } else {
         // Simple actions: mark_card_complete, mark_card_incomplete, remove_due_date
         parts.push({ type: 'value', content: actionMeta.label });
@@ -232,5 +372,8 @@ function formatDateOption(option: RelativeDateOption): string {
       return 'tomorrow';
     case 'next_working_day':
       return 'next working day';
+    default:
+      // TODO: Implement remaining date option formatting
+      return option.replace(/_/g, ' ');
   }
 }

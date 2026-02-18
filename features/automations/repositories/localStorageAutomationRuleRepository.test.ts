@@ -64,6 +64,11 @@ const actionArb = fc.record({
   sectionId: fc.oneof(idArb, fc.constant(null)),
   dateOption: fc.oneof(relativeDateOptionArb, fc.constant(null)),
   position: fc.oneof(positionArb, fc.constant(null)),
+  cardTitle: fc.oneof(fc.string({ minLength: 1, maxLength: 200 }), fc.constant(null)),
+  cardDateOption: fc.oneof(relativeDateOptionArb, fc.constant(null)),
+  specificMonth: fc.oneof(fc.integer({ min: 1, max: 12 }), fc.constant(null)),
+  specificDay: fc.oneof(fc.integer({ min: 1, max: 31 }), fc.constant(null)),
+  monthTarget: fc.oneof(fc.constantFrom('this_month' as const, 'next_month' as const), fc.constant(null)),
 });
 
 const automationRuleArb = fc.record({
@@ -72,6 +77,7 @@ const automationRuleArb = fc.record({
   name: fc.string({ minLength: 1, maxLength: 200 }),
   trigger: triggerArb,
   action: actionArb,
+  filters: fc.constant([]), // Phase 3: empty filters array for now
   enabled: fc.boolean(),
   brokenReason: fc.oneof(fc.string({ minLength: 1, maxLength: 100 }), fc.constant(null)),
   executionCount: fc.nat(),
@@ -81,7 +87,7 @@ const automationRuleArb = fc.record({
   updatedAt: isoDateTimeArb,
 }) as fc.Arbitrary<AutomationRule>;
 
-describe('LocalStorageAutomationRuleRepository Property Tests', () => {
+describe('LocalStorageAutomationRuleRepository', () => {
   let localStorageMock: LocalStorageMock;
 
   beforeEach(() => {
@@ -91,6 +97,333 @@ describe('LocalStorageAutomationRuleRepository Property Tests', () => {
 
   afterEach(() => {
     localStorageMock.clear();
+  });
+
+  // Unit tests for schema migration
+  describe('Schema Migration', () => {
+    it('should add empty filters array to Phase 1/2 rules missing the field', () => {
+      // Create a Phase 1/2 rule without filters field
+      const phase1Rule = {
+        id: 'rule-1',
+        projectId: 'project-1',
+        name: 'Test Rule',
+        trigger: {
+          type: 'card_moved_into_section',
+          sectionId: 'section-1',
+        },
+        action: {
+          type: 'mark_card_complete',
+          sectionId: null,
+          dateOption: null,
+          position: null,
+        },
+        enabled: true,
+        brokenReason: null,
+        executionCount: 0,
+        lastExecutedAt: null,
+        order: 0,
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
+      };
+
+      // Store the Phase 1/2 rule directly in localStorage
+      localStorageMock.setItem('task-management-automations', JSON.stringify([phase1Rule]));
+
+      // Create repository instance (triggers migration)
+      const repo = new LocalStorageAutomationRuleRepository();
+
+      // Retrieve the rule
+      const rules = repo.findAll();
+      expect(rules.length).toBe(1);
+      expect(rules[0].filters).toEqual([]);
+    });
+
+    it('should add null defaults for new action fields', () => {
+      // Create a Phase 1/2 rule without new action fields
+      const phase1Rule = {
+        id: 'rule-1',
+        projectId: 'project-1',
+        name: 'Test Rule',
+        trigger: {
+          type: 'card_moved_into_section',
+          sectionId: 'section-1',
+        },
+        action: {
+          type: 'set_due_date',
+          sectionId: null,
+          dateOption: 'tomorrow',
+          position: null,
+          // Missing: cardTitle, cardDateOption, specificMonth, specificDay, monthTarget
+        },
+        enabled: true,
+        brokenReason: null,
+        executionCount: 0,
+        lastExecutedAt: null,
+        order: 0,
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
+      };
+
+      // Store the Phase 1/2 rule directly in localStorage
+      localStorageMock.setItem('task-management-automations', JSON.stringify([phase1Rule]));
+
+      // Create repository instance (triggers migration)
+      const repo = new LocalStorageAutomationRuleRepository();
+
+      // Retrieve the rule
+      const rules = repo.findAll();
+      expect(rules.length).toBe(1);
+      expect(rules[0].action.cardTitle).toBeNull();
+      expect(rules[0].action.cardDateOption).toBeNull();
+      expect(rules[0].action.specificMonth).toBeNull();
+      expect(rules[0].action.specificDay).toBeNull();
+      expect(rules[0].action.monthTarget).toBeNull();
+    });
+
+    it('should preserve all existing field values unchanged', () => {
+      // Create a Phase 1/2 rule with all existing fields
+      const phase1Rule = {
+        id: 'rule-1',
+        projectId: 'project-1',
+        name: 'Test Rule',
+        trigger: {
+          type: 'card_moved_into_section',
+          sectionId: 'section-1',
+        },
+        action: {
+          type: 'move_card_to_top_of_section',
+          sectionId: 'section-2',
+          dateOption: 'today',
+          position: 'top',
+        },
+        enabled: false,
+        brokenReason: 'section_deleted',
+        executionCount: 42,
+        lastExecutedAt: '2024-01-15T12:00:00.000Z',
+        order: 5,
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-10T00:00:00.000Z',
+      };
+
+      // Store the Phase 1/2 rule directly in localStorage
+      localStorageMock.setItem('task-management-automations', JSON.stringify([phase1Rule]));
+
+      // Create repository instance (triggers migration)
+      const repo = new LocalStorageAutomationRuleRepository();
+
+      // Retrieve the rule
+      const rules = repo.findAll();
+      expect(rules.length).toBe(1);
+      
+      // Verify all original fields are preserved
+      expect(rules[0].id).toBe('rule-1');
+      expect(rules[0].projectId).toBe('project-1');
+      expect(rules[0].name).toBe('Test Rule');
+      expect(rules[0].trigger.type).toBe('card_moved_into_section');
+      expect(rules[0].trigger.sectionId).toBe('section-1');
+      expect(rules[0].action.type).toBe('move_card_to_top_of_section');
+      expect(rules[0].action.sectionId).toBe('section-2');
+      expect(rules[0].action.dateOption).toBe('today');
+      expect(rules[0].action.position).toBe('top');
+      expect(rules[0].enabled).toBe(false);
+      expect(rules[0].brokenReason).toBe('section_deleted');
+      expect(rules[0].executionCount).toBe(42);
+      expect(rules[0].lastExecutedAt).toBe('2024-01-15T12:00:00.000Z');
+      expect(rules[0].order).toBe(5);
+      expect(rules[0].createdAt).toBe('2024-01-01T00:00:00.000Z');
+      expect(rules[0].updatedAt).toBe('2024-01-10T00:00:00.000Z');
+    });
+
+    it('should not modify Phase 3 rules that already have all fields', () => {
+      // Create a Phase 3 rule with all fields
+      const phase3Rule = {
+        id: 'rule-1',
+        projectId: 'project-1',
+        name: 'Test Rule',
+        trigger: {
+          type: 'card_created_in_section',
+          sectionId: 'section-1',
+        },
+        filters: [
+          { type: 'has_due_date' },
+          { type: 'in_section', sectionId: 'section-2' },
+        ],
+        action: {
+          type: 'create_card',
+          sectionId: 'section-3',
+          dateOption: null,
+          position: null,
+          cardTitle: 'New Task',
+          cardDateOption: 'tomorrow',
+          specificMonth: 12,
+          specificDay: 25,
+          monthTarget: 'next_month',
+        },
+        enabled: true,
+        brokenReason: null,
+        executionCount: 0,
+        lastExecutedAt: null,
+        order: 0,
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
+      };
+
+      // Store the Phase 3 rule directly in localStorage
+      localStorageMock.setItem('task-management-automations', JSON.stringify([phase3Rule]));
+
+      // Create repository instance (triggers migration)
+      const repo = new LocalStorageAutomationRuleRepository();
+
+      // Retrieve the rule
+      const rules = repo.findAll();
+      expect(rules.length).toBe(1);
+      
+      // Verify all fields are preserved exactly
+      expect(rules[0]).toEqual(phase3Rule);
+    });
+
+    it('should handle multiple rules with mixed Phase 1/2 and Phase 3 schemas', () => {
+      const phase1Rule = {
+        id: 'rule-1',
+        projectId: 'project-1',
+        name: 'Phase 1 Rule',
+        trigger: { type: 'card_moved_into_section', sectionId: 'section-1' },
+        action: { type: 'mark_card_complete', sectionId: null, dateOption: null, position: null },
+        enabled: true,
+        brokenReason: null,
+        executionCount: 0,
+        lastExecutedAt: null,
+        order: 0,
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
+      };
+
+      const phase3Rule = {
+        id: 'rule-2',
+        projectId: 'project-1',
+        name: 'Phase 3 Rule',
+        trigger: { type: 'card_created_in_section', sectionId: 'section-2' },
+        filters: [{ type: 'has_due_date' }],
+        action: {
+          type: 'create_card',
+          sectionId: 'section-3',
+          dateOption: null,
+          position: null,
+          cardTitle: 'New Task',
+          cardDateOption: 'tomorrow',
+          specificMonth: null,
+          specificDay: null,
+          monthTarget: null,
+        },
+        enabled: true,
+        brokenReason: null,
+        executionCount: 0,
+        lastExecutedAt: null,
+        order: 1,
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
+      };
+
+      // Store both rules
+      localStorageMock.setItem('task-management-automations', JSON.stringify([phase1Rule, phase3Rule]));
+
+      // Create repository instance (triggers migration)
+      const repo = new LocalStorageAutomationRuleRepository();
+
+      // Retrieve the rules
+      const rules = repo.findAll();
+      expect(rules.length).toBe(2);
+
+      // Phase 1 rule should have been migrated
+      const migratedPhase1 = rules.find(r => r.id === 'rule-1');
+      expect(migratedPhase1?.filters).toEqual([]);
+      expect(migratedPhase1?.action.cardTitle).toBeNull();
+
+      // Phase 3 rule should be unchanged
+      const unchangedPhase3 = rules.find(r => r.id === 'rule-2');
+      expect(unchangedPhase3).toEqual(phase3Rule);
+    });
+  });
+
+  // Feature: automations-filters-dates, Property 20: Schema migration preserves existing data and adds defaults
+  // **Validates: Requirements 12.1, 12.2**
+  describe('Property 20: Schema migration preserves existing data and adds defaults', () => {
+    // Arbitrary for Phase 1/2 rules (without filters and new action fields)
+    const phase1ActionArb = fc.record({
+      type: actionTypeArb,
+      sectionId: fc.oneof(idArb, fc.constant(null)),
+      dateOption: fc.oneof(relativeDateOptionArb, fc.constant(null)),
+      position: fc.oneof(positionArb, fc.constant(null)),
+      // Intentionally omit: cardTitle, cardDateOption, specificMonth, specificDay, monthTarget
+    });
+
+    const phase1RuleArb = fc.record({
+      id: idArb,
+      projectId: idArb,
+      name: fc.string({ minLength: 1, maxLength: 200 }),
+      trigger: triggerArb,
+      action: phase1ActionArb,
+      // Intentionally omit: filters
+      enabled: fc.boolean(),
+      brokenReason: fc.oneof(fc.string({ minLength: 1, maxLength: 100 }), fc.constant(null)),
+      executionCount: fc.nat(),
+      lastExecutedAt: fc.oneof(isoDateTimeArb, fc.constant(null)),
+      order: fc.integer(),
+      createdAt: isoDateTimeArb,
+      updatedAt: isoDateTimeArb,
+    });
+
+    it('for any valid Phase 1/2 rule object (without filters field and without new action fields), running the migration function SHALL produce a valid Phase 3 rule where: (a) the filters array is empty, (b) all original field values are preserved unchanged, (c) new action fields default to null', () => {
+      fc.assert(
+        fc.property(phase1RuleArb, (phase1Rule) => {
+          // Clear localStorage before each test
+          localStorageMock.clear();
+
+          // Store the Phase 1/2 rule directly in localStorage (bypassing validation)
+          localStorageMock.setItem('task-management-automations', JSON.stringify([phase1Rule]));
+
+          // Create repository instance (triggers migration)
+          const repo = new LocalStorageAutomationRuleRepository();
+
+          // Retrieve the migrated rule
+          const rules = repo.findAll();
+
+          // Should have exactly one rule
+          expect(rules.length).toBe(1);
+          const migratedRule = rules[0];
+
+          // (a) The filters array should be empty
+          expect(migratedRule.filters).toEqual([]);
+
+          // (b) All original field values should be preserved unchanged
+          expect(migratedRule.id).toBe(phase1Rule.id);
+          expect(migratedRule.projectId).toBe(phase1Rule.projectId);
+          expect(migratedRule.name).toBe(phase1Rule.name);
+          expect(migratedRule.trigger).toEqual(phase1Rule.trigger);
+          expect(migratedRule.enabled).toBe(phase1Rule.enabled);
+          expect(migratedRule.brokenReason).toBe(phase1Rule.brokenReason);
+          expect(migratedRule.executionCount).toBe(phase1Rule.executionCount);
+          expect(migratedRule.lastExecutedAt).toBe(phase1Rule.lastExecutedAt);
+          expect(migratedRule.order).toBe(phase1Rule.order);
+          expect(migratedRule.createdAt).toBe(phase1Rule.createdAt);
+          expect(migratedRule.updatedAt).toBe(phase1Rule.updatedAt);
+
+          // Original action fields should be preserved
+          expect(migratedRule.action.type).toBe(phase1Rule.action.type);
+          expect(migratedRule.action.sectionId).toBe(phase1Rule.action.sectionId);
+          expect(migratedRule.action.dateOption).toBe(phase1Rule.action.dateOption);
+          expect(migratedRule.action.position).toBe(phase1Rule.action.position);
+
+          // (c) New action fields should default to null
+          expect(migratedRule.action.cardTitle).toBeNull();
+          expect(migratedRule.action.cardDateOption).toBeNull();
+          expect(migratedRule.action.specificMonth).toBeNull();
+          expect(migratedRule.action.specificDay).toBeNull();
+          expect(migratedRule.action.monthTarget).toBeNull();
+        }),
+        { numRuns: 100 },
+      );
+    });
   });
 
   // Feature: automations-foundation, Property 2: Repository persistence round-trip

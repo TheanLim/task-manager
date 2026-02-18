@@ -41,8 +41,11 @@ export class LocalStorageAutomationRuleRepository implements AutomationRuleRepos
         return [];
       }
 
+      // Migrate rules before validation
+      const migrated = parsed.map((item) => this.migrateRule(item));
+
       // Validate each rule with Zod
-      const validated = parsed
+      const validated = migrated
         .map((item) => {
           const result = AutomationRuleSchema.safeParse(item);
           if (!result.success) {
@@ -58,6 +61,49 @@ export class LocalStorageAutomationRuleRepository implements AutomationRuleRepos
       console.error('Failed to load automation rules from localStorage:', error);
       return [];
     }
+  }
+
+  /**
+   * Migrate a rule from Phase 1/2 schema to Phase 3 schema.
+   * Adds missing fields with default values while preserving existing data.
+   *
+   * Validates Requirements: 12.1, 12.2, 12.3
+   */
+  private migrateRule(raw: unknown): unknown {
+    if (typeof raw !== 'object' || raw === null) {
+      return raw;
+    }
+
+    const obj = raw as Record<string, unknown>;
+
+    // Add empty filters array if missing
+    if (!Array.isArray(obj.filters)) {
+      obj.filters = [];
+    }
+
+    // Migrate action fields if action object exists
+    if (obj.action && typeof obj.action === 'object') {
+      const action = obj.action as Record<string, unknown>;
+
+      // Add null defaults for new action fields if they don't exist
+      if (!('cardTitle' in action)) {
+        action.cardTitle = null;
+      }
+      if (!('cardDateOption' in action)) {
+        action.cardDateOption = null;
+      }
+      if (!('specificMonth' in action)) {
+        action.specificMonth = null;
+      }
+      if (!('specificDay' in action)) {
+        action.specificDay = null;
+      }
+      if (!('monthTarget' in action)) {
+        action.monthTarget = null;
+      }
+    }
+
+    return obj;
   }
 
   /**

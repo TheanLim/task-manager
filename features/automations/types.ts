@@ -6,6 +6,8 @@ import type {
   RelativeDateOptionSchema,
   TriggerSchema,
   ActionSchema,
+  CardFilterSchema,
+  CardFilterTypeSchema,
 } from './schemas';
 import type { Task, Section } from '@/lib/schemas';
 
@@ -16,14 +18,16 @@ export type ActionType = z.infer<typeof ActionTypeSchema>;
 export type RelativeDateOption = z.infer<typeof RelativeDateOptionSchema>;
 export type Trigger = z.infer<typeof TriggerSchema>;
 export type Action = z.infer<typeof ActionSchema>;
+export type CardFilter = z.infer<typeof CardFilterSchema>;
+export type CardFilterType = z.infer<typeof CardFilterTypeSchema>;
 
 /**
  * Domain event emitted by the service layer after a mutation occurs.
  * Used by the automation engine to trigger rule evaluation.
  */
 export interface DomainEvent {
-  /** Event type: task.created, task.updated, or task.deleted */
-  type: 'task.created' | 'task.updated' | 'task.deleted';
+  /** Event type: task.created, task.updated, task.deleted, section.created, or section.updated */
+  type: 'task.created' | 'task.updated' | 'task.deleted' | 'section.created' | 'section.updated';
   /** ID of the affected entity */
   entityId: string;
   /** Project scope */
@@ -59,6 +63,16 @@ export interface RuleAction {
     dateOption?: RelativeDateOption;
     /** Completed state for mark_complete/incomplete actions */
     completed?: boolean;
+    /** Specific month (1-12) for specific_date option */
+    specificMonth?: number;
+    /** Specific day (1-31) for specific_date option */
+    specificDay?: number;
+    /** Month target for day-of-month and nth-weekday-of-month options */
+    monthTarget?: 'this_month' | 'next_month';
+    /** Card title for create_card action */
+    cardTitle?: string;
+    /** Date option for create_card action */
+    cardDateOption?: RelativeDateOption;
   };
 }
 
