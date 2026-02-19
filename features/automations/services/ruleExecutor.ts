@@ -2,7 +2,9 @@ import type { TaskRepository, SectionRepository } from '@/lib/repositories/types
 import type { AutomationRuleRepository } from '../repositories/types';
 import type { TaskService } from '@/features/tasks/services/taskService';
 import type { RuleAction, DomainEvent, ExecutionLogEntry } from '../types';
+import { isScheduledTrigger } from '../types';
 import { getActionHandler, type ActionContext } from './actionHandlers';
+import { describeSchedule } from './rulePreviewService';
 
 /**
  * RuleExecutor applies actions produced by the rule engine.
@@ -140,6 +142,10 @@ export class RuleExecutor {
         return 'Section created';
       case 'section_renamed':
         return 'Section renamed';
+      case 'scheduled_interval':
+      case 'scheduled_cron':
+      case 'scheduled_due_date_relative':
+        return `Every ${describeSchedule(rule.trigger)}`;
       default:
         return 'Unknown trigger';
     }

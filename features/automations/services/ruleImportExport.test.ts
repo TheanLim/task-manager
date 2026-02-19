@@ -426,3 +426,114 @@ describe('Property 6: Import section reference validation', () => {
     );
   });
 });
+
+
+// ─── Scheduled Triggers Import/Export Tests ─────────────────────────────
+
+// Feature: scheduled-triggers-phase-5a, Property 24: Unsupported trigger types on import
+describe('Property 24: Unsupported trigger types on import', () => {
+  it('unrecognized trigger type → brokenReason: unsupported_trigger, enabled: false', () => {
+    const rule = {
+      id: 'rule-1',
+      projectId: 'proj-1',
+      name: 'Unknown Rule',
+      trigger: { type: 'some_future_trigger', sectionId: null },
+      filters: [],
+      action: {
+        type: 'mark_card_complete',
+        sectionId: null,
+        dateOption: null,
+        position: null,
+        cardTitle: null,
+        cardDateOption: null,
+        specificMonth: null,
+        specificDay: null,
+        monthTarget: null,
+      },
+      enabled: true,
+      brokenReason: null,
+      executionCount: 0,
+      lastExecutedAt: null,
+      recentExecutions: [],
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    } as any;
+
+    const result = validateImportedRules([rule], new Set());
+    expect(result[0].enabled).toBe(false);
+    expect(result[0].brokenReason).toBe('unsupported_trigger');
+  });
+});
+
+describe('Scheduled rule import: lastEvaluatedAt reset', () => {
+  it('resets lastEvaluatedAt to null on import for scheduled rules', () => {
+    const rule = {
+      id: 'rule-1',
+      projectId: 'proj-1',
+      name: 'Interval Rule',
+      trigger: {
+        type: 'scheduled_interval',
+        sectionId: null,
+        schedule: { kind: 'interval', intervalMinutes: 30 },
+        lastEvaluatedAt: '2026-02-19T10:00:00.000Z',
+      },
+      filters: [],
+      action: {
+        type: 'mark_card_complete',
+        sectionId: null,
+        dateOption: null,
+        position: null,
+        cardTitle: null,
+        cardDateOption: null,
+        specificMonth: null,
+        specificDay: null,
+        monthTarget: null,
+      },
+      enabled: true,
+      brokenReason: null,
+      executionCount: 5,
+      lastExecutedAt: '2026-02-19T10:00:00.000Z',
+      recentExecutions: [],
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    } as any;
+
+    const result = validateImportedRules([rule], new Set());
+    expect((result[0].trigger as any).lastEvaluatedAt).toBeNull();
+  });
+
+  it('does NOT reset lastEvaluatedAt for event triggers', () => {
+    const rule = {
+      id: 'rule-1',
+      projectId: 'proj-1',
+      name: 'Event Rule',
+      trigger: { type: 'card_marked_complete', sectionId: null },
+      filters: [],
+      action: {
+        type: 'mark_card_incomplete',
+        sectionId: null,
+        dateOption: null,
+        position: null,
+        cardTitle: null,
+        cardDateOption: null,
+        specificMonth: null,
+        specificDay: null,
+        monthTarget: null,
+      },
+      enabled: true,
+      brokenReason: null,
+      executionCount: 0,
+      lastExecutedAt: null,
+      recentExecutions: [],
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    } as any;
+
+    const result = validateImportedRules([rule], new Set());
+    // Event triggers don't have lastEvaluatedAt — should be unchanged
+    expect((result[0].trigger as any).lastEvaluatedAt).toBeUndefined();
+  });
+});

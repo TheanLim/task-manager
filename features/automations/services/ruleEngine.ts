@@ -95,6 +95,38 @@ export function evaluateRules(
     return evaluateFilters(rule.filters, task, filterContext);
   };
 
+  // Handle schedule.fired events (scheduled triggers)
+  if (event.type === 'schedule.fired') {
+    const triggerType = event.changes.triggerType as string;
+    const firedRuleId = event.triggeredByRule;
+
+    const matchingRules = ruleIndex.get(triggerType as TriggerType) ?? [];
+
+    for (const rule of matchingRules) {
+      // Only match the specific rule that the scheduler determined should fire
+      if (rule.id !== firedRuleId) continue;
+
+      if (triggerType === 'scheduled_due_date_relative') {
+        // entityId is the task ID — apply filters to that specific task
+        if (passesFilters(rule, event.entityId)) {
+          actions.push(createRuleAction(rule, event.entityId));
+        }
+      } else {
+        // For interval/cron: apply action to ALL tasks matching filters
+        const matchingTasks = context.allTasks.filter((task) => {
+          if (task.parentTaskId !== null) return false; // skip subtasks
+          return passesFilters(rule, task.id);
+        });
+
+        for (const task of matchingTasks) {
+          actions.push(createRuleAction(rule, task.id));
+        }
+      }
+    }
+
+    return actions;
+  }
+
   // Handle task.created events
   if (event.type === 'task.created') {
     const sectionId = event.changes.sectionId as string | undefined;

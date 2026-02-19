@@ -152,6 +152,15 @@ export const filterPredicateMap: Record<string, FilterPredicate> = {
     return dueDate < ctx.now;
   },
 
+  // Completion status filters
+  is_complete: (task) => {
+    return task.completed === true;
+  },
+
+  is_incomplete: (task) => {
+    return task.completed === false;
+  },
+
   // Positive date range filters
   due_today: (task, _filter, ctx) => {
     if (task.dueDate === null) return false;

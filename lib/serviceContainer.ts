@@ -57,3 +57,58 @@ export const automationService = new AutomationService(
   taskService,
   ruleExecutor,
 );
+
+// --- Scheduler services (scheduled triggers) ---
+import { SystemClock } from '@/features/automations/services/clock';
+import { SchedulerService } from '@/features/automations/services/schedulerService';
+import { SchedulerLeaderElection } from '@/features/automations/services/schedulerLeaderElection';
+import type { AutomationRule } from '@/features/automations/types';
+import type { ScheduleEvaluation } from '@/features/automations/services/scheduleEvaluator';
+
+const schedulerClock = new SystemClock();
+
+/**
+ * Callback: routes scheduled rule firings into AutomationService.
+ * Creates a schedule.fired domain event and feeds it through handleEvent.
+ */
+function onScheduledRuleFired({ rule, evaluation }: { rule: AutomationRule; evaluation: ScheduleEvaluation }): void {
+  if (evaluation.matchingTaskIds && evaluation.matchingTaskIds.length > 0) {
+    // Due-date-relative: one event per matching task
+    for (const taskId of evaluation.matchingTaskIds) {
+      const event = {
+        type: 'schedule.fired' as const,
+        entityId: taskId,
+        projectId: rule.projectId,
+        changes: { triggerType: rule.trigger.type },
+        previousValues: {},
+        triggeredByRule: rule.id,
+        depth: 0,
+      };
+      automationService.handleEvent(event);
+    }
+  } else {
+    // Interval/cron: single event with rule ID as entityId
+    const event = {
+      type: 'schedule.fired' as const,
+      entityId: rule.id,
+      projectId: rule.projectId,
+      changes: { triggerType: rule.trigger.type },
+      previousValues: {},
+      triggeredByRule: rule.id,
+      depth: 0,
+    };
+    automationService.handleEvent(event);
+  }
+}
+
+export const schedulerService = new SchedulerService(
+  schedulerClock,
+  automationRuleRepository,
+  taskRepository,
+  onScheduledRuleFired,
+);
+
+export const schedulerLeaderElection = new SchedulerLeaderElection(
+  () => schedulerService.start(),
+  () => schedulerService.stop(),
+);

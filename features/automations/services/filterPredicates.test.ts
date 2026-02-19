@@ -5,6 +5,7 @@ import type { CardFilter } from '../types';
 import {
   evaluateFilter,
   evaluateFilters,
+  filterPredicateMap,
   type FilterContext,
 } from './filterPredicates';
 
@@ -876,6 +877,47 @@ describe('Property 7: Filter composition uses AND logic', () => {
           if (anyFalse) {
             expect(result).toBe(false);
           }
+        }
+      ),
+      { numRuns: 100 }
+    );
+  });
+});
+
+// Feature: scheduled-triggers-phase-5a, Property 18: is_complete / is_incomplete complementarity
+describe('Property 18: is_complete / is_incomplete filter complementarity', () => {
+  it('exactly one of is_complete / is_incomplete matches for any task', () => {
+    fc.assert(
+      fc.property(
+        fc.boolean(),
+        (completed) => {
+          const task = {
+            id: 'task-1',
+            projectId: 'proj-1',
+            parentTaskId: null,
+            sectionId: 'sec-1',
+            description: 'Test',
+            notes: '',
+            assignee: '',
+            priority: 'none' as const,
+            tags: [],
+            dueDate: null,
+            completed,
+            completedAt: completed ? new Date().toISOString() : null,
+            order: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          const ctx = { now: new Date() };
+
+          const isCompleteResult = filterPredicateMap.is_complete(task as any, { type: 'is_complete' } as any, ctx);
+          const isIncompleteResult = filterPredicateMap.is_incomplete(task as any, { type: 'is_incomplete' } as any, ctx);
+
+          // Mutually exclusive and exhaustive
+          expect(isCompleteResult !== isIncompleteResult).toBe(true);
+          // is_complete matches iff completed === true
+          expect(isCompleteResult).toBe(completed);
+          expect(isIncompleteResult).toBe(!completed);
         }
       ),
       { numRuns: 100 }

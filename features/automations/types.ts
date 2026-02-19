@@ -9,6 +9,12 @@ import type {
   CardFilterSchema,
   CardFilterTypeSchema,
   ExecutionLogEntrySchema,
+  EventTriggerTypeSchema,
+  ScheduledTriggerTypeSchema,
+  ScheduleConfigSchema,
+  IntervalScheduleSchema,
+  CronScheduleSchema,
+  DueDateRelativeScheduleSchema,
 } from './schemas';
 import type { Task, Section } from '@/lib/schemas';
 
@@ -25,6 +31,36 @@ export type Action = z.infer<typeof ActionSchema>;
 export type CardFilter = z.infer<typeof CardFilterSchema>;
 export type CardFilterType = z.infer<typeof CardFilterTypeSchema>;
 export type ExecutionLogEntry = z.infer<typeof ExecutionLogEntrySchema>;
+
+// New scheduled trigger types
+export type EventTriggerType = z.infer<typeof EventTriggerTypeSchema>;
+export type ScheduledTriggerType = z.infer<typeof ScheduledTriggerTypeSchema>;
+export type ScheduleConfig = z.infer<typeof ScheduleConfigSchema>;
+export type IntervalSchedule = z.infer<typeof IntervalScheduleSchema>;
+export type CronSchedule = z.infer<typeof CronScheduleSchema>;
+export type DueDateRelativeSchedule = z.infer<typeof DueDateRelativeScheduleSchema>;
+
+// ─── Type Guards ────────────────────────────────────────────────────────
+
+const SCHEDULED_TRIGGER_TYPES: Set<string> = new Set([
+  'scheduled_interval',
+  'scheduled_cron',
+  'scheduled_due_date_relative',
+]);
+
+/** Type guard: returns true for scheduled triggers (interval, cron, due-date-relative) */
+export function isScheduledTrigger(
+  trigger: Trigger
+): trigger is Trigger & { schedule: ScheduleConfig; lastEvaluatedAt: string | null } {
+  return SCHEDULED_TRIGGER_TYPES.has(trigger.type);
+}
+
+/** Type guard: returns true for event triggers (card_moved, card_marked, etc.) */
+export function isEventTrigger(
+  trigger: Trigger
+): trigger is Trigger & { sectionId: string | null } {
+  return !SCHEDULED_TRIGGER_TYPES.has(trigger.type);
+}
 
 /**
  * In-memory snapshot of the previous state of an entity affected by a rule execution.

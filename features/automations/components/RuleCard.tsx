@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertTriangle, ArrowRight, GripVertical, MoreVertical } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Clock, GripVertical, MoreVertical } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Card, CardContent } from '@/components/ui/card';
@@ -46,6 +46,7 @@ const TRIGGER_CATEGORY_COLORS: Record<string, string> = {
   card_move: 'border-blue-500 bg-blue-500/10 text-blue-700 dark:text-blue-300',
   card_change: 'border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
   section_change: 'border-violet-500 bg-violet-500/10 text-violet-700 dark:text-violet-300',
+  scheduled: 'border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-300',
 };
 
 const ACTION_CATEGORY_COLORS: Record<string, string> = {
@@ -112,7 +113,12 @@ export function RuleCard({
             </button>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <h3 className="font-medium text-sm truncate">{rule.name}</h3>
+                <h3 className="font-medium text-sm truncate flex items-center gap-1.5">
+                  {triggerMeta?.category === 'scheduled' && (
+                    <Clock className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
+                  )}
+                  {rule.name}
+                </h3>
                 {!rule.enabled && (
                   <Badge variant="secondary" className="text-xs">
                     Paused
