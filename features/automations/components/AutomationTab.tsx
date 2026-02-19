@@ -31,8 +31,6 @@ import { EmptyState } from '@/components/EmptyState';
 import { RuleCard } from './RuleCard';
 import { RuleDialog } from './RuleDialog';
 import { useAutomationRules } from '../hooks/useAutomationRules';
-import { duplicateRuleToProject } from '../services/ruleDuplicator';
-import { sectionRepository, automationRuleRepository } from '@/stores/dataStore';
 import type { Section } from '@/lib/schemas';
 
 const MAX_RULES_WARNING_THRESHOLD = 10;
@@ -50,7 +48,7 @@ interface AutomationTabProps {
  * Validates Requirements: 2.1, 2.2, 2.3, 9.1, 10.2, 10.3, 10.4, 10.5, 10.6
  */
 export function AutomationTab({ projectId, sections, onShowToast }: AutomationTabProps) {
-  const { rules, duplicateRule, deleteRule, toggleRule, reorderRules, bulkSetEnabled } = useAutomationRules(projectId);
+  const { rules, duplicateRule, duplicateToProject, deleteRule, toggleRule, reorderRules, bulkSetEnabled } = useAutomationRules(projectId);
 
   // Sort rules by order for display
   const sortedRules = [...rules].sort((a, b) => a.order - b.order);
@@ -131,12 +129,7 @@ export function AutomationTab({ projectId, sections, onShowToast }: AutomationTa
   };
 
   const handleDuplicateToProject = (ruleId: string, targetProjectId: string) => {
-    const rule = rules.find((r) => r.id === ruleId);
-    if (!rule) return;
-
-    const targetSections = sectionRepository.findByProjectId(targetProjectId);
-    const newRule = duplicateRuleToProject(rule, targetProjectId, sections, targetSections);
-    automationRuleRepository.create(newRule);
+    duplicateToProject(ruleId, targetProjectId, sections);
   };
 
   const handleDeleteClick = (ruleId: string) => {

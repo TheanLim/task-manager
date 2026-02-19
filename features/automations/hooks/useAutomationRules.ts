@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { automationRuleRepository } from '@/stores/dataStore';
+import { automationRuleRepository, sectionRepository } from '@/stores/dataStore';
 import type { AutomationRule } from '../types';
+import { duplicateRuleToProject } from '../services/ruleDuplicator';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
@@ -32,6 +33,7 @@ export interface UseAutomationRulesReturn {
   updateRule: (id: string, updates: Partial<AutomationRule>) => void;
   deleteRule: (id: string) => void;
   duplicateRule: (id: string) => void;
+  duplicateToProject: (ruleId: string, targetProjectId: string, sourceSections: import('@/lib/schemas').Section[]) => void;
   toggleRule: (id: string) => void;
   reorderRules: (ruleId: string, newIndex: number) => void;
   bulkSetEnabled: (enabled: boolean) => void;
@@ -174,12 +176,26 @@ export function useAutomationRules(projectId: string): UseAutomationRulesReturn 
     [projectId]
   );
 
+  // Duplicate a rule to another project with section name remapping
+  const duplicateToProject = useCallback(
+    (ruleId: string, targetProjectId: string, sourceSections: import('@/lib/schemas').Section[]) => {
+      const rule = automationRuleRepository.findById(ruleId);
+      if (!rule) return;
+
+      const targetSections = sectionRepository.findByProjectId(targetProjectId);
+      const newRule = duplicateRuleToProject(rule, targetProjectId, sourceSections, targetSections);
+      automationRuleRepository.create(newRule);
+    },
+    []
+  );
+
   return {
     rules,
     createRule,
     updateRule,
     deleteRule,
     duplicateRule,
+    duplicateToProject,
     toggleRule,
     reorderRules,
     bulkSetEnabled,

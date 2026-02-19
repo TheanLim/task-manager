@@ -1,7 +1,7 @@
 import type { TaskRepository, SectionRepository } from '@/lib/repositories/types';
 import type { AutomationRuleRepository } from '../repositories/types';
 import type { TaskService } from '@/features/tasks/services/taskService';
-import type { DomainEvent, EvaluationContext, RuleAction, BatchContext } from '../types';
+import type { AutomationRule, DomainEvent, EvaluationContext, RuleAction, BatchContext } from '../types';
 import { evaluateRules } from './ruleEngine';
 import { RuleExecutor } from './ruleExecutor';
 import {
@@ -30,6 +30,9 @@ export {
 export interface RuleExecutionCallback {
   (params: { ruleId: string; ruleName: string; taskDescription: string; batchSize: number }): void;
 }
+
+/** Subtask state captured before execution for undo support. */
+type SubtaskSnapshotMap = Map<string, Array<{ taskId: string; previousState: { completed: boolean; completedAt: string | null } }>>;
 
 /**
  * AutomationService orchestrates event handling, rule evaluation, and action execution.
@@ -124,23 +127,14 @@ export class AutomationService {
   /**
    * Handle a domain event by evaluating rules and executing actions.
    * Supports cascading evaluation with loop protection.
-   * 
-   * @param event - The domain event to handle
-   * @param dedupSet - Optional deduplication set (created on first call, passed through recursion)
    */
   handleEvent(event: DomainEvent, dedupSet?: Set<string>): void {
     // Requirement 6.4: Halt if cascade depth exceeds maximum
-    if (event.depth >= this.maxDepth) {
-      return;
-    }
+    if (event.depth >= this.maxDepth) return;
 
-    // Requirement 6.7: Reset depth counter and clear dedup set for new user-initiated actions
-    // (dedupSet is undefined for user-initiated events, created here)
     const currentDedupSet = dedupSet ?? new Set<string>();
-
-    // Requirement 6.1: Subscribe to domain events and invoke the rule engine
     const rules = this.ruleRepo.findByProjectId(event.projectId);
-    
+
     const context: EvaluationContext = {
       allTasks: this.taskRepo.findAll(),
       allSections: this.sectionRepo.findAll(),
@@ -149,118 +143,143 @@ export class AutomationService {
     };
 
     const actions = evaluateRules(event, rules, context);
+    const filteredActions = this.filterDuplicateActions(actions, currentDedupSet);
 
-    // Requirement 6.5: Maintain a dedup set of "ruleId:entityId:actionType" entries
-    // Requirement 6.6: Skip duplicate actions to break cycles
-    const filteredActions = actions.filter(action => {
-      const key = `${action.ruleId}:${action.targetEntityId}:${action.actionType}`;
-      
-      if (currentDedupSet.has(key)) {
-        return false; // Skip duplicate
-      }
-      
-      currentDedupSet.add(key);
-      return true;
-    });
+    // Capture subtask state BEFORE execution for undo
+    const subtaskMap = this.capturePreExecutionSubtasks(event, filteredActions);
 
-    // Capture subtask state BEFORE execution for undo (mark_complete/incomplete cascade)
-    const preExecutionSubtaskMap = new Map<string, Array<{ taskId: string; previousState: { completed: boolean; completedAt: string | null } }>>();
-    if (event.depth === 0 && filteredActions.length > 0) {
-      for (const action of filteredActions) {
-        if (action.actionType === 'mark_card_complete' || action.actionType === 'mark_card_incomplete') {
-          const allTasks = this.taskRepo.findAll();
-          const subtasks = allTasks.filter((t) => t.parentTaskId === action.targetEntityId);
-          if (subtasks.length > 0) {
-            preExecutionSubtaskMap.set(action.ruleId, subtasks.map((sub) => ({
-              taskId: sub.id,
-              previousState: {
-                completed: sub.completed,
-                completedAt: sub.completedAt ?? null,
-              },
-            })));
-          }
-        }
-      }
-    }
-
-    // Requirement 6.2: Delegate execution to the rule executor
+    // Execute actions
     const newEvents = this.ruleExecutor.executeActions(filteredActions, event);
 
-    // Capture undo snapshots for ALL actions (depth 0 only).
-    // Each action gets its own snapshot so each toast can undo independently.
-    if (event.depth === 0 && filteredActions.length > 0 && newEvents.length > 0) {
-      // Clear previous snapshots for this new user gesture
-      clearAllUndoSnapshots();
-
-      for (const action of filteredActions) {
-        const matchingEvent = newEvents.find(
-          e => e.triggeredByRule === action.ruleId &&
-               (e.entityId === action.targetEntityId || action.actionType === 'create_card')
-        );
-
-        if (matchingEvent) {
-          const rule = rules.find(r => r.id === action.ruleId);
-          if (rule) {
-            const snapshot = buildUndoSnapshot(action, rule.name, matchingEvent);
-            const subtaskSnaps = preExecutionSubtaskMap.get(action.ruleId);
-            if (subtaskSnaps) {
-              snapshot.subtaskSnapshots = subtaskSnaps;
-            }
-            pushUndoSnapshot(snapshot);
-          }
-        }
-      }
-    }
-
-    // Requirements 8.1–8.4, 11.1, 11.2: Notify about rule executions (only for top-level, user-initiated events)
+    // Undo + notifications only for top-level user-initiated events
     if (event.depth === 0 && filteredActions.length > 0) {
-      // Group actions by rule ID to generate notifications
-      const actionsByRule = new Map<string, typeof filteredActions>();
-      
-      for (const action of filteredActions) {
-        const existing = actionsByRule.get(action.ruleId) || [];
-        existing.push(action);
-        actionsByRule.set(action.ruleId, existing);
-      }
-
-      // Generate a notification for each rule that executed
-      for (const [ruleId, ruleActions] of actionsByRule) {
-        const rule = rules.find(r => r.id === ruleId);
-        if (!rule) continue;
-
-        if (this.batchContext) {
-          // Batch mode: collect executions for aggregated toast later (Req 8.4)
-          for (const action of ruleActions) {
-            const task = this.taskRepo.findById(action.targetEntityId);
-            this.batchContext.executions.push({
-              ruleId: rule.id,
-              ruleName: rule.name,
-              taskName: task?.description || 'Unknown task',
-              actionDescription: action.actionType,
-            });
-          }
-        } else if (this.onRuleExecuted) {
-          // Non-batch mode: emit individual toast per rule immediately
-          const batchSize = ruleActions.length;
-          let taskDescription = '';
-          if (batchSize === 1) {
-            const task = this.taskRepo.findById(ruleActions[0].targetEntityId);
-            taskDescription = task?.description || 'Unknown task';
-          }
-
-          this.onRuleExecuted({
-            ruleId,
-            ruleName: rule.name,
-            taskDescription,
-            batchSize,
-          });
-        }
-      }
+      this.buildUndoSnapshots(filteredActions, newEvents, rules, subtaskMap);
+      this.notifyRuleExecutions(filteredActions, rules);
     }
 
-    // Requirement 6.3: Allow cascading evaluation up to maximum depth
+    // Requirement 6.3: Cascade
     for (const newEvent of newEvents) {
       this.handleEvent(newEvent, currentDedupSet);
+    }
+  }
+
+  /**
+   * Filter out duplicate actions using the dedup set.
+   * Requirements 6.5, 6.6: Maintain "ruleId:entityId:actionType" entries to break cycles.
+   */
+  private filterDuplicateActions(actions: RuleAction[], dedupSet: Set<string>): RuleAction[] {
+    return actions.filter(action => {
+      const key = `${action.ruleId}:${action.targetEntityId}:${action.actionType}`;
+      if (dedupSet.has(key)) return false;
+      dedupSet.add(key);
+      return true;
+    });
+  }
+
+  /**
+   * Capture subtask state before mark_complete/incomplete execution for undo support.
+   * Only captures at depth 0 (user-initiated events).
+   */
+  private capturePreExecutionSubtasks(event: DomainEvent, actions: RuleAction[]): SubtaskSnapshotMap {
+    const map: SubtaskSnapshotMap = new Map();
+    if (event.depth !== 0 || actions.length === 0) return map;
+
+    for (const action of actions) {
+      if (action.actionType !== 'mark_card_complete' && action.actionType !== 'mark_card_incomplete') continue;
+
+      const allTasks = this.taskRepo.findAll();
+      const subtasks = allTasks.filter((t) => t.parentTaskId === action.targetEntityId);
+      if (subtasks.length > 0) {
+        map.set(action.ruleId, subtasks.map((sub) => ({
+          taskId: sub.id,
+          previousState: {
+            completed: sub.completed,
+            completedAt: sub.completedAt ?? null,
+          },
+        })));
+      }
+    }
+
+    return map;
+  }
+
+  /**
+   * Build undo snapshots for all executed actions (depth 0 only).
+   * Each action gets its own snapshot so each toast can undo independently.
+   */
+  private buildUndoSnapshots(
+    actions: RuleAction[],
+    newEvents: DomainEvent[],
+    rules: AutomationRule[],
+    subtaskMap: SubtaskSnapshotMap
+  ): void {
+    if (newEvents.length === 0) return;
+
+    clearAllUndoSnapshots();
+
+    for (const action of actions) {
+      const matchingEvent = newEvents.find(
+        e => e.triggeredByRule === action.ruleId &&
+             (e.entityId === action.targetEntityId || action.actionType === 'create_card')
+      );
+      if (!matchingEvent) continue;
+
+      const rule = rules.find(r => r.id === action.ruleId);
+      if (!rule) continue;
+
+      const snapshot = buildUndoSnapshot(action, rule.name, matchingEvent);
+      const subtaskSnaps = subtaskMap.get(action.ruleId);
+      if (subtaskSnaps) {
+        snapshot.subtaskSnapshots = subtaskSnaps;
+      }
+      pushUndoSnapshot(snapshot);
+    }
+  }
+
+  /**
+   * Notify about rule executions via callback or batch context.
+   * Requirements 8.1–8.4, 11.1, 11.2.
+   */
+  private notifyRuleExecutions(actions: RuleAction[], rules: AutomationRule[]): void {
+    // Group actions by rule ID
+    const actionsByRule = new Map<string, RuleAction[]>();
+    for (const action of actions) {
+      const existing = actionsByRule.get(action.ruleId) || [];
+      existing.push(action);
+      actionsByRule.set(action.ruleId, existing);
+    }
+
+    for (const [ruleId, ruleActions] of actionsByRule) {
+      const rule = rules.find(r => r.id === ruleId);
+      if (!rule) continue;
+
+      if (this.batchContext) {
+        // Batch mode: collect for aggregated toast later (Req 8.4)
+        for (const action of ruleActions) {
+          const task = this.taskRepo.findById(action.targetEntityId);
+          this.batchContext.executions.push({
+            ruleId: rule.id,
+            ruleName: rule.name,
+            taskName: task?.description || 'Unknown task',
+            actionDescription: action.actionType,
+          });
+        }
+      } else if (this.onRuleExecuted) {
+        // Non-batch mode: emit individual toast per rule
+        const batchSize = ruleActions.length;
+        let taskDescription = '';
+        if (batchSize === 1) {
+          const task = this.taskRepo.findById(ruleActions[0].targetEntityId);
+          taskDescription = task?.description || 'Unknown task';
+        }
+
+        this.onRuleExecuted({
+          ruleId,
+          ruleName: rule.name,
+          taskDescription,
+          batchSize,
+        });
+      }
     }
   }
 }

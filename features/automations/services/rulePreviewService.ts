@@ -234,6 +234,107 @@ function formatFilterDescription(
  * @param filters - Optional array of card filters to include in the preview
  * @returns Array of preview parts that can be rendered as text or badges
  */
+/**
+ * Build preview parts for the trigger portion of a rule.
+ */
+function buildTriggerParts(
+  trigger: TriggerConfig,
+  triggerMeta: TriggerMeta | null | undefined,
+  sectionLookup: (id: string) => string | undefined
+): PreviewPart[] {
+  const parts: PreviewPart[] = [];
+
+  if (!trigger.type || !triggerMeta) {
+    parts.push({ type: 'value', content: '___' });
+    return parts;
+  }
+
+  if (!triggerMeta.needsSection) {
+    parts.push({ type: 'value', content: triggerMeta.label });
+    return parts;
+  }
+
+  if (!trigger.sectionId) {
+    parts.push({ type: 'text', content: triggerMeta.label + ' ' });
+    parts.push({ type: 'value', content: '___' });
+    return parts;
+  }
+
+  const sectionName = sectionLookup(trigger.sectionId);
+  if (triggerMeta.type === 'card_moved_into_section') {
+    parts.push({ type: 'text', content: 'moved into ' });
+  } else if (triggerMeta.type === 'card_moved_out_of_section') {
+    parts.push({ type: 'text', content: 'moved out of ' });
+  } else if (triggerMeta.type === 'card_created_in_section') {
+    parts.push({ type: 'text', content: 'created in ' });
+  }
+  parts.push({ type: 'value', content: sectionName || '___' });
+
+  return parts;
+}
+
+/**
+ * Build preview parts for the action portion of a rule.
+ */
+function buildActionParts(
+  action: ActionConfig,
+  sectionLookup: (id: string) => string | undefined
+): PreviewPart[] {
+  const parts: PreviewPart[] = [];
+
+  if (!action.type) {
+    parts.push({ type: 'value', content: '___' });
+    return parts;
+  }
+
+  const actionMeta = ACTION_META.find((m) => m.type === action.type);
+  if (!actionMeta) {
+    parts.push({ type: 'value', content: '___' });
+    return parts;
+  }
+
+  if (actionMeta.type === 'move_card_to_top_of_section' || actionMeta.type === 'move_card_to_bottom_of_section') {
+    if (!action.sectionId) {
+      parts.push({ type: 'text', content: 'move to ' });
+      parts.push({ type: 'value', content: '___' });
+    } else {
+      const sectionName = sectionLookup(action.sectionId);
+      const position = action.position || 'top';
+      parts.push({ type: 'text', content: `move to ${position} of ` });
+      parts.push({ type: 'value', content: sectionName || '___' });
+    }
+  } else if (actionMeta.type === 'set_due_date') {
+    parts.push({ type: 'text', content: 'set due date to ' });
+    parts.push({ type: 'value', content: action.dateOption ? formatDateOption(action.dateOption) : '___' });
+  } else if (actionMeta.type === 'create_card') {
+    if (!action.cardTitle) {
+      parts.push({ type: 'text', content: 'create card ' });
+      parts.push({ type: 'value', content: '___' });
+    } else {
+      parts.push({ type: 'text', content: 'create card "' });
+      parts.push({ type: 'value', content: action.cardTitle });
+      parts.push({ type: 'text', content: '"' });
+      if (action.sectionId === TRIGGER_SECTION_SENTINEL) {
+        parts.push({ type: 'text', content: ' in ' });
+        parts.push({ type: 'value', content: 'the triggering section' });
+      } else if (action.sectionId) {
+        const sectionName = sectionLookup(action.sectionId);
+        parts.push({ type: 'text', content: ' in ' });
+        parts.push({ type: 'value', content: sectionName || '___' });
+      }
+    }
+  } else {
+    // Simple actions: mark_card_complete, mark_card_incomplete, remove_due_date
+    parts.push({ type: 'value', content: actionMeta.label });
+  }
+
+  return parts;
+}
+
+/**
+ * Builds an array of preview parts (text and value segments) for a rule configuration.
+ * Incomplete configurations produce underscore placeholders.
+ */
 export function buildPreviewParts(
   trigger: TriggerConfig,
   action: ActionConfig,
@@ -242,112 +343,32 @@ export function buildPreviewParts(
 ): PreviewPart[] {
   const parts: PreviewPart[] = [];
 
-  // Determine subject based on trigger category
   const triggerMeta = trigger.type ? TRIGGER_META.find((m) => m.type === trigger.type) : null;
   const isSectionTrigger = triggerMeta?.category === 'section_change';
 
-  // Build trigger part
+  // Subject
   parts.push({ type: 'text', content: isSectionTrigger ? 'When a section ' : 'When a card ' });
 
-  // Add filter descriptions if present
+  // Filters
   if (filters && filters.length > 0) {
     filters.forEach((filter, index) => {
       const description = formatFilterDescription(filter, sectionLookup);
       if (description) {
         parts.push({ type: 'value', content: description });
-        if (index < filters.length - 1) {
-          parts.push({ type: 'text', content: ' and ' });
-        } else {
-          parts.push({ type: 'text', content: ' ' });
-        }
+        parts.push({ type: 'text', content: index < filters.length - 1 ? ' and ' : ' ' });
       }
     });
   }
 
+  // Trigger
   parts.push({ type: 'text', content: 'is ' });
-
-  if (!trigger.type) {
-    parts.push({ type: 'value', content: '___' });
-  } else {
-    if (!triggerMeta) {
-      parts.push({ type: 'value', content: '___' });
-    } else {
-      if (triggerMeta.needsSection) {
-        if (!trigger.sectionId) {
-          parts.push({ type: 'text', content: triggerMeta.label + ' ' });
-          parts.push({ type: 'value', content: '___' });
-        } else {
-          const sectionName = sectionLookup(trigger.sectionId);
-          if (triggerMeta.type === 'card_moved_into_section') {
-            parts.push({ type: 'text', content: 'moved into ' });
-            parts.push({ type: 'value', content: sectionName || '___' });
-          } else if (triggerMeta.type === 'card_moved_out_of_section') {
-            parts.push({ type: 'text', content: 'moved out of ' });
-            parts.push({ type: 'value', content: sectionName || '___' });
-          } else if (triggerMeta.type === 'card_created_in_section') {
-            parts.push({ type: 'text', content: 'created in ' });
-            parts.push({ type: 'value', content: sectionName || '___' });
-          }
-        }
-      } else {
-        parts.push({ type: 'value', content: triggerMeta.label });
-      }
-    }
-  }
+  parts.push(...buildTriggerParts(trigger, triggerMeta, sectionLookup));
 
   // Separator
   parts.push({ type: 'text', content: ', ' });
 
-  // Build action part
-  if (!action.type) {
-    parts.push({ type: 'value', content: '___' });
-  } else {
-    const actionMeta = ACTION_META.find((m) => m.type === action.type);
-    if (!actionMeta) {
-      parts.push({ type: 'value', content: '___' });
-    } else {
-      if (actionMeta.type === 'move_card_to_top_of_section' || actionMeta.type === 'move_card_to_bottom_of_section') {
-        if (!action.sectionId) {
-          parts.push({ type: 'text', content: 'move to ' });
-          parts.push({ type: 'value', content: '___' });
-        } else {
-          const sectionName = sectionLookup(action.sectionId);
-          const position = action.position || 'top';
-          parts.push({ type: 'text', content: `move to ${position} of ` });
-          parts.push({ type: 'value', content: sectionName || '___' });
-        }
-      } else if (actionMeta.type === 'set_due_date') {
-        if (!action.dateOption) {
-          parts.push({ type: 'text', content: 'set due date to ' });
-          parts.push({ type: 'value', content: '___' });
-        } else {
-          parts.push({ type: 'text', content: 'set due date to ' });
-          const dateLabel = formatDateOption(action.dateOption);
-          parts.push({ type: 'value', content: dateLabel });
-        }
-      } else if (actionMeta.type === 'create_card') {
-        if (!action.cardTitle) {
-          parts.push({ type: 'text', content: 'create card ' });
-          parts.push({ type: 'value', content: '___' });
-        } else {
-          parts.push({ type: 'text', content: 'create card "' });
-          parts.push({ type: 'value', content: action.cardTitle });
-          parts.push({ type: 'text', content: '"' });
-          if (action.sectionId === TRIGGER_SECTION_SENTINEL) {
-            parts.push({ type: 'text', content: ' in ' });
-            parts.push({ type: 'value', content: 'the triggering section' });
-          } else if (action.sectionId) {
-            const sectionName = sectionLookup(action.sectionId);
-            parts.push({ type: 'text', content: ' in ' });
-            parts.push({ type: 'value', content: sectionName || '___' });
-          }
-        }
-      } else {
-        // Simple actions: mark_card_complete, mark_card_incomplete, remove_due_date
-        parts.push({ type: 'value', content: actionMeta.label });
-      }
-    }
-  }
+  // Action
+  parts.push(...buildActionParts(action, sectionLookup));
 
   return parts;
 }

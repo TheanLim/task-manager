@@ -145,3 +145,18 @@ Migration path:
 - Accessibility: Stack container `role="region"` `aria-label="Notifications"`. Each toast `role="status"` `aria-live="polite"`.
 
 **Implementation path (custom)**: Change `page.tsx` to render `toastQueue.slice(0, 3)` with stacked positioning. Each `Toast` already manages its own timer. Main work: stacked CSS positioning, hover-pause, per-toast dismiss callbacks, reduced-motion query, keyboard navigation.
+
+
+## 13. ActionHandler Strategy pattern for action execution and undo
+
+**Decision**: Replaced the `switch (actionType)` conditionals in `RuleExecutor`, `undoService.applyUndo`, and `getActionDescription` with an `ActionHandler` Strategy interface. Each action type (move_to_top, mark_complete, create_card, etc.) implements `execute()`, `describe()`, and `undo()`. Handlers are registered in `ACTION_HANDLER_REGISTRY` in `services/actionHandlers.ts`.
+
+**Why**: The same `actionType` field was driving conditionals in 3-4 different places (execute, describe, undo, getActionDescription). Adding a new action type required touching all of them — classic shotgun surgery. The Strategy pattern collapses all per-action-type logic into one file per handler.
+
+**How to add a new action type**:
+1. Add the type to `ActionTypeSchema` in `schemas.ts`
+2. Create a handler object implementing `ActionHandler` in `actionHandlers.ts`
+3. Register it in `ACTION_HANDLER_REGISTRY`
+4. Done — `RuleExecutor`, `undoService`, and description generation all pick it up automatically.
+
+**Trade-off**: The `ActionContext` passed to handlers uses `as any` for `sectionRepo` and `taskService` in the undo path (undo only needs `taskRepo`). This is acceptable because undo handlers only access `ctx.taskRepo`. If a future undo handler needs other repos, the caller must provide them.

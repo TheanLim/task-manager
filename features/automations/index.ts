@@ -17,6 +17,8 @@ export { useUndoAutomation } from './hooks/useUndoAutomation';
 // Services
 export { AutomationService } from './services/automationService';
 export { RuleExecutor } from './services/ruleExecutor';
+export { getActionHandler, ACTION_HANDLER_REGISTRY } from './services/actionHandlers';
+export type { ActionHandler, ActionContext } from './services/actionHandlers';
 export { evaluateRules } from './services/ruleEngine';
 export { detectBrokenRules } from './services/brokenRuleDetector';
 export { formatAutomationToastMessage } from './services/toastMessageFormatter';
