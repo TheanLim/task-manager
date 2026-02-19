@@ -103,6 +103,8 @@ export function RuleDialog({
       setTrigger({
         type: editingRule.trigger.type,
         sectionId: editingRule.trigger.sectionId,
+        schedule: (editingRule.trigger as any).schedule,
+        lastEvaluatedAt: (editingRule.trigger as any).lastEvaluatedAt,
       });
       setFilters(editingRule.filters || []);
       setAction({
@@ -169,6 +171,7 @@ export function RuleDialog({
     const triggerMeta = TRIGGER_META.find((t) => t.type === trigger.type);
     if (!triggerMeta) return false;
     if (triggerMeta.needsSection && !trigger.sectionId) return false;
+    if (triggerMeta.needsSchedule && !trigger.schedule) return false;
     return true;
   }, [trigger]);
 
@@ -315,7 +318,8 @@ export function RuleDialog({
         trigger: {
           type: trigger.type!,
           sectionId: trigger.sectionId,
-        },
+          ...(trigger.schedule ? { schedule: trigger.schedule, lastEvaluatedAt: (editingRule.trigger as any).lastEvaluatedAt ?? null } : {}),
+        } as any,
         filters: filters,
         action: {
           type: action.type!,
@@ -344,7 +348,8 @@ export function RuleDialog({
         trigger: {
           type: trigger.type!,
           sectionId: trigger.sectionId,
-        },
+          ...(trigger.schedule ? { schedule: trigger.schedule, lastEvaluatedAt: null } : {}),
+        } as any,
         filters: filters,
         action: {
           type: action.type!,

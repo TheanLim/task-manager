@@ -13,6 +13,7 @@ import {
   buildPreviewString,
   isDuplicateRule,
   formatFilterDescription,
+  describeSchedule,
   type TriggerConfig,
   type ActionConfig,
 } from '../services/rulePreviewService';
@@ -67,7 +68,15 @@ export function RuleDialogStepReview({
     ? TRIGGER_META.find((t) => t.type === trigger.type)
     : null;
   const triggerCategoryColor =
-    triggerMeta?.category === 'card_move' ? 'border-l-blue-500' : 'border-l-emerald-500';
+    triggerMeta?.category === 'card_move'
+      ? 'border-l-blue-500'
+      : triggerMeta?.category === 'scheduled'
+        ? 'border-l-amber-500'
+        : triggerMeta?.category === 'section_change'
+          ? 'border-l-violet-500'
+          : 'border-l-emerald-500';
+
+  const isScheduledTrigger = triggerMeta?.category === 'scheduled';
 
   // Get action metadata and category color
   const actionMeta = action.type ? ACTION_META.find((a) => a.type === action.type) : null;
@@ -79,13 +88,18 @@ export function RuleDialogStepReview({
         : 'border-l-amber-500';
 
   // Build trigger description
-  const triggerDescription = triggerMeta
-    ? triggerMeta.needsSection
+  let triggerDescription: string;
+  if (isScheduledTrigger && trigger.schedule) {
+    triggerDescription = describeSchedule({ type: trigger.type!, schedule: trigger.schedule });
+  } else if (triggerMeta) {
+    triggerDescription = triggerMeta.needsSection
       ? trigger.sectionId
         ? `${triggerMeta.label} ${sectionLookup(trigger.sectionId) || '___'}`
         : `${triggerMeta.label} ___`
-      : triggerMeta.label
-    : '___';
+      : triggerMeta.label;
+  } else {
+    triggerDescription = '___';
+  }
 
   // Build action description
   let actionDescription = '___';
@@ -125,12 +139,16 @@ export function RuleDialogStepReview({
         >
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              WHEN
+              {isScheduledTrigger ? 'EVERY' : 'WHEN'}
             </CardTitle>
           </CardHeader>
           <CardContent className="pb-4">
             <p className="text-sm">
-              When a {triggerMeta?.category === 'section_change' ? 'section' : 'card'} is <span className="font-medium">{triggerDescription}</span>
+              {isScheduledTrigger ? (
+                <>Every <span className="font-medium">{triggerDescription}</span></>
+              ) : (
+                <>When a {triggerMeta?.category === 'section_change' ? 'section' : 'card'} is <span className="font-medium">{triggerDescription}</span></>
+              )}
             </p>
           </CardContent>
         </Card>

@@ -24,6 +24,8 @@ export interface PreviewPart {
 export interface TriggerConfig {
   type: TriggerType | null;
   sectionId: string | null;
+  schedule?: Record<string, unknown>;
+  lastEvaluatedAt?: string | null;
 }
 
 export interface ActionConfig {

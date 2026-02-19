@@ -98,3 +98,16 @@ When extending, ensure:
 - [ ] Existing tests still pass (`npx vitest run`)
 - [ ] Lint passes (`npm run lint`)
 - [ ] If you modified a constructor's optional params, grep ALL call sites (steering rule #6)
+
+## Adding a New Scheduled Trigger Type
+
+Scheduled triggers differ from event triggers — they generate domain events (via SchedulerService) rather than responding to them.
+
+1. **Schema** (`schemas.ts`): Add the new value to `ScheduledTriggerTypeSchema` (this automatically extends `TriggerTypeSchema`). Add a new variant to the `TriggerSchema` discriminated union with `schedule`, `lastEvaluatedAt`, and `sectionId: z.null()`
+2. **Schedule Config**: If the trigger needs a new schedule kind, add a schema to `ScheduleConfigSchema` discriminated union
+3. **Evaluator** (`services/scheduleEvaluator.ts`): Add a new `evaluate*Schedule()` pure function and a case in `evaluateScheduledRules()` switch
+4. **Metadata** (`services/ruleMetadata.ts`): Add to `TRIGGER_META` with `category: 'scheduled'` and `needsSchedule: true`
+5. **Rule Engine** (`services/ruleEngine.ts`): The `schedule.fired` branch already dispatches by `triggerType` — new scheduled triggers are matched automatically if they follow the interval/cron/due-date-relative pattern
+6. **UI — Config Panel** (`components/ScheduleConfigPanel.tsx`): Add a new config sub-component for the trigger type
+7. **Preview** (`services/rulePreviewService.ts`): Update `describeSchedule()` and `computeNextRunDescription()`
+8. **Tests**: Add property tests for the evaluator, schema round-trip tests, and component tests
