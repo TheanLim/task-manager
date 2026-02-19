@@ -208,8 +208,32 @@ export function buildPreviewParts(
 
   const triggerMeta = trigger.type ? TRIGGER_META.find((m) => m.type === trigger.type) : null;
   const isSectionTrigger = triggerMeta?.category === 'section_change';
+  const isScheduledTrigger = triggerMeta?.category === 'scheduled';
 
-  // Subject
+  if (isScheduledTrigger) {
+    // Scheduled: "Every [schedule], for cards [filters], [action]"
+    parts.push({ type: 'text', content: 'Every ' });
+    parts.push(...buildTriggerParts(trigger, triggerMeta, sectionLookup));
+
+    if (filters && filters.length > 0) {
+      parts.push({ type: 'text', content: ', for cards ' });
+      filters.forEach((filter, index) => {
+        const description = formatFilterDescription(filter, sectionLookup);
+        if (description) {
+          parts.push({ type: 'value', content: description });
+          if (index < filters.length - 1) {
+            parts.push({ type: 'text', content: ' and ' });
+          }
+        }
+      });
+    }
+
+    parts.push({ type: 'text', content: ', ' });
+    parts.push(...buildActionParts(action, sectionLookup));
+    return parts;
+  }
+
+  // Event triggers: "When a card/section [filters] is [trigger], [action]"
   parts.push({ type: 'text', content: isSectionTrigger ? 'When a section ' : 'When a card ' });
 
   // Filters
@@ -333,3 +357,112 @@ export function isDuplicateRule(
   );
 }
 
+
+// ============================================================================
+// Scheduled Trigger Descriptions
+// ============================================================================
+
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/**
+ * Describe a schedule configuration in human-readable form.
+ * Used in preview sentences and rule cards.
+ */
+export function describeSchedule(trigger: { type: string; schedule?: any }): string {
+  if (!trigger.schedule) return 'Unknown';
+
+  switch (trigger.type) {
+    case 'scheduled_interval': {
+      const mins = trigger.schedule.intervalMinutes;
+      if (mins >= 1440 && mins % 1440 === 0) return `${mins / 1440} day${mins / 1440 > 1 ? 's' : ''}`;
+      if (mins >= 60 && mins % 60 === 0) return `${mins / 60} hour${mins / 60 > 1 ? 's' : ''}`;
+      return `${mins} minute${mins > 1 ? 's' : ''}`;
+    }
+
+    case 'scheduled_cron': {
+      const { hour, minute, daysOfWeek, daysOfMonth } = trigger.schedule;
+      const time = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+
+      if (daysOfWeek?.length > 0) {
+        const days = daysOfWeek.map((d: number) => DAY_NAMES[d]).join(', ');
+        return `${days} at ${time}`;
+      }
+      if (daysOfMonth?.length > 0) {
+        const ordinal = (n: number) => {
+          const s = ['th', 'st', 'nd', 'rd'];
+          const v = n % 100;
+          return n + (s[(v - 20) % 10] || s[v] || s[0]);
+        };
+        const days = daysOfMonth.map(ordinal).join(', ');
+        return `${days} of month at ${time}`;
+      }
+      return `day at ${time}`;
+    }
+
+    case 'scheduled_due_date_relative': {
+      const { offsetMinutes, displayUnit } = trigger.schedule;
+      const abs = Math.abs(offsetMinutes);
+      const direction = offsetMinutes < 0 ? 'before' : 'after';
+      let value: number;
+      let unit: string;
+
+      if (displayUnit === 'days' || (!displayUnit && abs >= 1440)) {
+        value = Math.round(abs / 1440);
+        unit = value === 1 ? 'day' : 'days';
+      } else if (displayUnit === 'hours' || (!displayUnit && abs >= 60)) {
+        value = Math.round(abs / 60);
+        unit = value === 1 ? 'hour' : 'hours';
+      } else {
+        value = abs;
+        unit = value === 1 ? 'minute' : 'minutes';
+      }
+
+      return `${value} ${unit} ${direction} due date`;
+    }
+
+    default:
+      return 'Unknown';
+  }
+}
+
+/**
+ * Compute a human-readable "next run" description for a scheduled trigger.
+ * Used on the Rule Card to show when the rule will fire next.
+ */
+export function computeNextRunDescription(
+  trigger: { type: string; schedule?: any; lastEvaluatedAt?: string | null },
+  nowMs: number
+): string {
+  if (!trigger.schedule) return 'Unknown';
+
+  switch (trigger.type) {
+    case 'scheduled_interval': {
+      const intervalMs = trigger.schedule.intervalMinutes * 60 * 1000;
+      if (!trigger.lastEvaluatedAt) return 'On next tick';
+      const lastMs = new Date(trigger.lastEvaluatedAt).getTime();
+      const nextMs = lastMs + intervalMs;
+      const diffMs = nextMs - nowMs;
+      if (diffMs <= 0) return 'On next tick';
+      return `in ${formatDuration(diffMs)}`;
+    }
+
+    case 'scheduled_cron': {
+      return `Next: ${describeSchedule(trigger)}`;
+    }
+
+    case 'scheduled_due_date_relative':
+      return 'Checks on next tick';
+
+    default:
+      return 'Unknown';
+  }
+}
+
+function formatDuration(ms: number): string {
+  const minutes = Math.round(ms / 60_000);
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.round(hours / 24);
+  return `${days}d`;
+}

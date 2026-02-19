@@ -579,3 +579,116 @@ describe('isDuplicateRule - Property-Based Tests', () => {
     );
   });
 });
+
+
+// ─── Scheduled Trigger Preview Tests ────────────────────────────────────
+
+import { describeSchedule, computeNextRunDescription } from './rulePreviewService';
+
+describe('describeSchedule', () => {
+  it('interval: formats minutes', () => {
+    expect(describeSchedule({ type: 'scheduled_interval', schedule: { kind: 'interval', intervalMinutes: 30 } }))
+      .toBe('30 minutes');
+  });
+
+  it('interval: formats hours', () => {
+    expect(describeSchedule({ type: 'scheduled_interval', schedule: { kind: 'interval', intervalMinutes: 120 } }))
+      .toBe('2 hours');
+  });
+
+  it('interval: formats days', () => {
+    expect(describeSchedule({ type: 'scheduled_interval', schedule: { kind: 'interval', intervalMinutes: 1440 } }))
+      .toBe('1 day');
+  });
+
+  it('cron: daily at time', () => {
+    expect(describeSchedule({
+      type: 'scheduled_cron',
+      schedule: { kind: 'cron', hour: 9, minute: 0, daysOfWeek: [], daysOfMonth: [] },
+    })).toBe('day at 09:00');
+  });
+
+  it('cron: weekly with days', () => {
+    expect(describeSchedule({
+      type: 'scheduled_cron',
+      schedule: { kind: 'cron', hour: 9, minute: 0, daysOfWeek: [1, 5], daysOfMonth: [] },
+    })).toBe('Mon, Fri at 09:00');
+  });
+
+  it('cron: monthly with day of month', () => {
+    expect(describeSchedule({
+      type: 'scheduled_cron',
+      schedule: { kind: 'cron', hour: 9, minute: 0, daysOfWeek: [], daysOfMonth: [1] },
+    })).toBe('1st of month at 09:00');
+  });
+
+  it('due-date-relative: before', () => {
+    expect(describeSchedule({
+      type: 'scheduled_due_date_relative',
+      schedule: { kind: 'due_date_relative', offsetMinutes: -1440, displayUnit: 'days' },
+    })).toBe('1 day before due date');
+  });
+
+  it('due-date-relative: after', () => {
+    expect(describeSchedule({
+      type: 'scheduled_due_date_relative',
+      schedule: { kind: 'due_date_relative', offsetMinutes: 2880, displayUnit: 'days' },
+    })).toBe('2 days after due date');
+  });
+});
+
+// Feature: scheduled-triggers-phase-5a, Property 19: Scheduled trigger description format
+describe('Property 19: Scheduled trigger description format', () => {
+  it('scheduled preview starts with "Every", event preview starts with "When"', () => {
+    const sectionLookup = () => 'My Section';
+
+    // Scheduled trigger
+    const scheduledParts = buildPreviewParts(
+      { type: 'scheduled_interval', sectionId: null },
+      { type: 'mark_card_complete', sectionId: null, dateOption: null, position: null },
+      sectionLookup
+    );
+    const scheduledStr = scheduledParts.map((p) => p.content).join('');
+    expect(scheduledStr.startsWith('Every')).toBe(true);
+
+    // Event trigger
+    const eventParts = buildPreviewParts(
+      { type: 'card_moved_into_section', sectionId: 'sec-1' },
+      { type: 'mark_card_complete', sectionId: null, dateOption: null, position: null },
+      sectionLookup
+    );
+    const eventStr = eventParts.map((p) => p.content).join('');
+    expect(eventStr.startsWith('When')).toBe(true);
+  });
+});
+
+describe('computeNextRunDescription', () => {
+  const NOW = new Date('2026-02-19T10:00:00.000Z').getTime();
+
+  it('interval: shows relative time until next run', () => {
+    const trigger = {
+      type: 'scheduled_interval',
+      schedule: { kind: 'interval', intervalMinutes: 30 },
+      lastEvaluatedAt: new Date(NOW - 10 * 60_000).toISOString(), // 10 min ago
+    };
+    const desc = computeNextRunDescription(trigger, NOW);
+    expect(desc).toBe('in 20 min');
+  });
+
+  it('interval: shows "On next tick" when overdue', () => {
+    const trigger = {
+      type: 'scheduled_interval',
+      schedule: { kind: 'interval', intervalMinutes: 30 },
+      lastEvaluatedAt: new Date(NOW - 60 * 60_000).toISOString(), // 60 min ago
+    };
+    expect(computeNextRunDescription(trigger, NOW)).toBe('On next tick');
+  });
+
+  it('due-date-relative: shows "Checks on next tick"', () => {
+    const trigger = {
+      type: 'scheduled_due_date_relative',
+      schedule: { kind: 'due_date_relative', offsetMinutes: -1440 },
+    };
+    expect(computeNextRunDescription(trigger, NOW)).toBe('Checks on next tick');
+  });
+});

@@ -6,9 +6,10 @@ import type { TriggerType, ActionType } from '../types';
 
 export interface TriggerMeta {
   type: TriggerType;
-  category: 'card_move' | 'card_change' | 'section_change';
+  category: 'card_move' | 'card_change' | 'section_change' | 'scheduled';
   label: string;
   needsSection: boolean;
+  needsSchedule?: boolean;
 }
 
 export interface ActionMeta {
@@ -68,6 +69,28 @@ export const TRIGGER_META: TriggerMeta[] = [
     category: 'section_change',
     label: 'renamed',
     needsSection: false,
+  },
+  // Scheduled triggers
+  {
+    type: 'scheduled_interval',
+    category: 'scheduled',
+    label: 'on a recurring interval',
+    needsSection: false,
+    needsSchedule: true,
+  },
+  {
+    type: 'scheduled_cron',
+    category: 'scheduled',
+    label: 'at a specific time',
+    needsSection: false,
+    needsSchedule: true,
+  },
+  {
+    type: 'scheduled_due_date_relative',
+    category: 'scheduled',
+    label: 'relative to due date',
+    needsSection: false,
+    needsSchedule: true,
   },
 ];
 
