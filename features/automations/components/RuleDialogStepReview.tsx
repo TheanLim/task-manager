@@ -181,7 +181,7 @@ export function RuleDialogStepReview({
           </CardHeader>
           <CardContent className="pb-4">
             <p className="text-sm">
-              When a card is <span className="font-medium">{triggerDescription}</span>
+              When a {triggerMeta?.category === 'section_change' ? 'section' : 'card'} is <span className="font-medium">{triggerDescription}</span>
             </p>
           </CardContent>
         </Card>
