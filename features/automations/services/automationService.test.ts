@@ -2651,3 +2651,167 @@ describe('Multi-rule undo (per-snapshot undo)', () => {
     expect(all[0].ruleId).toBe('rule-new');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Regression: circular rules with mark_complete ↔ move should produce only
+// one toast notification, not two (GitHub issue #1)
+// ---------------------------------------------------------------------------
+describe('Regression: circular mark_complete ↔ move rules produce single toast', () => {
+  it('does not emit a second toast from cascadeComplete re-entering the pipeline', () => {
+    const taskRepo = new MockTaskRepository();
+    const sectionRepo = new MockSectionRepository();
+    const ruleRepo = new MockAutomationRuleRepository();
+
+    // Use a real-ish TaskService that actually updates the repo AND has an
+    // emitEvent callback — this is what caused the bug in production.
+    const emittedEvents: DomainEvent[] = [];
+    const taskService = {
+      cascadeComplete(taskId: string, completed: boolean, options?: { emitEvents?: boolean }) {
+        const task = taskRepo.findById(taskId);
+        if (!task) return;
+        taskRepo.update(taskId, {
+          completed,
+          completedAt: completed ? new Date().toISOString() : null,
+        });
+        // Simulate the real TaskService: emit a depth-0 event unless suppressed
+        if (options?.emitEvents !== false) {
+          emittedEvents.push({
+            type: 'task.updated',
+            entityId: taskId,
+            projectId: task.projectId || '',
+            changes: { completed },
+            previousValues: { completed: task.completed },
+            depth: 0,
+          });
+        }
+      },
+      cascadeDelete() {},
+    };
+
+    // Create sections
+    const doneSection: Section = {
+      id: 'done-section',
+      projectId: 'proj-1',
+      name: 'Done',
+      order: 0,
+      collapsed: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    sectionRepo.create(doneSection);
+
+    // Create task in a different section
+    const task: Task = {
+      id: 'task-1',
+      projectId: 'proj-1',
+      parentTaskId: null,
+      sectionId: 'todo-section',
+      description: 'Test task',
+      notes: '',
+      assignee: '',
+      priority: 'none',
+      tags: [],
+      dueDate: null,
+      completed: false,
+      completedAt: null,
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    taskRepo.create(task);
+
+    // Rule A: moved into Done → mark complete
+    const ruleA: AutomationRule = {
+      id: 'rule-a',
+      projectId: 'proj-1',
+      name: 'Done → Complete',
+      trigger: { type: 'card_moved_into_section', sectionId: 'done-section' },
+      action: {
+        type: 'mark_card_complete',
+        sectionId: null,
+        dateOption: null,
+        position: null,
+      },
+      filters: [],
+      enabled: true,
+      brokenReason: null,
+      executionCount: 0,
+      lastExecutedAt: null,
+      recentExecutions: [],
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    // Rule B: marked complete → move to Done
+    const ruleB: AutomationRule = {
+      id: 'rule-b',
+      projectId: 'proj-1',
+      name: 'Complete → Done',
+      trigger: { type: 'card_marked_complete', sectionId: null },
+      action: {
+        type: 'move_card_to_bottom_of_section',
+        sectionId: 'done-section',
+        dateOption: null,
+        position: 'bottom',
+      },
+      filters: [],
+      enabled: true,
+      brokenReason: null,
+      executionCount: 0,
+      lastExecutedAt: null,
+      recentExecutions: [],
+      order: 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    ruleRepo.create(ruleA);
+    ruleRepo.create(ruleB);
+
+    const ruleExecutor = new RuleExecutor(
+      taskRepo,
+      sectionRepo,
+      taskService as any,
+      ruleRepo,
+    );
+
+    // Track toast notifications
+    const toastCallbacks: Array<{ ruleId: string; ruleName: string }> = [];
+    const service = new AutomationService(
+      ruleRepo,
+      taskRepo,
+      sectionRepo,
+      taskService as any,
+      ruleExecutor,
+      5,
+      (params) => {
+        toastCallbacks.push({ ruleId: params.ruleId, ruleName: params.ruleName });
+      },
+    );
+
+    // Simulate: user moves task to Done section
+    const event: DomainEvent = {
+      type: 'task.updated',
+      entityId: 'task-1',
+      projectId: 'proj-1',
+      changes: { sectionId: 'done-section' },
+      previousValues: { sectionId: 'todo-section' },
+      depth: 0,
+    };
+
+    service.handleEvent(event);
+
+    // The fix: cascadeComplete should NOT have emitted any depth-0 events
+    // that re-enter the pipeline. Only the action handler's own event should
+    // cascade (at depth 1+), which doesn't produce toasts.
+    expect(emittedEvents).toHaveLength(0);
+
+    // Only Rule A (the direct match) should produce a toast.
+    // Rule B should NOT produce a toast — it fires from a cascaded event
+    // at depth 1, and notifications only fire at depth 0.
+    expect(toastCallbacks).toHaveLength(1);
+    expect(toastCallbacks[0].ruleId).toBe('rule-a');
+    expect(toastCallbacks[0].ruleName).toBe('Done → Complete');
+  });
+});
