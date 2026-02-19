@@ -3,14 +3,16 @@
 ## Creating a Task
 
 ```
-UI (TaskDialog) → dataStore.addTask()
+UI (TaskDialog) → TaskService.create(data) → dataStore.addTask(task)
+    │                    │
+    │                    └─ Static factory: generates UUID, timestamps, defaults
     │
     ├─ taskRepo.create(task)
     ├─ emitDomainEvent({ type: 'task.created', ... })
     └─ Zustand state update → re-render
 ```
 
-No service-layer involvement — creation is a simple repo write + event emission handled by the data store.
+Entity construction uses `TaskService.create()` (static factory) to generate ID, timestamps, and defaults. The data store handles persistence and event emission.
 
 ## Deleting a Task (Cascade)
 
@@ -34,21 +36,18 @@ UI → dataStore action → TaskService.cascadeDelete(taskId)
 ## Completing a Task (Cascade)
 
 ```
-UI → dataStore action → TaskService.cascadeComplete(taskId, completed)
+UI → TaskService.completionUpdate(completed) → dataStore.updateTask()
     │
-    ├─ If completing (completed = true):
-    │   ├─ Update target task: { completed: true, completedAt: now }
-    │   ├─ emitEvent({ type: 'task.updated', changes: { completed, completedAt } })
-    │   ├─ collectDescendantIds(taskId)
-    │   └─ For each descendant:
-    │       ├─ taskRepo.update(id, { completed: true, completedAt: now })
-    │       └─ emitEvent({ type: 'task.updated', ... })
+    ├─ Static helper generates { completed, completedAt } with timestamp
     │
-    └─ If uncompleting (completed = false):
-        ├─ Update ONLY the target task: { completed: false, completedAt: null }
-        └─ emitEvent({ type: 'task.updated', ... })
-        (descendants are NOT uncompleted)
+    ├─ If parent task (parentTaskId === null):
+    │   ├─ Update target task via completionUpdate()
+    │   └─ For each subtask: update via completionUpdate()
+    │
+    └─ Notify TMS handler if time management system is active
 ```
+
+Note: This UI-level cascade in `page.tsx` is separate from `TaskService.cascadeComplete()` (which uses repositories + emits domain events for automations). The UI cascade is intentional for subtask completion from the main view — subtask completion bypasses automation rules by design.
 
 ## Reinserting a Task
 

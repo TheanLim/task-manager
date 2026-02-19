@@ -63,12 +63,11 @@ export function TaskCalendar({ tasks, onTaskClick, onTaskComplete }: TaskCalenda
     return (
       <div
         key={task.id}
-        className="text-xs px-1 py-0.5 mb-0.5 rounded truncate cursor-pointer hover:opacity-80 transition-opacity"
-        style={{
-          backgroundColor: task.completed ? 'rgb(34 197 94 / 0.3)' : 'rgb(59 130 246 / 0.3)',
-          color: task.completed ? 'rgb(22 163 74)' : 'rgb(37 99 235)',
-          border: task.completed ? '1px solid rgb(34 197 94 / 0.5)' : '1px solid rgb(59 130 246 / 0.5)',
-        }}
+        className={`text-xs px-1 py-0.5 mb-0.5 rounded truncate cursor-pointer hover:opacity-80 transition-opacity ${
+          task.completed
+            ? 'bg-green-500/20 text-green-700 dark:text-green-400 border border-green-500/40'
+            : 'bg-accent-brand/15 text-accent-brand border border-accent-brand/30'
+        }`}
         onClick={(e) => {
           e.stopPropagation();
           onTaskClick(task.id);

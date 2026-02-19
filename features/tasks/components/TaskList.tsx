@@ -787,10 +787,11 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                   </tr>
 
                   {/* Section Tasks */}
-                  {!section.collapsed && sectionTasks.length > 0 && sectionTasks.map(task => (
+                  {!section.collapsed && sectionTasks.length > 0 && sectionTasks.map((task, index) => (
                     <TaskRow
                       key={`${task.id}-${columnOrderKey}`}
                       task={task}
+                      animationIndex={index}
                       onComplete={handleTaskComplete}
                       onClick={onTaskClick}
                       onViewSubtasks={handleViewSubtasks}
@@ -881,10 +882,11 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                     <td key={colId} className={cn("bg-muted/50", i < visibleColumns.length - 1 && "border-r")}></td>
                   ))}
                 </tr>
-                {unsectionedTasks.map(task => (
+                {unsectionedTasks.map((task, index) => (
                   <TaskRow
                     key={`${task.id}-${columnOrderKey}`}
                     task={task}
+                    animationIndex={index}
                     onComplete={handleTaskComplete}
                     onClick={onTaskClick}
                     onViewSubtasks={handleViewSubtasks}

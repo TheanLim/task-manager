@@ -20,6 +20,12 @@ vi.mock('next/navigation', () => ({
   })
 }));
 
+// Mock useDataStore — default to empty tasks
+const mockTasks: any[] = [];
+vi.mock('@/stores/dataStore', () => ({
+  useDataStore: (selector: any) => selector({ tasks: mockTasks }),
+}));
+
 describe('ProjectList', () => {
   beforeEach(() => {
     mockPush.mockClear();
@@ -131,7 +137,7 @@ describe('ProjectList', () => {
 
     const activeItem = screen.getByText('Test Project 1').closest('.cursor-pointer');
     expect(activeItem).toHaveClass('border-l-accent-brand');
-    expect(activeItem).toHaveClass('bg-accent/50');
+    expect(activeItem).toHaveClass('bg-accent-brand/5');
   });
 
   // Feature: warm-industrial-redesign, Property 4: Project Dot Indicator Presence
@@ -157,10 +163,79 @@ describe('ProjectList', () => {
           />
         );
 
-        const dots = container.querySelectorAll('.rounded-full.w-1\\.5.h-1\\.5');
+        const dots = container.querySelectorAll('.rounded-full.w-2.h-2');
         expect(dots.length).toBe(projects.length);
       }),
       { numRuns: 100 }
     );
+  });
+
+  it('should show task count badge when project has tasks', () => {
+    mockTasks.length = 0;
+    mockTasks.push(
+      { id: 't1', projectId: 'project-1', completed: false },
+      { id: 't2', projectId: 'project-1', completed: true },
+      { id: 't3', projectId: 'project-2', completed: false },
+    );
+
+    const { container } = render(
+      <ProjectList
+        projects={mockProjects}
+        activeProjectId={null}
+        onProjectSelect={vi.fn()}
+        onNewProject={vi.fn()}
+      />
+    );
+
+    // Project 1 has 2 tasks, Project 2 has 1 task
+    const badges = container.querySelectorAll('.text-xs.h-5.min-w-5');
+    expect(badges).toHaveLength(2);
+    expect(badges[0].textContent).toBe('2');
+    expect(badges[1].textContent).toBe('1');
+
+    mockTasks.length = 0;
+  });
+
+  it('should render progress bar reflecting completion ratio', () => {
+    mockTasks.length = 0;
+    mockTasks.push(
+      { id: 't1', projectId: 'project-1', completed: true },
+      { id: 't2', projectId: 'project-1', completed: false },
+    );
+
+    const { container } = render(
+      <ProjectList
+        projects={mockProjects}
+        activeProjectId={null}
+        onProjectSelect={vi.fn()}
+        onNewProject={vi.fn()}
+      />
+    );
+
+    const progressBars = container.querySelectorAll('.bg-accent-brand.h-full.rounded-full');
+    expect(progressBars.length).toBeGreaterThanOrEqual(1);
+    // 1 of 2 completed = 50%
+    expect((progressBars[0] as HTMLElement).style.width).toBe('50%');
+
+    mockTasks.length = 0;
+  });
+
+  it('should not show badge or progress bar when project has no tasks', () => {
+    mockTasks.length = 0;
+
+    const { container } = render(
+      <ProjectList
+        projects={mockProjects}
+        activeProjectId={null}
+        onProjectSelect={vi.fn()}
+        onNewProject={vi.fn()}
+      />
+    );
+
+    const badges = container.querySelectorAll('.text-xs.h-5.min-w-5');
+    expect(badges).toHaveLength(0);
+
+    const progressBars = container.querySelectorAll('.bg-accent-brand.h-full.rounded-full');
+    expect(progressBars).toHaveLength(0);
   });
 });

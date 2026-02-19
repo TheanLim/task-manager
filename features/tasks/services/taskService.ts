@@ -1,4 +1,5 @@
-import type { UUID } from '@/types';
+import { v4 as uuidv4 } from 'uuid';
+import type { UUID, Priority } from '@/types';
 import type { Task } from '@/lib/schemas';
 import type { TaskRepository, DependencyRepository } from '@/lib/repositories/types';
 import type { DomainEvent } from '@/features/automations/types';
@@ -17,6 +18,42 @@ export class TaskService {
     private depRepo: DependencyRepository,
     private emitEvent?: (event: DomainEvent) => void
   ) {}
+
+  /**
+   * Static factory: create a new Task with generated ID, timestamps, and defaults.
+   */
+  static create(data: {
+    projectId: string | null;
+    parentTaskId: string | null;
+    sectionId: string | null;
+    description: string;
+    notes: string;
+    assignee: string;
+    priority: Priority;
+    tags: string[];
+    dueDate: string | null;
+    order: number;
+  }): Task {
+    const now = new Date().toISOString();
+    return {
+      id: uuidv4(),
+      ...data,
+      completed: false,
+      completedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  /**
+   * Static helper: generate completion state with timestamp.
+   */
+  static completionUpdate(completed: boolean): { completed: boolean; completedAt: string | null } {
+    return {
+      completed,
+      completedAt: completed ? new Date().toISOString() : null,
+    };
+  }
 
   /**
    * Recursively collect all descendant task IDs for a given parent.

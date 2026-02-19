@@ -144,4 +144,24 @@ describe('TaskBoard', () => {
     const draggableElements = screen.getAllByRole('button', { name: /Task/i });
     expect(draggableElements.length).toBeGreaterThan(0);
   });
+
+  it('should apply hover scale micro-interaction to task card wrappers', () => {
+    const { container } = render(
+      <TaskBoard
+        tasks={mockTasks}
+        sections={mockSections}
+        onTaskClick={mockOnTaskClick}
+        onTaskComplete={mockOnTaskComplete}
+        onTaskMove={mockOnTaskMove}
+      />
+    );
+
+    // DraggableTaskCard wrapper divs should have the hover scale classes
+    const cardWrappers = container.querySelectorAll('.hover\\:scale-\\[1\\.01\\]');
+    expect(cardWrappers.length).toBe(mockTasks.length);
+    cardWrappers.forEach(wrapper => {
+      expect(wrapper).toHaveClass('transition-transform');
+      expect(wrapper).toHaveClass('duration-150');
+    });
+  });
 });

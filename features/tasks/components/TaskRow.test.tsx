@@ -440,6 +440,59 @@ describe('TaskRow Component', () => {
     });
   });
 
+  describe('Fade-in Animation', () => {
+    it('should apply animate-fade-in-up class when animationIndex is provided', () => {
+      const { container } = renderTaskRow({
+        task: mockTask,
+        onComplete: mockOnComplete,
+        onClick: mockOnClick,
+        onViewSubtasks: mockOnViewSubtasks,
+        animationIndex: 0
+      });
+
+      const row = container.querySelector('tr[data-task-id="task-1"]');
+      expect(row).toHaveClass('animate-fade-in-up');
+    });
+
+    it('should set animation-delay based on animationIndex', () => {
+      const { container } = renderTaskRow({
+        task: mockTask,
+        onComplete: mockOnComplete,
+        onClick: mockOnClick,
+        onViewSubtasks: mockOnViewSubtasks,
+        animationIndex: 5
+      });
+
+      const row = container.querySelector('tr[data-task-id="task-1"]');
+      expect(row).toHaveStyle({ animationDelay: '150ms' }); // 5 * 30 = 150
+    });
+
+    it('should cap animation-delay at 300ms', () => {
+      const { container } = renderTaskRow({
+        task: mockTask,
+        onComplete: mockOnComplete,
+        onClick: mockOnClick,
+        onViewSubtasks: mockOnViewSubtasks,
+        animationIndex: 20
+      });
+
+      const row = container.querySelector('tr[data-task-id="task-1"]');
+      expect(row).toHaveStyle({ animationDelay: '300ms' }); // Math.min(20 * 30, 300) = 300
+    });
+
+    it('should not apply animate-fade-in-up when animationIndex is not provided', () => {
+      const { container } = renderTaskRow({
+        task: mockTask,
+        onComplete: mockOnComplete,
+        onClick: mockOnClick,
+        onViewSubtasks: mockOnViewSubtasks
+      });
+
+      const row = container.querySelector('tr[data-task-id="task-1"]');
+      expect(row).not.toHaveClass('animate-fade-in-up');
+    });
+  });
+
   describe('Depth and Indentation', () => {
     it('should apply indentation based on depth', () => {
       const { container } = renderTaskRow({

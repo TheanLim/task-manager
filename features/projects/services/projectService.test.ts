@@ -167,6 +167,29 @@ describe('Feature: architecture-refactor', () => {
     projectService = new ProjectService(projectRepo, sectionRepo, taskService, taskRepo, automationRuleRepo);
   });
 
+  describe('ProjectService.create static factory', () => {
+    it('returns a project with a valid UUID id', () => {
+      const project = ProjectService.create({ name: 'Test', description: 'Desc', viewMode: 'list' });
+      expect(project.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+    });
+
+    it('sets createdAt and updatedAt to the same timestamp', () => {
+      const project = ProjectService.create({ name: 'Test', description: '', viewMode: 'board' });
+      expect(project.createdAt).toBe(project.updatedAt);
+      // Verify it's a valid ISO string
+      expect(() => new Date(project.createdAt)).not.toThrow();
+      expect(new Date(project.createdAt).toISOString()).toBe(project.createdAt);
+    });
+
+    it('spreads the input data correctly', () => {
+      const data = { name: 'My Project', description: 'A description', viewMode: 'calendar' as const };
+      const project = ProjectService.create(data);
+      expect(project.name).toBe('My Project');
+      expect(project.description).toBe('A description');
+      expect(project.viewMode).toBe('calendar');
+    });
+  });
+
   describe('Property 6: ProjectService cascade delete removes all project entities', () => {
     it('Feature: architecture-refactor, Property 6: ProjectService cascade delete removes all project entities', () => {
       /**

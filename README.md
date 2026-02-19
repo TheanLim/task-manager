@@ -67,9 +67,14 @@ Four methodologies to choose from:
 ### User Interface
 - Responsive design (mobile, tablet, desktop)
 - Dark / Light / System theme support
-- Collapsible sidebar
+- Collapsible sidebar with mobile drawer overlay
+- Skeleton loading states during hydration
+- Breadcrumb navigation
+- Mobile task panel overlay with close button and scroll lock
+- Status strip on task detail panel
+- Tab bar icons with accent-brand active state
 - Inline-editable fields
-- Task detail panel
+- Task detail panel with collapsible metadata sections
 - Drag-and-drop (dnd-kit) in Board and DIT views
 - Error boundary for graceful error handling
 
@@ -149,13 +154,20 @@ npm run test:e2e:ui
 │   ├── layout.tsx                    # Root layout with providers
 │   ├── hooks/                        # App-shell hooks
 │   │   ├── useDialogManager.ts       # Dialog/panel/toast orchestration
-│   │   └── useCrossTabSync.ts        # localStorage cross-tab sync
+│   │   ├── useCrossTabSync.ts        # localStorage cross-tab sync
+│   │   ├── useHydrated.ts            # SSR hydration detection
+│   │   └── useMediaQuery.ts          # Responsive breakpoint hook
 │   ├── globals.css
 │   └── quill-custom.css
 │
 ├── components/                       # Shared UI components
 │   ├── ui/                           # shadcn/ui primitives (Button, Dialog, etc.)
 │   ├── Layout.tsx                    # Main layout shell (sidebar + content)
+│   ├── Breadcrumb.tsx                # URL-aware breadcrumb navigation
+│   ├── SearchInput.tsx               # Ghost search input (upcoming feature)
+│   ├── LandingEmptyState.tsx         # Rich empty state for landing page
+│   ├── SkeletonProjectList.tsx       # Sidebar loading skeleton
+│   ├── SkeletonTaskList.tsx          # Main area loading skeleton
 │   ├── ErrorBoundary.tsx             # Error handling wrapper
 │   ├── EmptyState.tsx                # Reusable empty state display
 │   ├── InlineEditable.tsx            # Inline editing component
@@ -196,10 +208,10 @@ npm run test:e2e:ui
 │   │   ├── components/               # TaskList, TaskBoard, TaskCalendar, TaskRow,
 │   │   │                             # TaskDetailPanel, TaskDialog, DependencyDialog,
 │   │   │                             # GlobalTasksView, GlobalTasksHeader, GlobalTasksContainer,
-│   │   │                             # RichTextEditor
+│   │   │                             # RichTextEditor, DatePickerPopover, TagEditorPopover
 │   │   ├── hooks/                    # useFilteredTasks
 │   │   ├── services/                 # taskService, dependencyService, dependencyResolver,
-│   │   │                             # autoHideService, taskSortService
+│   │   │                             # autoHideService, taskSortService, priorityUtils
 │   │   ├── stores/                   # filterStore
 │   │   └── index.ts
 │   │

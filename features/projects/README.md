@@ -4,7 +4,7 @@
 
 | Module | Path | Responsibility |
 |---|---|---|
-| `ProjectService` | `services/projectService.ts` | Create projects with default sections; cascade-delete projects |
+| `ProjectService` | `services/projectService.ts` | Entity factory (`create`), create with default sections, cascade-delete projects |
 | `SectionService` | `services/sectionService.ts` | Cascade-delete sections (reassign tasks, detect broken rules) |
 | `ProjectView` | `components/ProjectView.tsx` | Top-level project page — tabs, header, task views |
 | `SectionManager` | `components/SectionManager.tsx` | CRUD UI for sections within project overview |

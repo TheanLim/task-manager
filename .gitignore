@@ -43,3 +43,6 @@ next-env.d.ts
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# kiro specs (local working files, not committed)
+.kiro/specs/
