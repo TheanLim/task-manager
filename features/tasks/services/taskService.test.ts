@@ -130,6 +130,102 @@ describe('Feature: architecture-refactor', () => {
     taskService = new TaskService(taskRepo, depRepo);
   });
 
+  describe('TaskService.create static factory', () => {
+    it('returns a task with a valid UUID id', () => {
+      const task = TaskService.create({
+        projectId: 'proj-1',
+        parentTaskId: null,
+        sectionId: 'sec-1',
+        description: 'Test task',
+        notes: '',
+        assignee: '',
+        priority: 'none',
+        tags: [],
+        dueDate: null,
+        order: 0,
+      });
+      expect(task.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+    });
+
+    it('sets completed to false and completedAt to null', () => {
+      const task = TaskService.create({
+        projectId: null,
+        parentTaskId: null,
+        sectionId: null,
+        description: 'Test',
+        notes: '',
+        assignee: '',
+        priority: 'high',
+        tags: ['a'],
+        dueDate: '2025-12-31',
+        order: 5,
+      });
+      expect(task.completed).toBe(false);
+      expect(task.completedAt).toBeNull();
+    });
+
+    it('sets createdAt and updatedAt to the same timestamp', () => {
+      const task = TaskService.create({
+        projectId: 'p1',
+        parentTaskId: 'parent-1',
+        sectionId: 's1',
+        description: 'Sub',
+        notes: 'notes',
+        assignee: 'alice',
+        priority: 'medium',
+        tags: [],
+        dueDate: null,
+        order: 2,
+      });
+      expect(task.createdAt).toBe(task.updatedAt);
+      expect(new Date(task.createdAt).toISOString()).toBe(task.createdAt);
+    });
+
+    it('spreads the input data correctly', () => {
+      const data = {
+        projectId: 'proj-x',
+        parentTaskId: 'parent-y',
+        sectionId: 'sec-z',
+        description: 'My task',
+        notes: 'Some notes',
+        assignee: 'bob',
+        priority: 'low' as const,
+        tags: ['tag1', 'tag2'],
+        dueDate: '2025-06-15',
+        order: 3,
+      };
+      const task = TaskService.create(data);
+      expect(task.projectId).toBe('proj-x');
+      expect(task.parentTaskId).toBe('parent-y');
+      expect(task.sectionId).toBe('sec-z');
+      expect(task.description).toBe('My task');
+      expect(task.notes).toBe('Some notes');
+      expect(task.assignee).toBe('bob');
+      expect(task.priority).toBe('low');
+      expect(task.tags).toEqual(['tag1', 'tag2']);
+      expect(task.dueDate).toBe('2025-06-15');
+      expect(task.order).toBe(3);
+    });
+  });
+
+  describe('TaskService.completionUpdate static helper', () => {
+    it('returns completed: true with a non-null completedAt when true', () => {
+      const before = new Date().toISOString();
+      const result = TaskService.completionUpdate(true);
+      const after = new Date().toISOString();
+      expect(result.completed).toBe(true);
+      expect(result.completedAt).not.toBeNull();
+      expect(result.completedAt! >= before).toBe(true);
+      expect(result.completedAt! <= after).toBe(true);
+    });
+
+    it('returns completed: false with null completedAt when false', () => {
+      const result = TaskService.completionUpdate(false);
+      expect(result.completed).toBe(false);
+      expect(result.completedAt).toBeNull();
+    });
+  });
+
   describe('Property 5: TaskService cascade delete removes all descendants', () => {
     it('Feature: architecture-refactor, Property 5: TaskService cascade delete removes all descendants', () => {
       /**

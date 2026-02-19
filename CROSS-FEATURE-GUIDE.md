@@ -66,6 +66,7 @@ User action in UI
 
 - [ ] Check `lib/serviceContainer.ts` — constructor wiring
 - [ ] Check `stores/dataStore.ts` — calls taskService methods
+- [ ] Check `app/page.tsx` — uses `TaskService.create()` and `TaskService.completionUpdate()` static factories
 - [ ] Check `features/automations/services/ruleExecutor.ts` — calls taskService.cascadeComplete
 - [ ] Check `features/projects/services/projectService.ts` — calls taskService.cascadeDelete
 - [ ] Test: `stores/dataStore.test.ts`, `features/tasks/services/taskService.test.ts`

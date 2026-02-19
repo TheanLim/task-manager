@@ -42,10 +42,15 @@
 **Why**: The previous implementation called `useDataStore.setState()` directly, bypassing repository subscriptions and the `LocalStorageBackend`. This could leave the backend out of sync with the Zustand store. Writing through repositories ensures the same write path as replace mode.
 
 
-## 6. TODO: Inline entity construction in page.tsx
+## 6. Inline entity construction extracted to service layer
 
-**Status**: Known violation, deferred.
+**Status**: Resolved.
 
-**Issue**: `app/page.tsx` `handleProjectSubmit` and `handleTaskSubmit` construct entities inline with `uuidv4()` and `new Date().toISOString()`. This violates architecture rule #5 ("No inline entity construction in components").
+**Issue**: `app/page.tsx` `handleProjectSubmit` and `handleTaskSubmit` constructed entities inline with `uuidv4()` and `new Date().toISOString()`, violating architecture rule #5.
 
-**Plan**: Extract to `projectService.create(data)` and `taskService.create(data)` factory methods in the service layer. The `handleTaskComplete` cascade logic should also move to `taskService`.
+**Resolution**: Added static factory methods:
+- `ProjectService.create(data)` — generates ID and timestamps for new projects
+- `TaskService.create(data)` — generates ID, timestamps, and defaults (completed: false) for new tasks
+- `TaskService.completionUpdate(completed)` — generates completion state with timestamp
+
+`app/page.tsx` now calls these factories instead of constructing entities inline. The `uuidv4` import was removed from page.tsx.

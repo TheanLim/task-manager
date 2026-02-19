@@ -17,7 +17,8 @@ import { useAppStore } from '@/stores/appStore';
 import { useTMSStore } from '@/features/tms/stores/tmsStore';
 import { getTMSHandler } from '@/features/tms/handlers';
 import { ViewMode, Priority, TimeManagementSystem } from '@/types';
-import { v4 as uuidv4 } from 'uuid';
+import { ProjectService } from '@/features/projects/services/projectService';
+import { TaskService } from '@/features/tasks/services/taskService';
 import { ImportExportMenu } from '@/features/sharing/components/ImportExportMenu';
 import { LandingEmptyState } from '@/components/LandingEmptyState';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -280,12 +281,7 @@ function HomeContent() {
     if (dm.projectDialog.editingProjectId) {
       updateProject(dm.projectDialog.editingProjectId, data);
     } else {
-      const newProject = {
-        id: uuidv4(),
-        ...data,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+      const newProject = ProjectService.create(data);
       addProject(newProject);
       router.push(`/?project=${newProject.id}`);
     }
@@ -328,18 +324,13 @@ function HomeContent() {
         ? getSubtasks(dm.taskDialog.parentTaskId).length
         : (activeProject ? projectTasks.length : tasks.length);
 
-      const newTask = {
-        id: uuidv4(),
+      const newTask = TaskService.create({
         projectId,
         parentTaskId: dm.taskDialog.parentTaskId,
         sectionId,
         ...data,
-        completed: false,
-        completedAt: null,
         order,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+      });
       addTask(newTask);
 
       // Notify TMS handler of task creation and apply state delta
@@ -373,18 +364,12 @@ function HomeContent() {
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
 
-    updateTask(taskId, {
-      completed,
-      completedAt: completed ? new Date().toISOString() : null,
-    });
+    updateTask(taskId, TaskService.completionUpdate(completed));
 
     if (task.parentTaskId === null) {
       const subtasks = getSubtasks(taskId);
       subtasks.forEach(subtask => {
-        updateTask(subtask.id, {
-          completed,
-          completedAt: completed ? new Date().toISOString() : null,
-        });
+        updateTask(subtask.id, TaskService.completionUpdate(completed));
       });
     }
 

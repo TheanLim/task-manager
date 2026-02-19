@@ -18,7 +18,7 @@ Core task management: CRUD, hierarchy (parent/subtask), dependencies, sorting, f
 | `components/GlobalTasksHeader.tsx` | Header with display mode toggle, review queue, completed-task controls |
 | `components/GlobalTasksContainer.tsx` | Composes GlobalTasksHeader + GlobalTasksView |
 | `components/RichTextEditor.tsx` | Quill-based rich text editor for task notes |
-| `services/taskService.ts` | Business logic: cascade delete, cascade complete, reinsert |
+| `services/taskService.ts` | Business logic: cascade delete, cascade complete, reinsert, entity factory (`create`, `completionUpdate`) |
 | `components/DatePickerPopover.tsx` | Shared date picker popover (calendar + clear button) |
 | `components/TagEditorPopover.tsx` | Shared tag editor popover (add/remove tags) |
 | `services/taskSortService.ts` | Pure sorting functions for task lists (by column, by last action) |

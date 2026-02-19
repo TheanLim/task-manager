@@ -1,4 +1,5 @@
-import type { UUID, Section } from '@/types';
+import { v4 as uuidv4 } from 'uuid';
+import type { UUID, Section, ViewMode } from '@/types';
 import type {
   ProjectRepository,
   SectionRepository,
@@ -59,6 +60,20 @@ export class ProjectService {
       this.sectionRepo.create(section);
     }
   }
+  /**
+   * Static factory: create a new Project with generated ID and timestamps.
+   */
+  static create(data: { name: string; description: string; viewMode: ViewMode }): Project {
+    const now = new Date().toISOString();
+    return {
+      id: uuidv4(),
+      ...data,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+
 
   /**
    * Cascade-delete a project: remove all automation rules, all tasks (via TaskService for subtask/dependency cleanup),
