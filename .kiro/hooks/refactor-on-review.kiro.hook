@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Refactor suggestions on code review",
+  "description": "When you ask for a code review in chat, this hook reminds the agent to also activate the refactor-codes skill and include refactoring suggestions scoped to the code under review.",
+  "version": "1",
+  "when": {
+    "type": "promptSubmit"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "If the user's message is asking for a code review (e.g. mentions \"review\", \"code review\", \"CR\", \"look over\", \"check my code\"), activate the refactor-codes skill and include refactoring suggestions scoped to the code being reviewed. Focus only on the changed or referenced files — do not analyze unrelated code. If the message is NOT about a code review, ignore this instruction entirely."
+  }
+}

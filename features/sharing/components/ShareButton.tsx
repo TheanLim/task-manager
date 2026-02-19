@@ -196,7 +196,15 @@ export function ShareButton({
           Share Project
         </Button>
       ) : (
-        <DropdownMenuItem onClick={handleShare} disabled={isLoading}>
+        <DropdownMenuItem
+          onSelect={(e) => {
+            // Prevent Radix DropdownMenu from closing. Without this, the dropdown's
+            // pointerDownOutside event immediately dismisses the Dialog that opens.
+            e.preventDefault();
+            handleShare();
+          }}
+          disabled={isLoading}
+        >
           {isLoading ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
