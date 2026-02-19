@@ -171,7 +171,7 @@ export const ACTION_META: ActionMeta[] = [
 /**
  * Generates a human-readable description for a filter.
  */
-function formatFilterDescription(
+export function formatFilterDescription(
   filter: CardFilter,
   sectionLookup: (id: string) => string | undefined
 ): string {

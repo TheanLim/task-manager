@@ -12,6 +12,7 @@ import {
   buildPreviewParts,
   buildPreviewString,
   isDuplicateRule,
+  formatFilterDescription,
   type TriggerConfig,
   type ActionConfig,
 } from '../services/rulePreviewService';
@@ -31,58 +32,6 @@ interface RuleDialogStepReviewProps {
   isSaveDisabled: boolean;
   existingRules?: AutomationRule[];
   editingRuleId?: string;
-}
-
-/**
- * Generates a human-readable description for a filter.
- */
-function getFilterDescription(filter: CardFilter, sectionLookup: (id: string) => string | undefined): string {
-  switch (filter.type) {
-    case 'in_section':
-      return `in "${sectionLookup(filter.sectionId) || '___'}"`;
-    case 'not_in_section':
-      return `not in "${sectionLookup(filter.sectionId) || '___'}"`;
-    case 'has_due_date':
-      return 'has due date';
-    case 'no_due_date':
-      return 'no due date';
-    case 'is_overdue':
-      return 'is overdue';
-    case 'due_today':
-      return 'due today';
-    case 'due_tomorrow':
-      return 'due tomorrow';
-    case 'due_this_week':
-      return 'due this week';
-    case 'due_next_week':
-      return 'due next week';
-    case 'due_this_month':
-      return 'due this month';
-    case 'due_next_month':
-      return 'due next month';
-    case 'not_due_today':
-      return 'not due today';
-    case 'not_due_tomorrow':
-      return 'not due tomorrow';
-    case 'not_due_this_week':
-      return 'not due this week';
-    case 'not_due_next_week':
-      return 'not due next week';
-    case 'not_due_this_month':
-      return 'not due this month';
-    case 'not_due_next_month':
-      return 'not due next month';
-    case 'due_in_less_than':
-      return `due in < ${filter.value} ${filter.unit === 'working_days' ? 'working days' : 'days'}`;
-    case 'due_in_more_than':
-      return `due in > ${filter.value} ${filter.unit === 'working_days' ? 'working days' : 'days'}`;
-    case 'due_in_exactly':
-      return `due in exactly ${filter.value} ${filter.unit === 'working_days' ? 'working days' : 'days'}`;
-    case 'due_in_between':
-      return `due in ${filter.minValue}-${filter.maxValue} ${filter.unit === 'working_days' ? 'working days' : 'days'}`;
-    default:
-      return 'unknown filter';
-  }
 }
 
 export function RuleDialogStepReview({
@@ -211,7 +160,7 @@ export function RuleDialogStepReview({
                       variant="secondary"
                       className="flex items-center gap-1 pr-1"
                     >
-                      <span>{getFilterDescription(filter, sectionLookup)}</span>
+                      <span>{formatFilterDescription(filter, sectionLookup)}</span>
                       <button
                         type="button"
                         onClick={(e) => {
@@ -239,7 +188,7 @@ export function RuleDialogStepReview({
         {/* THEN Block */}
         <Card
           className={`border-l-4 ${actionCategoryColor} cursor-pointer transition-colors hover:bg-accent/50`}
-          onClick={() => onNavigateToStep(1)}
+          onClick={() => onNavigateToStep(2)}
         >
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">

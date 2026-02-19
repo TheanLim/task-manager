@@ -14,6 +14,7 @@ Rule-based automation engine that executes actions when domain events occur. Use
 | Orchestrator | `services/automationService.ts` |
 | Date calculations | `services/dateCalculations.ts` |
 | Filter predicates | `services/filterPredicates.ts` |
+| Filter description formatting | `services/rulePreviewService.ts` (`formatFilterDescription`) |
 | Repository (localStorage) | `repositories/localStorageAutomationRuleRepository.ts` |
 | React hook | `hooks/useAutomationRules.ts` |
 | Rule creation wizard | `components/RuleDialog.tsx` |

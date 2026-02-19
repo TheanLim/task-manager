@@ -185,3 +185,18 @@ Migration path:
 **Why**: The re-exports made `automationService.ts` look like it owned undo logic when it doesn't. It was a Middle Man — adding indirection with no value. Direct imports are clearer and make dependency graphs accurate.
 
 **Migration**: `app/page.tsx` and `useUndoAutomation.ts` updated to import from `undoService` directly. Test files updated accordingly.
+
+
+## 17. Unified `formatFilterDescription` eliminates duplicate filter-to-text logic
+
+**Decision**: Removed the local `getFilterDescription()` function from `RuleDialogStepReview.tsx` and replaced it with the shared `formatFilterDescription()` exported from `rulePreviewService.ts`.
+
+**Why**: Both functions mapped `CardFilter` types to human-readable strings with nearly identical switch statements. The Review step used slightly different wording (e.g., "has due date" vs "with a due date") but the shared version's phrasing is more natural and consistent with the preview sentence.
+
+**Trade-off**: Filter badge text in the Review step changed slightly (e.g., "has due date" → "with a due date", "due in < 3 days" → "due in less than 3 days"). This is a cosmetic improvement, not a regression.
+
+## 18. THEN block in Review step navigates to Action step (step 2), not Filters (step 1)
+
+**Decision**: Fixed `RuleDialogStepReview.tsx` THEN block `onClick` from `onNavigateToStep(1)` to `onNavigateToStep(2)`.
+
+**Why**: Clicking the THEN block should navigate to the Action step (where the action is configured), not the Filters step. The WHEN block correctly navigated to step 0 (Trigger), the IF block correctly navigated to step 1 (Filters), but the THEN block incorrectly also navigated to step 1 instead of step 2 (Action).

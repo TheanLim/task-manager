@@ -25,7 +25,7 @@ Step-by-step guides for common extension scenarios.
 2. **Predicate** (`services/filterPredicates.ts`): Add the evaluation logic to `filterPredicateMap`. For date-range filters that need a negated counterpart, use `createNegatedFilter('positive_key')` instead of writing the negation by hand
 3. **UI — Filter Row** (`components/FilterRow.tsx`): Add rendering for the new filter type's controls
 4. **UI — Filter Step** (`components/RuleDialogStepFilters.tsx`): Add the filter to the "+ Add filter" dropdown menu
-5. **Preview** (`services/rulePreviewService.ts`): Update `formatFilterDescription()` for the natural language description
+5. **Preview** (`services/rulePreviewService.ts`): Update `formatFilterDescription()` for the natural language description. This function is the single source of truth for filter-to-text mapping — used by both the preview sentence and the Review step badges.
 6. **Tests**: Add predicate property tests, schema round-trip tests, UI tests
 
 ## Adding a New Date Option

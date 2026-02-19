@@ -87,7 +87,7 @@ describe('RuleDialogStepReview', () => {
     expect(onNavigateToStep).toHaveBeenCalledWith(0);
   });
 
-  it('calls onNavigateToStep(1) when THEN block is clicked', async () => {
+  it('calls onNavigateToStep(2) when THEN block is clicked', async () => {
     const user = userEvent.setup();
     const onNavigateToStep = vi.fn();
     
@@ -97,7 +97,7 @@ describe('RuleDialogStepReview', () => {
     expect(thenBlock).toBeInTheDocument();
     
     await user.click(thenBlock!);
-    expect(onNavigateToStep).toHaveBeenCalledWith(1);
+    expect(onNavigateToStep).toHaveBeenCalledWith(2);
   });
 
   it('does not render IF block when no filters are configured', () => {
@@ -118,7 +118,7 @@ describe('RuleDialogStepReview', () => {
     
     expect(screen.getByText('IF')).toBeInTheDocument();
     expect(screen.getByText('in "In Progress"')).toBeInTheDocument();
-    expect(screen.getByText('has due date')).toBeInTheDocument();
+    expect(screen.getByText('with a due date')).toBeInTheDocument();
   });
 
   it('renders section filter badges with correct descriptions', () => {
@@ -146,9 +146,9 @@ describe('RuleDialogStepReview', () => {
     };
     render(<RuleDialogStepReview {...props} />);
     
-    expect(screen.getByText('has due date')).toBeInTheDocument();
-    expect(screen.getByText('no due date')).toBeInTheDocument();
-    expect(screen.getByText('is overdue')).toBeInTheDocument();
+    expect(screen.getByText('with a due date')).toBeInTheDocument();
+    expect(screen.getByText('without a due date')).toBeInTheDocument();
+    expect(screen.getByText('that is overdue')).toBeInTheDocument();
   });
 
   it('renders positive date range filter badges with correct descriptions', () => {
@@ -207,8 +207,8 @@ describe('RuleDialogStepReview', () => {
     };
     render(<RuleDialogStepReview {...props} />);
     
-    expect(screen.getByText('due in < 3 days')).toBeInTheDocument();
-    expect(screen.getByText('due in > 7 working days')).toBeInTheDocument();
+    expect(screen.getByText('due in less than 3 days')).toBeInTheDocument();
+    expect(screen.getByText('due in more than 7 working days')).toBeInTheDocument();
     expect(screen.getByText('due in exactly 5 days')).toBeInTheDocument();
     expect(screen.getByText('due in 2-10 working days')).toBeInTheDocument();
   });
@@ -274,7 +274,7 @@ describe('RuleDialogStepReview', () => {
     expect(arrows.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('calls onNavigateToStep(1) when THEN block is clicked (with filters)', async () => {
+  it('calls onNavigateToStep(2) when THEN block is clicked (with filters)', async () => {
     const user = userEvent.setup();
     const onNavigateToStep = vi.fn();
     const props = {
@@ -288,7 +288,7 @@ describe('RuleDialogStepReview', () => {
     expect(thenBlock).toBeInTheDocument();
     
     await user.click(thenBlock!);
-    expect(onNavigateToStep).toHaveBeenCalledWith(1);
+    expect(onNavigateToStep).toHaveBeenCalledWith(2);
   });
 
   it('renders rule name input with placeholder from preview', () => {
