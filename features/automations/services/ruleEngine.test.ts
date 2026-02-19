@@ -1612,3 +1612,162 @@ describe('Subtask exclusion', () => {
     );
   });
 });
+
+// ─── schedule.fired tests ───────────────────────────────────────────────
+
+describe('schedule.fired branch', () => {
+  const makeScheduledRule = (id: string, triggerType: string): AutomationRule => ({
+    id,
+    projectId: 'proj-1',
+    name: 'Scheduled Rule',
+    trigger: {
+      type: triggerType,
+      sectionId: null,
+      schedule: { kind: 'interval', intervalMinutes: 30 },
+      lastEvaluatedAt: null,
+    },
+    filters: [],
+    action: {
+      type: 'mark_card_complete',
+      sectionId: null,
+      dateOption: null,
+      position: null,
+      cardTitle: null,
+      cardDateOption: null,
+      specificMonth: null,
+      specificDay: null,
+      monthTarget: null,
+    },
+    enabled: true,
+    brokenReason: null,
+    executionCount: 0,
+    lastExecutedAt: null,
+    recentExecutions: [],
+    order: 0,
+    createdAt: '2026-02-19T09:00:00.000Z',
+    updatedAt: '2026-02-19T09:00:00.000Z',
+  } as any);
+
+  const makeTask = (id: string, completed = false) => ({
+    id,
+    description: `Task ${id}`,
+    sectionId: 'sec-1',
+    projectId: 'proj-1',
+    completed,
+    completedAt: null,
+    dueDate: null,
+    order: 0,
+    createdAt: '2026-02-19T09:00:00.000Z',
+    updatedAt: '2026-02-19T09:00:00.000Z',
+    parentTaskId: null,
+  });
+
+  // Feature: scheduled-triggers-phase-5a, Property 15: all matching tasks get actions
+  it('P15: interval/cron trigger produces action per matching task', () => {
+    const rule = makeScheduledRule('rule-1', 'scheduled_interval');
+    const tasks = [makeTask('t1'), makeTask('t2'), makeTask('t3')];
+
+    const event: DomainEvent = {
+      type: 'schedule.fired',
+      entityId: 'rule-1',
+      projectId: 'proj-1',
+      changes: { triggerType: 'scheduled_interval' },
+      previousValues: {},
+      triggeredByRule: 'rule-1',
+      depth: 0,
+    };
+
+    const context: EvaluationContext = {
+      allTasks: tasks as any,
+      allSections: [],
+      maxDepth: 5,
+      executedSet: new Set(),
+    };
+
+    const actions = evaluateRules(event, [rule], context);
+    expect(actions).toHaveLength(3);
+    expect(actions.map((a) => a.targetEntityId).sort()).toEqual(['t1', 't2', 't3']);
+  });
+
+  it('P15: due-date-relative trigger applies filters to specific task', () => {
+    const rule = makeScheduledRule('rule-1', 'scheduled_due_date_relative');
+    const tasks = [makeTask('t1'), makeTask('t2')];
+
+    const event: DomainEvent = {
+      type: 'schedule.fired',
+      entityId: 't1', // specific task
+      projectId: 'proj-1',
+      changes: { triggerType: 'scheduled_due_date_relative' },
+      previousValues: {},
+      triggeredByRule: 'rule-1',
+      depth: 0,
+    };
+
+    const context: EvaluationContext = {
+      allTasks: tasks as any,
+      allSections: [],
+      maxDepth: 5,
+      executedSet: new Set(),
+    };
+
+    const actions = evaluateRules(event, [rule], context);
+    expect(actions).toHaveLength(1);
+    expect(actions[0].targetEntityId).toBe('t1');
+  });
+
+  it('skips subtasks for interval/cron triggers', () => {
+    const rule = makeScheduledRule('rule-1', 'scheduled_interval');
+    const tasks = [
+      makeTask('t1'),
+      { ...makeTask('t2'), parentTaskId: 't1' }, // subtask
+    ];
+
+    const event: DomainEvent = {
+      type: 'schedule.fired',
+      entityId: 'rule-1',
+      projectId: 'proj-1',
+      changes: { triggerType: 'scheduled_interval' },
+      previousValues: {},
+      triggeredByRule: 'rule-1',
+      depth: 0,
+    };
+
+    const context: EvaluationContext = {
+      allTasks: tasks as any,
+      allSections: [],
+      maxDepth: 5,
+      executedSet: new Set(),
+    };
+
+    const actions = evaluateRules(event, [rule], context);
+    expect(actions).toHaveLength(1);
+    expect(actions[0].targetEntityId).toBe('t1');
+  });
+
+  it('only matches the specific rule that fired', () => {
+    const rule1 = makeScheduledRule('rule-1', 'scheduled_interval');
+    const rule2 = makeScheduledRule('rule-2', 'scheduled_interval');
+    const tasks = [makeTask('t1')];
+
+    const event: DomainEvent = {
+      type: 'schedule.fired',
+      entityId: 'rule-1',
+      projectId: 'proj-1',
+      changes: { triggerType: 'scheduled_interval' },
+      previousValues: {},
+      triggeredByRule: 'rule-1', // only rule-1 should match
+      depth: 0,
+    };
+
+    const context: EvaluationContext = {
+      allTasks: tasks as any,
+      allSections: [],
+      maxDepth: 5,
+      executedSet: new Set(),
+    };
+
+    const actions = evaluateRules(event, [rule1, rule2], context);
+    expect(actions).toHaveLength(1);
+    expect(actions[0].ruleId).toBe('rule-1');
+  });
+});
