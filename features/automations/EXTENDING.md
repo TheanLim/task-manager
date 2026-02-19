@@ -5,28 +5,32 @@ Step-by-step guides for common extension scenarios.
 ## Adding a New Trigger Type
 
 1. **Schema** (`schemas.ts`): Add the new value to `TriggerTypeSchema` enum
-2. **Rule Engine** (`services/ruleEngine.ts`): Add matching logic in `evaluateRules()` — determine which event type and field changes correspond to the new trigger
-3. **Domain Events**: Ensure the relevant domain event is emitted from `stores/dataStore.ts` (or the appropriate service). The event must include `changes` and `previousValues`
-4. **UI — Trigger Step** (`components/RuleDialogStepTrigger.tsx`): Add the trigger option to the appropriate group (Card Move, Card Change, Section Change)
-5. **Preview** (`services/rulePreviewService.ts`): Add the trigger to `TRIGGER_META` array and update `buildPreviewParts()` for the natural language sentence
-6. **Tests**: Add property test in `ruleEngine.test.ts`, update schema tests, update preview tests
+2. **Metadata** (`services/ruleMetadata.ts`): Add the trigger to `TRIGGER_META` array with category, label, and `needsSection` flag
+3. **Rule Engine** (`services/ruleEngine.ts`): Add matching logic in `evaluateRules()` — determine which event type and field changes correspond to the new trigger
+4. **Domain Events**: Ensure the relevant domain event is emitted from `stores/dataStore.ts` (or the appropriate service). The event must include `changes` and `previousValues`
+5. **UI — Trigger Step** (`components/RuleDialogStepTrigger.tsx`): Add the trigger option to the appropriate group (Card Move, Card Change, Section Change)
+6. **Preview** (`services/rulePreviewService.ts`): Update `buildTriggerParts()` for the natural language sentence
+7. **Section references**: If the new trigger carries a `sectionId`, verify `sectionReferenceCollector.ts` already handles it (it walks `trigger.sectionId` generically, so no change needed unless the field name differs)
+8. **Tests**: Add property test in `ruleEngine.test.ts`, update schema tests, update preview tests
 
 ## Adding a New Action Type
 
 1. **Schema** (`schemas.ts`): Add the new value to `ActionTypeSchema` enum
-2. **Action Handler** (`services/actionHandlers.ts`): Create a handler object implementing `ActionHandler` (execute, describe, undo) and register it in `ACTION_HANDLER_REGISTRY`. RuleExecutor, undoService, and description generation all pick it up automatically
-3. **UI — Action Step** (`components/RuleDialogStepAction.tsx`): Add the action option to the appropriate group (Move, Status, Dates, Create)
-4. **Preview** (`services/rulePreviewService.ts`): Add the action to `ACTION_META` array and update `buildPreviewParts()`
-5. **Tests**: Add handler tests in `actionHandlers.test.ts`, preview tests, schema tests
+2. **Metadata** (`services/ruleMetadata.ts`): Add the action to `ACTION_META` array with category, label, and capability flags
+3. **Action Handler** (`services/actionHandlers.ts`): Create a handler object implementing `ActionHandler` (execute, describe, undo) and register it in `ACTION_HANDLER_REGISTRY`. RuleExecutor, undoService, and description generation all pick it up automatically
+4. **UI — Action Step** (`components/RuleDialogStepAction.tsx`): Add the action option to the appropriate group (Move, Status, Dates, Create)
+5. **Preview** (`services/rulePreviewService.ts`): Update `buildActionParts()` for the natural language sentence
+6. **Tests**: Add handler tests in `actionHandlers.test.ts`, preview tests, schema tests
 
 ## Adding a New Filter Type
 
 1. **Schema** (`schemas.ts`): Add a new entry to the `CardFilterSchema` discriminated union
 2. **Predicate** (`services/filterPredicates.ts`): Add the evaluation logic to `filterPredicateMap`. For date-range filters that need a negated counterpart, use `createNegatedFilter('positive_key')` instead of writing the negation by hand
-3. **UI — Filter Row** (`components/FilterRow.tsx`): Add rendering for the new filter type's controls
-4. **UI — Filter Step** (`components/RuleDialogStepFilters.tsx`): Add the filter to the "+ Add filter" dropdown menu
-5. **Preview** (`services/rulePreviewService.ts`): Update `formatFilterDescription()` for the natural language description. This function is the single source of truth for filter-to-text mapping — used by both the preview sentence and the Review step badges.
-6. **Tests**: Add predicate property tests, schema round-trip tests, UI tests
+3. **Section references**: If the new filter carries a `sectionId`, update `sectionReferenceCollector.ts` to include it (currently handles `in_section` and `not_in_section`)
+4. **UI — Filter Row** (`components/FilterRow.tsx`): Add rendering for the new filter type's controls
+5. **UI — Filter Step** (`components/RuleDialogStepFilters.tsx`): Add the filter to the "+ Add filter" dropdown menu
+6. **Preview** (`services/rulePreviewService.ts`): Update `formatFilterDescription()` for the natural language description. This function is the single source of truth for filter-to-text mapping — used by both the preview sentence and the Review step badges.
+7. **Tests**: Add predicate property tests, schema round-trip tests, UI tests
 
 ## Adding a New Date Option
 

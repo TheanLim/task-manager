@@ -95,7 +95,7 @@ Check in this order:
 
 1. **Repository passed?** — `new ShareService(automationRuleRepository)` — the constructor arg must be the repo. If omitted, `serializeState` skips rules
 2. **Checkbox checked?** — The "Include automations" checkbox defaults to true but can be unchecked
-3. **Section validation on import** — Rules referencing sections not in the imported data get `brokenReason: 'section_deleted'`
+3. **Section validation on import** — Rules referencing sections not in the imported data get `brokenReason: 'section_deleted'`. Section reference collection uses the shared `sectionReferenceCollector.ts`
 
 ## localStorage Keys
 

@@ -1,25 +1,5 @@
-import type { AutomationRule } from '../types';
 import type { AutomationRuleRepository } from '../repositories/types';
-
-/**
- * Checks whether a rule references the given section ID in its trigger,
- * action, or any filter that carries a sectionId.
- */
-function referencesSection(rule: AutomationRule, sectionId: string): boolean {
-  if (rule.trigger.sectionId === sectionId) return true;
-  if (rule.action.sectionId === sectionId) return true;
-
-  for (const filter of rule.filters) {
-    if (
-      (filter.type === 'in_section' || filter.type === 'not_in_section') &&
-      filter.sectionId === sectionId
-    ) {
-      return true;
-    }
-  }
-
-  return false;
-}
+import { collectSectionReferences } from './sectionReferenceCollector';
 
 /**
  * Scans all automation rules for a project and disables any that reference
@@ -39,7 +19,7 @@ export function detectBrokenRules(
   const rules = ruleRepo.findByProjectId(projectId);
 
   for (const rule of rules) {
-    if (referencesSection(rule, deletedSectionId)) {
+    if (collectSectionReferences(rule).includes(deletedSectionId)) {
       ruleRepo.update(rule.id, {
         enabled: false,
         brokenReason: 'section_deleted',

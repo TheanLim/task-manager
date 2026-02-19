@@ -14,6 +14,8 @@ Rule-based automation engine that executes actions when domain events occur. Use
 | Orchestrator | `services/automationService.ts` |
 | Date calculations | `services/dateCalculations.ts` |
 | Filter predicates | `services/filterPredicates.ts` |
+| Trigger/action metadata | `services/ruleMetadata.ts` |
+| Section reference collection | `services/sectionReferenceCollector.ts` |
 | Filter description formatting | `services/rulePreviewService.ts` (`formatFilterDescription`) |
 | Relative time formatting | `services/rulePreviewService.ts` (`formatRelativeTime`) |
 | Repository (localStorage) | `repositories/localStorageAutomationRuleRepository.ts` |

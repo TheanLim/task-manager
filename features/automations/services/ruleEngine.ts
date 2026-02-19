@@ -212,27 +212,27 @@ function createRuleAction(
   rule: AutomationRule,
   targetEntityId: string
 ): RuleAction {
-  const action = rule.action;
+  const { type, sectionId, position, dateOption, specificMonth, specificDay, monthTarget, cardTitle, cardDateOption } = rule.action;
 
   return {
     ruleId: rule.id,
-    actionType: action.type,
+    actionType: type,
     targetEntityId,
     params: {
-      sectionId: action.sectionId ?? undefined,
-      position: action.position ?? undefined,
-      dateOption: action.dateOption ?? undefined,
+      sectionId: sectionId ?? undefined,
+      position: position ?? undefined,
+      dateOption: dateOption ?? undefined,
       completed:
-        action.type === 'mark_card_complete'
+        type === 'mark_card_complete'
           ? true
-          : action.type === 'mark_card_incomplete'
+          : type === 'mark_card_incomplete'
             ? false
             : undefined,
-      specificMonth: action.specificMonth ?? undefined,
-      specificDay: action.specificDay ?? undefined,
-      monthTarget: action.monthTarget ?? undefined,
-      cardTitle: action.cardTitle ?? undefined,
-      cardDateOption: action.cardDateOption ?? undefined,
+      specificMonth: specificMonth ?? undefined,
+      specificDay: specificDay ?? undefined,
+      monthTarget: monthTarget ?? undefined,
+      cardTitle: cardTitle ?? undefined,
+      cardDateOption: cardDateOption ?? undefined,
     },
   };
 }

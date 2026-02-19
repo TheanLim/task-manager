@@ -215,3 +215,30 @@ Migration path:
 **Decision**: Removed a dangling JSDoc comment above `buildTriggerParts()` that was originally the doc for `buildPreviewParts()` before the function was split into `buildTriggerParts` + `buildActionParts` + `buildPreviewParts`.
 
 **Why**: The orphaned comment described parameters (`trigger`, `action`, `sectionLookup`, `filters`) that belong to `buildPreviewParts`, not `buildTriggerParts`. It was misleading.
+
+
+## 21. Shared `collectSectionReferences` eliminates duplicate section-walking logic
+
+**Decision**: Extracted `collectSectionReferences(rule)` from both `brokenRuleDetector.ts::referencesSection()` and `ruleImportExport.ts::collectSectionReferences()` into a shared `services/sectionReferenceCollector.ts`.
+
+**Why**: Both functions walked the same trigger/action/filters structure to find section IDs. `referencesSection` checked if a specific ID was present; `collectSectionReferences` collected all IDs. The underlying traversal was identical — a Data Clump that could diverge if a new section-carrying filter type were added and only one function was updated.
+
+**How**: The shared function returns `string[]` of all referenced section IDs. `brokenRuleDetector` now calls `collectSectionReferences(rule).includes(deletedSectionId)`. `ruleImportExport` uses it directly as before.
+
+**Trade-off**: `brokenRuleDetector` now allocates a temporary array instead of short-circuiting on first match. Negligible for the small number of references per rule (typically 1–3).
+
+## 22. Extracted `ruleMetadata.ts` from `rulePreviewService.ts`
+
+**Decision**: Moved `TRIGGER_META`, `ACTION_META`, `TriggerMeta`, and `ActionMeta` into a dedicated `services/ruleMetadata.ts`. `rulePreviewService.ts` re-exports them for backward compatibility.
+
+**Why**: `rulePreviewService.ts` was a growing grab-bag — preview generation, formatting utilities, metadata constants, config types, and duplicate detection all in one file. The metadata constants are consumed by 5+ UI components and the preview service. Extracting them reduces `rulePreviewService.ts` to its core responsibility (preview generation and formatting) and makes the metadata independently importable.
+
+**Trade-off**: One more file in `services/`. All existing imports from `rulePreviewService` continue to work via re-exports — no migration needed.
+
+## 23. Simplified `createRuleAction` params mapping in `ruleEngine.ts`
+
+**Decision**: Replaced the `action.field ?? undefined` pattern with destructured variables from `rule.action`.
+
+**Why**: The previous code referenced `action.sectionId`, `action.position`, etc. repeatedly. Destructuring makes the mapping more concise and easier to scan. The `completed` field derivation from `type` is preserved as-is since it's computed, not mapped.
+
+**Trade-off**: Purely cosmetic — same runtime behavior. Slightly easier to maintain when new action fields are added.

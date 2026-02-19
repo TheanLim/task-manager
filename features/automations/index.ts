@@ -23,6 +23,7 @@ export { evaluateRules } from './services/ruleEngine';
 export { detectBrokenRules } from './services/brokenRuleDetector';
 export { formatAutomationToastMessage } from './services/toastMessageFormatter';
 export { validateImportedRules } from './services/ruleImportExport';
+export { collectSectionReferences } from './services/sectionReferenceCollector';
 
 // Repository
 export { LocalStorageAutomationRuleRepository } from './repositories/localStorageAutomationRuleRepository';
