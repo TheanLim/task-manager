@@ -1047,7 +1047,7 @@ describe('Req 5.3 / 5.4: mark_card_complete and mark_card_incomplete call cascad
 
     executor.executeActions([action], event);
 
-    expect(spy).toHaveBeenCalledWith('task-1', true);
+    expect(spy).toHaveBeenCalledWith('task-1', true, { emitEvents: false });
     spy.mockRestore();
   });
 
@@ -1109,7 +1109,7 @@ describe('Req 5.3 / 5.4: mark_card_complete and mark_card_incomplete call cascad
 
     executor.executeActions([action], event);
 
-    expect(spy).toHaveBeenCalledWith('task-2', false);
+    expect(spy).toHaveBeenCalledWith('task-2', false, { emitEvents: false });
     spy.mockRestore();
   });
 });

@@ -109,7 +109,8 @@ export class TaskService {
    * Update a task's completion status. When completing, cascade to all
    * subtasks. When uncompleting, only uncomplete the specific task.
    */
-  cascadeComplete(taskId: UUID, completed: boolean): void {
+  cascadeComplete(taskId: UUID, completed: boolean, options?: { emitEvents?: boolean }): void {
+    const shouldEmit = options?.emitEvents !== false;
     const now = new Date().toISOString();
 
     // Get the task before updating to capture previous values
@@ -123,7 +124,7 @@ export class TaskService {
       });
 
       // Emit task.updated event
-      if (this.emitEvent) {
+      if (shouldEmit && this.emitEvent) {
         this.emitEvent({
           type: 'task.updated',
           entityId: taskId,
@@ -155,7 +156,7 @@ export class TaskService {
           });
 
           // Emit task.updated event for each descendant
-          if (this.emitEvent) {
+          if (shouldEmit && this.emitEvent) {
             this.emitEvent({
               type: 'task.updated',
               entityId: id,

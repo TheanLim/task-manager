@@ -127,7 +127,7 @@ function executeMarkCompletion(
   const task = ctx.taskRepo.findById(action.targetEntityId);
   if (!task) return [];
 
-  ctx.taskService.cascadeComplete(task.id, completed);
+  ctx.taskService.cascadeComplete(task.id, completed, { emitEvents: false });
   return [emitTaskUpdatedEvent(
     task,
     { completed },

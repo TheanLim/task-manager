@@ -162,7 +162,7 @@ describe('actionHandlers', () => {
       const handler = getActionHandler('mark_card_complete');
       const events = handler.execute(makeAction('mark_card_complete'), makeEvent(), ctx);
 
-      expect(taskService.cascadeComplete).toHaveBeenCalledWith('task-1', true);
+      expect(taskService.cascadeComplete).toHaveBeenCalledWith('task-1', true, { emitEvents: false });
       expect(events).toHaveLength(1);
       expect(events[0].changes).toEqual({ completed: true });
     });
@@ -175,7 +175,7 @@ describe('actionHandlers', () => {
       const handler = getActionHandler('mark_card_incomplete');
       const events = handler.execute(makeAction('mark_card_incomplete'), makeEvent(), ctx);
 
-      expect(taskService.cascadeComplete).toHaveBeenCalledWith('task-1', false);
+      expect(taskService.cascadeComplete).toHaveBeenCalledWith('task-1', false, { emitEvents: false });
       expect(events).toHaveLength(1);
       expect(events[0].changes).toEqual({ completed: false });
     });

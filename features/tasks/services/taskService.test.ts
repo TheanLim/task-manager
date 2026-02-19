@@ -986,5 +986,24 @@ describe('TaskService domain event emission', () => {
       // Should not throw
       expect(() => taskService.cascadeComplete(task.id, true)).not.toThrow();
     });
+
+    it('does not emit events when emitEvents option is false', () => {
+      const events: DomainEvent[] = [];
+      const emitEvent = vi.fn((event: DomainEvent) => events.push(event));
+      const taskService = new TaskService(taskRepo, depRepo, emitEvent);
+
+      const task = makeTask('00000000-0000-4000-8000-000000000001', 'project-1', null);
+      task.completed = false;
+      taskRepo.create(task);
+
+      taskService.cascadeComplete(task.id, true, { emitEvents: false });
+
+      // Task should still be updated in the repo
+      const updated = taskRepo.findById(task.id);
+      expect(updated?.completed).toBe(true);
+
+      // But no events should have been emitted
+      expect(emitEvent).not.toHaveBeenCalled();
+    });
   });
 });
