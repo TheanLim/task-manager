@@ -126,7 +126,7 @@ describe('TaskBoard', () => {
       />
     );
 
-    expect(screen.getByText('No tasks in this section')).toBeInTheDocument();
+    expect(screen.getByText('Drop tasks here')).toBeInTheDocument();
   });
 
   it('should render drag handles for all tasks', () => {
@@ -156,12 +156,45 @@ describe('TaskBoard', () => {
       />
     );
 
-    // DraggableTaskCard wrapper divs should have the hover scale classes
-    const cardWrappers = container.querySelectorAll('.hover\\:scale-\\[1\\.01\\]');
+    // DraggableTaskCard wrapper divs should have the motion-safe hover scale classes
+    const cardWrappers = container.querySelectorAll('.motion-safe\\:hover\\:scale-\\[1\\.01\\]');
     expect(cardWrappers.length).toBe(mockTasks.length);
     cardWrappers.forEach(wrapper => {
-      expect(wrapper).toHaveClass('transition-transform');
-      expect(wrapper).toHaveClass('duration-150');
+      expect(wrapper).toHaveClass('motion-safe:transition-transform');
+      expect(wrapper).toHaveClass('motion-safe:duration-150');
     });
+  });
+
+  it('should have a fixed height on each section column for consistent sizing and scroll', () => {
+    const { container } = render(
+      <TaskBoard
+        tasks={mockTasks}
+        sections={mockSections}
+        onTaskClick={mockOnTaskClick}
+        onTaskComplete={mockOnTaskComplete}
+        onTaskMove={mockOnTaskMove}
+      />
+    );
+
+    // Each section column should have a fixed height using dvh
+    const sectionColumns = container.querySelectorAll('.h-\\[calc\\(100dvh-16rem\\)\\]');
+    expect(sectionColumns.length).toBe(mockSections.length);
+  });
+
+  it('should have overflow-y-auto on the task list container inside each section', () => {
+    const { container } = render(
+      <TaskBoard
+        tasks={mockTasks}
+        sections={mockSections}
+        onTaskClick={mockOnTaskClick}
+        onTaskComplete={mockOnTaskComplete}
+        onTaskMove={mockOnTaskMove}
+      />
+    );
+
+    // The task list area should be scrollable
+    const scrollableAreas = container.querySelectorAll('.overflow-y-auto');
+    // At least one per section that has tasks or empty state
+    expect(scrollableAreas.length).toBe(mockSections.length);
   });
 });

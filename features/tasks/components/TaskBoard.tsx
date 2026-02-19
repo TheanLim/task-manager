@@ -90,7 +90,7 @@ function SortableSection({ id, children }: { id: string; children: React.ReactNo
 
   return (
     <div ref={setNodeRef} style={style} className="flex-shrink-0 w-[280px]">
-      <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
+      <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded">
         {children}
       </div>
     </div>
@@ -115,7 +115,7 @@ function DraggableTaskCard({ task, children }: { task: Task; children: React.Rea
   };
 
   return (
-    <div ref={setNodeRef} style={style} className="hover:scale-[1.01] transition-transform duration-150" {...attributes} {...listeners}>
+    <div ref={setNodeRef} style={style} className="motion-safe:hover:scale-[1.01] motion-safe:transition-transform motion-safe:duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-md" {...attributes} {...listeners}>
       {children}
     </div>
   );
@@ -472,15 +472,15 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
       onDragCancel={handleDragCancel}
     >
       <SortableContext items={sectionIds} strategy={horizontalListSortingStrategy}>
-        <div className="flex gap-4 overflow-x-auto pb-4">
+        <div className="flex gap-4 overflow-x-auto pb-4 scroll-smooth scrollbar-none">
           {sortedSections.map(section => {
             const sectionTasks = getTasksBySection(section.id);
             
             return (
               <SortableSection key={section.id} id={section.id}>
                 <DroppableSection id={section.id}>
-                  <div className="bg-muted/50 rounded-lg p-4 min-h-[500px] flex flex-col">
-                    <div className="flex items-center gap-2 mb-4">
+                  <div className="bg-muted/50 rounded-lg p-4 h-[calc(100dvh-16rem)] flex flex-col">
+                    <div className="flex items-center gap-2 mb-4 flex-shrink-0">
                       <GripVertical className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                       <div className="flex items-center justify-between flex-1">
                         <InlineEditable
@@ -488,7 +488,7 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
                           onSave={(newName) => updateSection(section.id, { name: newName })}
                           validate={validateSectionName}
                           placeholder="Section name"
-                          displayClassName="font-semibold"
+                          displayClassName="font-semibold hover:bg-accent/50 rounded px-1 -mx-1 transition-colors cursor-text"
                           inputClassName="font-semibold"
                         />
                         <div className="flex items-center gap-1">
@@ -523,10 +523,11 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
                       </div>
                     </div>
                     
-                    <div className="space-y-2 flex-1">
+                    {/* Task list: scrollable area. 16rem offset = header(4rem) + tabs(3rem) + section header/footer(4rem) + padding(5rem) */}
+                    <div className="overflow-y-auto flex-1 space-y-2 min-h-0 scrollbar-none" role="region" aria-label={`${section.name} tasks`} tabIndex={0}>
                       {sectionTasks.length === 0 ? (
-                        <div className="text-center py-8 text-muted-foreground text-sm">
-                          No tasks in this section
+                        <div className="flex-1 flex items-center justify-center border-2 border-dashed border-muted-foreground/20 rounded-lg text-muted-foreground text-sm min-h-[120px]">
+                          Drop tasks here
                         </div>
                       ) : (
                         <SortableContext items={sectionTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
@@ -557,7 +558,7 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
         {/* Add Section Button / Input */}
         <div className="flex-shrink-0 w-[280px]">
           {isAddingSection ? (
-            <div className="bg-muted/50 rounded-lg p-4 min-h-[500px]">
+            <div className="bg-muted/50 rounded-lg p-4">
               <Input
                 value={newSectionName}
                 onChange={(e) => setNewSectionName(e.target.value)}
@@ -592,7 +593,7 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
               </div>
             </div>
           ) : (
-            <div className="bg-muted/50 rounded-lg p-4 min-h-[500px]">
+            <div className="bg-muted/50 rounded-lg p-4">
               <Button
                 variant="ghost"
                 className="w-full justify-start text-muted-foreground hover:text-foreground"
@@ -609,7 +610,7 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
 
       <DragOverlay>
         {activeTask ? (
-          <Card className="p-3 opacity-90 shadow-lg rotate-3 w-[280px]">
+          <Card className="p-3 opacity-90 shadow-lg motion-safe:rotate-3 w-[280px]">
             <div className="flex items-start gap-2">
               <GripVertical className="h-4 w-4 text-muted-foreground mt-1" />
               <Checkbox checked={activeTask.completed} disabled />
