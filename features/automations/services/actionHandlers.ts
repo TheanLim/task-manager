@@ -3,6 +3,7 @@ import type { TaskService } from '@/features/tasks/services/taskService';
 import type { RuleAction, DomainEvent, ActionType, UndoSnapshot } from '../types';
 import type { Task } from '@/lib/schemas';
 import { calculateRelativeDate } from './dateCalculations';
+import { shouldSkipCreateCard, getLookbackMs } from './createCardDedup';
 import { TRIGGER_SECTION_SENTINEL } from './rulePreviewService';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -251,6 +252,21 @@ const createCardHandler: ActionHandler = {
     const tasksInSection = ctx.taskRepo
       .findAll()
       .filter(t => t.sectionId === targetSectionId);
+
+    // Dedup guard for scheduled triggers — skip if same title exists in section within lookback
+    const triggerType = triggeringEvent.changes.triggerType as string | undefined;
+    if (triggerType && triggerType.startsWith('scheduled_')) {
+      const intervalMinutes = (triggeringEvent.changes as any).intervalMinutes;
+      const lookbackMs = getLookbackMs(triggerType, intervalMinutes);
+      const allTasks = ctx.taskRepo.findAll().map(t => ({
+        description: t.description,
+        sectionId: t.sectionId ?? '',
+        createdAt: t.createdAt,
+      }));
+      if (shouldSkipCreateCard(cardTitle, targetSectionId, allTasks, lookbackMs)) {
+        return [];
+      }
+    }
 
     const maxOrder = tasksInSection.length > 0
       ? Math.max(...tasksInSection.map(t => t.order))
