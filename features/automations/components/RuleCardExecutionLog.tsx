@@ -2,35 +2,11 @@
 
 import { useState } from 'react';
 import { ChevronRight, ChevronDown, Activity } from 'lucide-react';
+import { formatRelativeTime } from '../services/rulePreviewService';
 import type { ExecutionLogEntry } from '../types';
 
 interface RuleCardExecutionLogProps {
   entries: ExecutionLogEntry[];
-}
-
-/**
- * Format an ISO timestamp into a human-readable relative time string.
- */
-function formatRelativeTime(isoTimestamp: string): string {
-  const now = Date.now();
-  const then = new Date(isoTimestamp).getTime();
-  const diffMs = now - then;
-
-  if (diffMs < 0) return 'Just now';
-
-  const diffSecs = Math.floor(diffMs / 1000);
-  if (diffSecs < 60) return 'Just now';
-
-  const diffMins = Math.floor(diffSecs / 60);
-  if (diffMins < 60) return `${diffMins}m ago`;
-
-  const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffDays < 7) return `${diffDays}d ago`;
-
-  return new Date(isoTimestamp).toLocaleDateString();
 }
 
 export function RuleCardExecutionLog({ entries }: RuleCardExecutionLogProps) {

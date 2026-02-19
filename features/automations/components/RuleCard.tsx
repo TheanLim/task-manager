@@ -26,7 +26,7 @@ import { Button } from '@/components/ui/button';
 import { RulePreview } from './RulePreview';
 import { RuleCardExecutionLog } from './RuleCardExecutionLog';
 import { ProjectPickerDialog } from './ProjectPickerDialog';
-import { TRIGGER_META, ACTION_META } from '../services/rulePreviewService';
+import { TRIGGER_META, ACTION_META, formatRelativeTime } from '../services/rulePreviewService';
 import type { AutomationRule } from '../types';
 import type { Section } from '@/lib/schemas';
 
@@ -70,24 +70,6 @@ export function RuleCard({
   // Get trigger and action metadata
   const triggerMeta = TRIGGER_META.find((t) => t.type === rule.trigger.type);
   const actionMeta = ACTION_META.find((a) => a.type === rule.action.type);
-
-  // Format last executed time
-  const formatLastExecuted = (timestamp: string | null): string => {
-    if (!timestamp) return 'Never';
-    
-    const now = new Date();
-    const executed = new Date(timestamp);
-    const diffMs = now.getTime() - executed.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return executed.toLocaleDateString();
-  };
 
   // Check if rule is broken
   const isBroken = rule.brokenReason !== null;
@@ -233,7 +215,7 @@ export function RuleCard({
           {/* Stats */}
           <div className="text-xs text-muted-foreground">
             Ran {rule.executionCount} {rule.executionCount === 1 ? 'time' : 'times'} · Last
-            fired {formatLastExecuted(rule.lastExecutedAt)}
+            fired {rule.lastExecutedAt ? formatRelativeTime(rule.lastExecutedAt) : 'Never'}
           </div>
 
           {/* Execution log */}

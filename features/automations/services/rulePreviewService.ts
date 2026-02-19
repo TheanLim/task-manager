@@ -224,16 +224,6 @@ export function formatFilterDescription(
 }
 
 /**
- * Builds an array of preview parts (text and value segments) for a rule configuration.
- * Incomplete configurations produce underscore placeholders.
- *
- * @param trigger - The trigger configuration
- * @param action - The action configuration
- * @param sectionLookup - Function to resolve section ID to section name
- * @param filters - Optional array of card filters to include in the preview
- * @returns Array of preview parts that can be rendered as text or badges
- */
-/**
  * Build preview parts for the trigger portion of a rule.
  */
 function buildTriggerParts(
@@ -386,6 +376,33 @@ export function buildPreviewString(parts: PreviewPart[]): string {
 // ============================================================================
 // Helpers
 // ============================================================================
+
+/**
+ * Format an ISO timestamp into a human-readable relative time string.
+ * Returns "Just now" for timestamps less than 60 seconds ago,
+ * then "Nm ago", "Nh ago", "Nd ago", or a locale date string.
+ */
+export function formatRelativeTime(isoTimestamp: string): string {
+  const now = Date.now();
+  const then = new Date(isoTimestamp).getTime();
+  const diffMs = now - then;
+
+  if (diffMs < 0) return 'Just now';
+
+  const diffSecs = Math.floor(diffMs / 1000);
+  if (diffSecs < 60) return 'Just now';
+
+  const diffMins = Math.floor(diffSecs / 60);
+  if (diffMins < 60) return `${diffMins}m ago`;
+
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays}d ago`;
+
+  return new Date(isoTimestamp).toLocaleDateString();
+}
 
 function formatDateOption(option: RelativeDateOption): string {
   switch (option) {

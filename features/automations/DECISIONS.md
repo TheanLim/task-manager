@@ -200,3 +200,18 @@ Migration path:
 **Decision**: Fixed `RuleDialogStepReview.tsx` THEN block `onClick` from `onNavigateToStep(1)` to `onNavigateToStep(2)`.
 
 **Why**: Clicking the THEN block should navigate to the Action step (where the action is configured), not the Filters step. The WHEN block correctly navigated to step 0 (Trigger), the IF block correctly navigated to step 1 (Filters), but the THEN block incorrectly also navigated to step 1 instead of step 2 (Action).
+
+
+## 19. Unified `formatRelativeTime` for timestamp display
+
+**Decision**: Extracted the relative time formatting logic ("Just now", "5m ago", "3h ago", "2d ago") from `RuleCard.tsx` (`formatLastExecuted`) and `RuleCardExecutionLog.tsx` (`formatRelativeTime`) into a single shared `formatRelativeTime()` function exported from `rulePreviewService.ts`.
+
+**Why**: Both components had identical timestamp-to-relative-time logic. `RuleCard` used it for "Last fired" display, `RuleCardExecutionLog` used it for execution log entry timestamps. The only difference was `RuleCard`'s version accepted `string | null` (returning "Never" for null) — the null check is now inline at the call site.
+
+**Trade-off**: `rulePreviewService.ts` is growing as the home for formatting utilities. If it gets too large, these formatters could move to a dedicated `services/formatters.ts`. For now, co-locating with other human-readable formatting (filter descriptions, preview parts) keeps imports simple.
+
+## 20. Removed stale orphaned JSDoc from `rulePreviewService.ts`
+
+**Decision**: Removed a dangling JSDoc comment above `buildTriggerParts()` that was originally the doc for `buildPreviewParts()` before the function was split into `buildTriggerParts` + `buildActionParts` + `buildPreviewParts`.
+
+**Why**: The orphaned comment described parameters (`trigger`, `action`, `sectionLookup`, `filters`) that belong to `buildPreviewParts`, not `buildTriggerParts`. It was misleading.
