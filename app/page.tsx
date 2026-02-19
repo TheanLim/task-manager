@@ -29,7 +29,7 @@ import { getDefaultShortcutMap, mergeShortcutMaps } from '@/features/keyboard/se
 import { ShortcutHelpOverlay } from '@/features/keyboard/components/ShortcutHelpOverlay';
 import { useKeyboardNavStore } from '@/features/keyboard/stores/keyboardNavStore';
 import { formatAutomationToastMessage } from '@/features/automations/services/toastMessageFormatter';
-import { performUndo, getUndoSnapshot, getUndoSnapshots, performUndoById } from '@/features/automations/services/automationService';
+import { getUndoSnapshots, performUndoById } from '@/features/automations/services/automationService';
 import { taskRepository } from '@/stores/dataStore';
 import {
   AlertDialog,
@@ -147,7 +147,7 @@ function HomeContent() {
     (result: { message: string; type: 'success' | 'error' | 'info' }) => {
       showToast(result.message, result.type);
     },
-    [dm]
+    [showToast]
   );
 
   useSharedStateLoader({
@@ -180,7 +180,7 @@ function HomeContent() {
     return () => {
       automationService.setRuleExecutionCallback(undefined);
     };
-  }, [dm]);
+  }, [showToast]);
 
   // --- Sync URL with active project and handle invalid project IDs ---
   useEffect(() => {
