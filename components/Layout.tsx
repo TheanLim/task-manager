@@ -82,6 +82,11 @@ export function Layout({ children, sidebar, header, breadcrumb, searchInput }: L
   const minWidth = 200;
   const maxWidth = 600;
 
+  // Auto-close sidebar when switching to mobile to prevent overlay blocking content
+  useEffect(() => {
+    if (isMobile) setSidebarOpen(false);
+  }, [isMobile]);
+
   // Close mobile drawer on navigation (listen for click on links/buttons inside sidebar)
   const closeMobileSidebar = useCallback(() => {
     if (isMobile) setSidebarOpen(false);
