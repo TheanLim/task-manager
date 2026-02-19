@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { FilterRow } from './FilterRow';
-import type { CardFilter, CardFilterType } from '../schemas';
+import type { CardFilter, CardFilterType } from '../types';
 import type { Section } from '@/lib/schemas';
 
 interface RuleDialogStepFiltersProps {

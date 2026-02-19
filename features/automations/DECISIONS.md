@@ -160,3 +160,28 @@ Migration path:
 4. Done — `RuleExecutor`, `undoService`, and description generation all pick it up automatically.
 
 **Trade-off**: The `ActionContext` passed to handlers uses `as any` for `sectionRepo` and `taskService` in the undo path (undo only needs `taskRepo`). This is acceptable because undo handlers only access `ctx.taskRepo`. If a future undo handler needs other repos, the caller must provide them.
+
+
+## 14. Data-driven `calculateRelativeDate` replaces 80-case switch
+
+**Decision**: Replaced the ~230-line `switch` statement in `calculateRelativeDate()` with data-driven parsers that extract numeric parameters from the enum string values (`day_of_month_N`, `next_<weekday>`, `<ordinal>_<weekday>_of_month`).
+
+**Why**: The switch had 80+ cases that were purely mechanical mappings — 31 `day_of_month_N` cases, 7 `next_<weekday>`, 7 `next_week_<weekday>`, and 35 `<ordinal>_<weekday>_of_month>` cases. Each was a one-liner calling the same function with different numeric args. The data-driven approach collapses ~150 lines into ~20 lines of parsing logic.
+
+**How it works**: Four parser functions (`parseDayOfMonth`, `parseNextWeekday`, `parseNextWeekOn`, `parseNthWeekdayOfMonth`) use regex to extract parameters from the enum string. Lookup tables (`WEEKDAY_MAP`, `ORDINAL_MAP`) map names to numbers. The parsers are tried in order; `next_week_*` is checked before `next_*` to avoid false matches.
+
+**Trade-off**: Lost the `never` exhaustive check on the default case. The function now throws a generic error for unhandled options. This is acceptable because the `RelativeDateOption` Zod enum validates inputs at the boundary.
+
+## 15. `schemas.ts` exports only schema objects, not types
+
+**Decision**: Removed duplicate type exports from `schemas.ts`. Types are now exclusively exported from `types.ts`, which infers them from the schemas.
+
+**Why**: Both files exported the same type names (`AutomationRule`, `CardFilter`, etc.), causing confusion about which was canonical. Some files imported from `schemas`, others from `types`. Now the rule is simple: import schemas from `schemas.ts`, import types from `types.ts`.
+
+## 16. `automationService.ts` no longer re-exports undo functions
+
+**Decision**: Removed the 10-function re-export block from `automationService.ts`. Consumers now import undo functions directly from `undoService.ts`.
+
+**Why**: The re-exports made `automationService.ts` look like it owned undo logic when it doesn't. It was a Middle Man — adding indirection with no value. Direct imports are clearer and make dependency graphs accurate.
+
+**Migration**: `app/page.tsx` and `useUndoAutomation.ts` updated to import from `undoService` directly. Test files updated accordingly.

@@ -37,7 +37,7 @@ import { getDefaultShortcutMap, mergeShortcutMaps } from '@/features/keyboard/se
 import { ShortcutHelpOverlay } from '@/features/keyboard/components/ShortcutHelpOverlay';
 import { useKeyboardNavStore } from '@/features/keyboard/stores/keyboardNavStore';
 import { formatAutomationToastMessage } from '@/features/automations/services/toastMessageFormatter';
-import { getUndoSnapshots, performUndoById } from '@/features/automations/services/automationService';
+import { getUndoSnapshots, performUndoById } from '@/features/automations/services/undoService';
 import { taskRepository } from '@/stores/dataStore';
 import {
   AlertDialog,

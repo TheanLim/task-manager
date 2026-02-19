@@ -11,9 +11,8 @@ import {
   CardFilterSchema,
   CardFilterTypeSchema,
   FilterUnitSchema,
-  type AutomationRule,
-  type CardFilter,
 } from './schemas';
+import type { AutomationRule, CardFilter } from './types';
 
 // Feature: automations-foundation, Property 1: AutomationRule schema round-trip
 // **Validates: Requirements 1.1, 1.2, 1.3, 1.4, 1.5**

@@ -766,7 +766,7 @@ import {
   performUndo,
   performUndoById,
   UNDO_EXPIRY_MS,
-} from './automationService';
+} from './undoService';
 import type { UndoSnapshot } from '../types';
 
 describe('Undo snapshot capture (Task 5.1)', () => {

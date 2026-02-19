@@ -10,20 +10,6 @@ import {
   buildUndoSnapshot,
 } from './undoService';
 
-// Re-export undo functions for backward compatibility
-export {
-  UNDO_EXPIRY_MS,
-  getUndoSnapshot,
-  getUndoSnapshots,
-  setUndoSnapshot,
-  pushUndoSnapshot,
-  clearUndoSnapshot,
-  clearAllUndoSnapshots,
-  performUndo,
-  performUndoById,
-  buildUndoSnapshot,
-} from './undoService';
-
 /**
  * Callback invoked when an automation rule executes successfully.
  */

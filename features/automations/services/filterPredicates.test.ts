@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as fc from 'fast-check';
 import type { Task } from '@/lib/schemas';
-import type { CardFilter } from '../schemas';
+import type { CardFilter } from '../types';
 import {
   evaluateFilter,
   evaluateFilters,

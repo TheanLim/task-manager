@@ -399,6 +399,65 @@ export function calculateSpecificDate(
   return result;
 }
 
+// ---------------------------------------------------------------------------
+// Data-driven lookup tables for calculateRelativeDate
+// ---------------------------------------------------------------------------
+
+/** Weekday name → JS weekday number (0=Sun, 1=Mon, ..., 6=Sat) */
+const WEEKDAY_MAP: Record<string, number> = {
+  monday: 1, tuesday: 2, wednesday: 3, thursday: 4,
+  friday: 5, saturday: 6, sunday: 0,
+};
+
+/** Ordinal name → nth value for calculateNthWeekdayOfMonth */
+const ORDINAL_MAP: Record<string, number | 'last'> = {
+  first: 1, second: 2, third: 3, fourth: 4, last: 'last',
+};
+
+/**
+ * Try to parse a `day_of_month_N` option string.
+ * Returns the day number (1-31) or null if no match.
+ */
+function parseDayOfMonth(option: string): number | null {
+  const match = option.match(/^day_of_month_(\d+)$/);
+  return match ? parseInt(match[1], 10) : null;
+}
+
+/**
+ * Try to parse a `next_<weekday>` option string.
+ * Returns the JS weekday number or null if no match.
+ */
+function parseNextWeekday(option: string): number | null {
+  const match = option.match(/^next_(\w+)$/);
+  if (!match) return null;
+  const weekday = WEEKDAY_MAP[match[1]];
+  return weekday !== undefined ? weekday : null;
+}
+
+/**
+ * Try to parse a `next_week_<weekday>` option string.
+ * Returns the JS weekday number or null if no match.
+ */
+function parseNextWeekOn(option: string): number | null {
+  const match = option.match(/^next_week_(\w+)$/);
+  if (!match) return null;
+  const weekday = WEEKDAY_MAP[match[1]];
+  return weekday !== undefined ? weekday : null;
+}
+
+/**
+ * Try to parse a `<ordinal>_<weekday>_of_month` option string.
+ * Returns [nth, weekday] or null if no match.
+ */
+function parseNthWeekdayOfMonth(option: string): [number | 'last', number] | null {
+  const match = option.match(/^(\w+?)_(\w+?)_of_month$/);
+  if (!match) return null;
+  const nth = ORDINAL_MAP[match[1]];
+  const weekday = WEEKDAY_MAP[match[2]];
+  if (nth === undefined || weekday === undefined) return null;
+  return [nth, weekday];
+}
+
 export function calculateRelativeDate(
   option: RelativeDateOption,
   from: Date = new Date(),
@@ -411,202 +470,39 @@ export function calculateRelativeDate(
   const result = new Date(from);
   result.setHours(0, 0, 0, 0); // Normalize to start of day
 
-  switch (option) {
-    case 'today':
-      return result;
+  // Simple named options
+  if (option === 'today') return result;
+  if (option === 'tomorrow') { result.setDate(result.getDate() + 1); return result; }
+  if (option === 'next_working_day') return calculateWorkingDays(1, from);
 
-    case 'tomorrow':
-      result.setDate(result.getDate() + 1);
-      return result;
+  // Special month options
+  if (option === 'last_day_of_month') return calculateDayOfMonth('last', params?.monthTarget, from);
+  if (option === 'last_working_day_of_month') return calculateDayOfMonth('last_working', params?.monthTarget, from);
 
-    case 'next_working_day':
-      return calculateWorkingDays(1, from);
-
-    // Next weekday options
-    case 'next_monday':
-      return calculateNextWeekday(1, from);
-    case 'next_tuesday':
-      return calculateNextWeekday(2, from);
-    case 'next_wednesday':
-      return calculateNextWeekday(3, from);
-    case 'next_thursday':
-      return calculateNextWeekday(4, from);
-    case 'next_friday':
-      return calculateNextWeekday(5, from);
-    case 'next_saturday':
-      return calculateNextWeekday(6, from);
-    case 'next_sunday':
-      return calculateNextWeekday(0, from);
-
-    // Next week on X options
-    case 'next_week_monday':
-      return calculateNextWeekOn(1, from);
-    case 'next_week_tuesday':
-      return calculateNextWeekOn(2, from);
-    case 'next_week_wednesday':
-      return calculateNextWeekOn(3, from);
-    case 'next_week_thursday':
-      return calculateNextWeekOn(4, from);
-    case 'next_week_friday':
-      return calculateNextWeekOn(5, from);
-    case 'next_week_saturday':
-      return calculateNextWeekOn(6, from);
-    case 'next_week_sunday':
-      return calculateNextWeekOn(0, from);
-
-    // Day of month options
-    case 'day_of_month_1':
-      return calculateDayOfMonth(1, params?.monthTarget, from);
-    case 'day_of_month_2':
-      return calculateDayOfMonth(2, params?.monthTarget, from);
-    case 'day_of_month_3':
-      return calculateDayOfMonth(3, params?.monthTarget, from);
-    case 'day_of_month_4':
-      return calculateDayOfMonth(4, params?.monthTarget, from);
-    case 'day_of_month_5':
-      return calculateDayOfMonth(5, params?.monthTarget, from);
-    case 'day_of_month_6':
-      return calculateDayOfMonth(6, params?.monthTarget, from);
-    case 'day_of_month_7':
-      return calculateDayOfMonth(7, params?.monthTarget, from);
-    case 'day_of_month_8':
-      return calculateDayOfMonth(8, params?.monthTarget, from);
-    case 'day_of_month_9':
-      return calculateDayOfMonth(9, params?.monthTarget, from);
-    case 'day_of_month_10':
-      return calculateDayOfMonth(10, params?.monthTarget, from);
-    case 'day_of_month_11':
-      return calculateDayOfMonth(11, params?.monthTarget, from);
-    case 'day_of_month_12':
-      return calculateDayOfMonth(12, params?.monthTarget, from);
-    case 'day_of_month_13':
-      return calculateDayOfMonth(13, params?.monthTarget, from);
-    case 'day_of_month_14':
-      return calculateDayOfMonth(14, params?.monthTarget, from);
-    case 'day_of_month_15':
-      return calculateDayOfMonth(15, params?.monthTarget, from);
-    case 'day_of_month_16':
-      return calculateDayOfMonth(16, params?.monthTarget, from);
-    case 'day_of_month_17':
-      return calculateDayOfMonth(17, params?.monthTarget, from);
-    case 'day_of_month_18':
-      return calculateDayOfMonth(18, params?.monthTarget, from);
-    case 'day_of_month_19':
-      return calculateDayOfMonth(19, params?.monthTarget, from);
-    case 'day_of_month_20':
-      return calculateDayOfMonth(20, params?.monthTarget, from);
-    case 'day_of_month_21':
-      return calculateDayOfMonth(21, params?.monthTarget, from);
-    case 'day_of_month_22':
-      return calculateDayOfMonth(22, params?.monthTarget, from);
-    case 'day_of_month_23':
-      return calculateDayOfMonth(23, params?.monthTarget, from);
-    case 'day_of_month_24':
-      return calculateDayOfMonth(24, params?.monthTarget, from);
-    case 'day_of_month_25':
-      return calculateDayOfMonth(25, params?.monthTarget, from);
-    case 'day_of_month_26':
-      return calculateDayOfMonth(26, params?.monthTarget, from);
-    case 'day_of_month_27':
-      return calculateDayOfMonth(27, params?.monthTarget, from);
-    case 'day_of_month_28':
-      return calculateDayOfMonth(28, params?.monthTarget, from);
-    case 'day_of_month_29':
-      return calculateDayOfMonth(29, params?.monthTarget, from);
-    case 'day_of_month_30':
-      return calculateDayOfMonth(30, params?.monthTarget, from);
-    case 'day_of_month_31':
-      return calculateDayOfMonth(31, params?.monthTarget, from);
-    case 'last_day_of_month':
-      return calculateDayOfMonth('last', params?.monthTarget, from);
-    case 'last_working_day_of_month':
-      return calculateDayOfMonth('last_working', params?.monthTarget, from);
-
-    // Nth weekday of month options
-    case 'first_monday_of_month':
-      return calculateNthWeekdayOfMonth(1, 1, params?.monthTarget, from);
-    case 'first_tuesday_of_month':
-      return calculateNthWeekdayOfMonth(1, 2, params?.monthTarget, from);
-    case 'first_wednesday_of_month':
-      return calculateNthWeekdayOfMonth(1, 3, params?.monthTarget, from);
-    case 'first_thursday_of_month':
-      return calculateNthWeekdayOfMonth(1, 4, params?.monthTarget, from);
-    case 'first_friday_of_month':
-      return calculateNthWeekdayOfMonth(1, 5, params?.monthTarget, from);
-    case 'first_saturday_of_month':
-      return calculateNthWeekdayOfMonth(1, 6, params?.monthTarget, from);
-    case 'first_sunday_of_month':
-      return calculateNthWeekdayOfMonth(1, 0, params?.monthTarget, from);
-    case 'second_monday_of_month':
-      return calculateNthWeekdayOfMonth(2, 1, params?.monthTarget, from);
-    case 'second_tuesday_of_month':
-      return calculateNthWeekdayOfMonth(2, 2, params?.monthTarget, from);
-    case 'second_wednesday_of_month':
-      return calculateNthWeekdayOfMonth(2, 3, params?.monthTarget, from);
-    case 'second_thursday_of_month':
-      return calculateNthWeekdayOfMonth(2, 4, params?.monthTarget, from);
-    case 'second_friday_of_month':
-      return calculateNthWeekdayOfMonth(2, 5, params?.monthTarget, from);
-    case 'second_saturday_of_month':
-      return calculateNthWeekdayOfMonth(2, 6, params?.monthTarget, from);
-    case 'second_sunday_of_month':
-      return calculateNthWeekdayOfMonth(2, 0, params?.monthTarget, from);
-    case 'third_monday_of_month':
-      return calculateNthWeekdayOfMonth(3, 1, params?.monthTarget, from);
-    case 'third_tuesday_of_month':
-      return calculateNthWeekdayOfMonth(3, 2, params?.monthTarget, from);
-    case 'third_wednesday_of_month':
-      return calculateNthWeekdayOfMonth(3, 3, params?.monthTarget, from);
-    case 'third_thursday_of_month':
-      return calculateNthWeekdayOfMonth(3, 4, params?.monthTarget, from);
-    case 'third_friday_of_month':
-      return calculateNthWeekdayOfMonth(3, 5, params?.monthTarget, from);
-    case 'third_saturday_of_month':
-      return calculateNthWeekdayOfMonth(3, 6, params?.monthTarget, from);
-    case 'third_sunday_of_month':
-      return calculateNthWeekdayOfMonth(3, 0, params?.monthTarget, from);
-    case 'fourth_monday_of_month':
-      return calculateNthWeekdayOfMonth(4, 1, params?.monthTarget, from);
-    case 'fourth_tuesday_of_month':
-      return calculateNthWeekdayOfMonth(4, 2, params?.monthTarget, from);
-    case 'fourth_wednesday_of_month':
-      return calculateNthWeekdayOfMonth(4, 3, params?.monthTarget, from);
-    case 'fourth_thursday_of_month':
-      return calculateNthWeekdayOfMonth(4, 4, params?.monthTarget, from);
-    case 'fourth_friday_of_month':
-      return calculateNthWeekdayOfMonth(4, 5, params?.monthTarget, from);
-    case 'fourth_saturday_of_month':
-      return calculateNthWeekdayOfMonth(4, 6, params?.monthTarget, from);
-    case 'fourth_sunday_of_month':
-      return calculateNthWeekdayOfMonth(4, 0, params?.monthTarget, from);
-    case 'last_monday_of_month':
-      return calculateNthWeekdayOfMonth('last', 1, params?.monthTarget, from);
-    case 'last_tuesday_of_month':
-      return calculateNthWeekdayOfMonth('last', 2, params?.monthTarget, from);
-    case 'last_wednesday_of_month':
-      return calculateNthWeekdayOfMonth('last', 3, params?.monthTarget, from);
-    case 'last_thursday_of_month':
-      return calculateNthWeekdayOfMonth('last', 4, params?.monthTarget, from);
-    case 'last_friday_of_month':
-      return calculateNthWeekdayOfMonth('last', 5, params?.monthTarget, from);
-    case 'last_saturday_of_month':
-      return calculateNthWeekdayOfMonth('last', 6, params?.monthTarget, from);
-    case 'last_sunday_of_month':
-      return calculateNthWeekdayOfMonth('last', 0, params?.monthTarget, from);
-
-    // Specific date option
-    case 'specific_date': {
-      if (!params?.specificMonth || !params?.specificDay) {
-        throw new Error(
-          'specific_date option requires specificMonth and specificDay parameters'
-        );
-      }
-      return calculateSpecificDate(params.specificMonth, params.specificDay, from);
+  // Specific date
+  if (option === 'specific_date') {
+    if (!params?.specificMonth || !params?.specificDay) {
+      throw new Error('specific_date option requires specificMonth and specificDay parameters');
     }
-
-    default: {
-      const exhaustiveCheck: never = option;
-      throw new Error(`Unhandled date option: ${exhaustiveCheck}`);
-    }
+    return calculateSpecificDate(params.specificMonth, params.specificDay, from);
   }
+
+  // Data-driven: day_of_month_N
+  const dayOfMonth = parseDayOfMonth(option);
+  if (dayOfMonth !== null) return calculateDayOfMonth(dayOfMonth, params?.monthTarget, from);
+
+  // Data-driven: next_week_<weekday> (must check before next_<weekday>)
+  const nextWeekOn = parseNextWeekOn(option);
+  if (nextWeekOn !== null) return calculateNextWeekOn(nextWeekOn, from);
+
+  // Data-driven: next_<weekday>
+  const nextWeekday = parseNextWeekday(option);
+  if (nextWeekday !== null) return calculateNextWeekday(nextWeekday, from);
+
+  // Data-driven: <ordinal>_<weekday>_of_month
+  const nthWeekday = parseNthWeekdayOfMonth(option);
+  if (nthWeekday !== null) return calculateNthWeekdayOfMonth(nthWeekday[0], nthWeekday[1], params?.monthTarget, from);
+
+  // Exhaustive check — should never reach here with valid RelativeDateOption
+  throw new Error(`Unhandled date option: ${option}`);
 }

@@ -1,5 +1,5 @@
 import { useCallback, useSyncExternalStore } from 'react';
-import { getUndoSnapshot, clearUndoSnapshot, performUndo } from '../services/automationService';
+import { getUndoSnapshot, performUndo } from '../services/undoService';
 import { taskRepository } from '@/stores/dataStore';
 
 /**

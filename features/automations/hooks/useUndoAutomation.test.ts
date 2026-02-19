@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useUndoAutomation, notifyUndoChange } from './useUndoAutomation';
-import * as automationService from '../services/automationService';
+import * as undoService from '../services/undoService';
 
-// Mock the automationService functions
-vi.mock('../services/automationService', () => ({
+// Mock the undoService functions
+vi.mock('../services/undoService', () => ({
   getUndoSnapshot: vi.fn(),
   clearUndoSnapshot: vi.fn(),
   performUndo: vi.fn(),
@@ -19,7 +19,7 @@ vi.mock('@/stores/dataStore', () => ({
 describe('useUndoAutomation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (automationService.getUndoSnapshot as ReturnType<typeof vi.fn>).mockReturnValue(null);
+    (undoService.getUndoSnapshot as ReturnType<typeof vi.fn>).mockReturnValue(null);
   });
 
   afterEach(() => {
@@ -34,7 +34,7 @@ describe('useUndoAutomation', () => {
   });
 
   it('returns canUndo=true with description when snapshot exists', () => {
-    (automationService.getUndoSnapshot as ReturnType<typeof vi.fn>).mockReturnValue({
+    (undoService.getUndoSnapshot as ReturnType<typeof vi.fn>).mockReturnValue({
       ruleId: 'rule-1',
       ruleName: 'Move to Done',
       actionType: 'mark_card_complete',
@@ -51,7 +51,7 @@ describe('useUndoAutomation', () => {
 
   it('returns canUndo=false when snapshot has expired', () => {
     // getUndoSnapshot already handles expiry internally and returns null
-    (automationService.getUndoSnapshot as ReturnType<typeof vi.fn>).mockReturnValue(null);
+    (undoService.getUndoSnapshot as ReturnType<typeof vi.fn>).mockReturnValue(null);
 
     const { result } = renderHook(() => useUndoAutomation());
 
@@ -60,7 +60,7 @@ describe('useUndoAutomation', () => {
   });
 
   it('calls performUndo and notifies on success', () => {
-    (automationService.getUndoSnapshot as ReturnType<typeof vi.fn>).mockReturnValue({
+    (undoService.getUndoSnapshot as ReturnType<typeof vi.fn>).mockReturnValue({
       ruleId: 'rule-1',
       ruleName: 'Auto Complete',
       actionType: 'mark_card_complete',
@@ -68,7 +68,7 @@ describe('useUndoAutomation', () => {
       previousState: { completed: false },
       timestamp: Date.now(),
     });
-    (automationService.performUndo as ReturnType<typeof vi.fn>).mockReturnValue(true);
+    (undoService.performUndo as ReturnType<typeof vi.fn>).mockReturnValue(true);
 
     const { result } = renderHook(() => useUndoAutomation());
 
@@ -76,12 +76,12 @@ describe('useUndoAutomation', () => {
       result.current.performUndo();
     });
 
-    expect(automationService.performUndo).toHaveBeenCalledTimes(1);
+    expect(undoService.performUndo).toHaveBeenCalledTimes(1);
   });
 
   it('does not notify when performUndo returns false', () => {
-    (automationService.getUndoSnapshot as ReturnType<typeof vi.fn>).mockReturnValue(null);
-    (automationService.performUndo as ReturnType<typeof vi.fn>).mockReturnValue(false);
+    (undoService.getUndoSnapshot as ReturnType<typeof vi.fn>).mockReturnValue(null);
+    (undoService.performUndo as ReturnType<typeof vi.fn>).mockReturnValue(false);
 
     const { result } = renderHook(() => useUndoAutomation());
 
@@ -89,19 +89,19 @@ describe('useUndoAutomation', () => {
       result.current.performUndo();
     });
 
-    expect(automationService.performUndo).toHaveBeenCalledTimes(1);
+    expect(undoService.performUndo).toHaveBeenCalledTimes(1);
   });
 
   it('re-renders when notifyUndoChange is called', () => {
     // Start with no snapshot
-    (automationService.getUndoSnapshot as ReturnType<typeof vi.fn>).mockReturnValue(null);
+    (undoService.getUndoSnapshot as ReturnType<typeof vi.fn>).mockReturnValue(null);
 
     const { result } = renderHook(() => useUndoAutomation());
 
     expect(result.current.canUndo).toBe(false);
 
     // Now simulate a snapshot appearing
-    (automationService.getUndoSnapshot as ReturnType<typeof vi.fn>).mockReturnValue({
+    (undoService.getUndoSnapshot as ReturnType<typeof vi.fn>).mockReturnValue({
       ruleId: 'rule-2',
       ruleName: 'New Rule',
       actionType: 'set_due_date',

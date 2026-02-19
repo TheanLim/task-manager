@@ -50,6 +50,7 @@ How data moves through the automation system. Use this when debugging why a rule
 5. app/page.tsx callback
    ├─ formatAutomationToastMessage(params)
    ├─ Looks up matching snapshot via getUndoSnapshots().find(s => s.ruleId === params.ruleId)
+   │     (imported from services/undoService)
    ├─ If found: shows toast with Undo button calling performUndoById(ruleId) (10s)
    └─ Otherwise shows basic toast (5s)
 ```

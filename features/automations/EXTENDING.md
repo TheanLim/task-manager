@@ -14,12 +14,10 @@ Step-by-step guides for common extension scenarios.
 ## Adding a New Action Type
 
 1. **Schema** (`schemas.ts`): Add the new value to `ActionTypeSchema` enum
-2. **Rule Executor** (`services/ruleExecutor.ts`): Add a new `private executeXxx()` method and wire it into the `switch` in `executeAction()`. Use `emitTaskUpdatedEvent()` for the domain event and `executeMoveToSection()` if the action involves moving tasks
-3. **Undo** (`services/automationService.ts`): Add the new action type to the `switch` in `performUndo()`. Capture the appropriate `previousState` fields in `buildUndoSnapshot()`
-4. **UI — Action Step** (`components/RuleDialogStepAction.tsx`): Add the action option to the appropriate group (Move, Status, Dates, Create)
-5. **Preview** (`services/rulePreviewService.ts`): Add the action to `ACTION_META` array and update `buildPreviewParts()`
-6. **Execution Log** (`services/ruleExecutor.ts`): Update `getActionDescription()` for the human-readable log entry
-7. **Tests**: Add executor tests, undo tests, preview tests, schema tests
+2. **Action Handler** (`services/actionHandlers.ts`): Create a handler object implementing `ActionHandler` (execute, describe, undo) and register it in `ACTION_HANDLER_REGISTRY`. RuleExecutor, undoService, and description generation all pick it up automatically
+3. **UI — Action Step** (`components/RuleDialogStepAction.tsx`): Add the action option to the appropriate group (Move, Status, Dates, Create)
+4. **Preview** (`services/rulePreviewService.ts`): Add the action to `ACTION_META` array and update `buildPreviewParts()`
+5. **Tests**: Add handler tests in `actionHandlers.test.ts`, preview tests, schema tests
 
 ## Adding a New Filter Type
 
@@ -33,7 +31,7 @@ Step-by-step guides for common extension scenarios.
 ## Adding a New Date Option
 
 1. **Schema** (`schemas.ts`): Add the new value to `RelativeDateOptionSchema` enum
-2. **Calculation** (`services/dateCalculations.ts`): Add the calculation logic in `calculateRelativeDate()`
+2. **Calculation** (`services/dateCalculations.ts`): If the new option follows an existing pattern (e.g., `day_of_month_N`, `next_<weekday>`, `<ordinal>_<weekday>_of_month`), the data-driven parser in `calculateRelativeDate()` handles it automatically. Otherwise, add a new branch before the exhaustive check
 3. **UI** (`components/DateOptionSelect.tsx`): Add the option to the appropriate group in the select dropdown
 4. **Tests**: Add date calculation tests with property-based verification
 

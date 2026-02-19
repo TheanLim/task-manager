@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RuleDialogStepFilters } from './RuleDialogStepFilters';
-import type { CardFilter } from '../schemas';
+import type { CardFilter } from '../types';
 import type { Section } from '@/lib/schemas';
 
 /**

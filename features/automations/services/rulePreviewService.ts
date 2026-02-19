@@ -1,5 +1,4 @@
-import type { TriggerType, ActionType, RelativeDateOption } from '../schemas';
-import type { CardFilter } from '../types';
+import type { TriggerType, ActionType, RelativeDateOption, CardFilter } from '../types';
 
 // ============================================================================
 // Constants

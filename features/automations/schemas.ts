@@ -229,15 +229,4 @@ export const AutomationRuleSchema = z.object({
   updatedAt: z.string().datetime(),
 });
 
-// Export inferred types
-export type TriggerType = z.infer<typeof TriggerTypeSchema>;
-export type ActionType = z.infer<typeof ActionTypeSchema>;
-export type RelativeDateOption = z.infer<typeof RelativeDateOptionSchema>;
-export type CardFilterType = z.infer<typeof CardFilterTypeSchema>;
-export type FilterUnit = z.infer<typeof FilterUnitSchema>;
-export type MonthTarget = z.infer<typeof MonthTargetSchema>;
-export type CardFilter = z.infer<typeof CardFilterSchema>;
-export type Trigger = z.infer<typeof TriggerSchema>;
-export type Action = z.infer<typeof ActionSchema>;
-export type AutomationRule = z.infer<typeof AutomationRuleSchema>;
-export type ExecutionLogEntry = z.infer<typeof ExecutionLogEntrySchema>;
+// Types are inferred and exported from types.ts — import types from there, schemas from here.
