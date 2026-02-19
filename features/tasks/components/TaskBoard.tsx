@@ -41,8 +41,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { useState } from 'react';
 import { InlineEditable } from '@/components/InlineEditable';
 import { validateTaskDescription, validateSectionName } from '@/lib/validation';
-import { useDataStore } from '@/stores/dataStore';
-import { v4 as uuidv4 } from 'uuid';
+import { useDataStore, sectionService } from '@/stores/dataStore';
 import { SectionContextMenuItem } from '@/features/automations/components/SectionContextMenuItem';
 import type { TriggerType } from '@/features/automations/types';
 
@@ -129,7 +128,7 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
   const [isAddingSection, setIsAddingSection] = useState(false);
   const [newSectionName, setNewSectionName] = useState('');
   const [expandedSubtasks, setExpandedSubtasks] = useState<Set<string>>(new Set());
-  const { updateTask, updateSection, deleteSection, addSection, getSubtasks } = useDataStore();
+  const { updateTask, updateSection, deleteSection, getSubtasks } = useDataStore();
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -276,16 +275,7 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
     const projectId = sections[0]?.projectId;
     if (!projectId || !newSectionName.trim()) return;
 
-    const newSection = {
-      id: uuidv4(),
-      projectId,
-      name: newSectionName.trim(),
-      order: sections.length,
-      collapsed: false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    addSection(newSection);
+    sectionService.createWithDefaults(newSectionName.trim(), projectId, sections.length);
     setNewSectionName('');
     setIsAddingSection(false);
   };

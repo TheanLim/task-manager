@@ -1,6 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { deduplicateDataStore, checkForDuplicates } from './deduplicateData';
-import { useDataStore } from '@/stores/dataStore';
+import { describe, it, expect } from 'vitest';
+import { deduplicateEntities, countDuplicates } from './deduplicateData';
 import type { Project, Task, Section, TaskDependency } from '@/lib/schemas';
 
 const NOW = '2026-02-14T00:00:00.000Z';
@@ -26,100 +25,81 @@ function makeDep(id: string): TaskDependency {
   return { id, blockingTaskId: crypto.randomUUID(), blockedTaskId: crypto.randomUUID(), createdAt: NOW };
 }
 
-function seedStore(overrides: Partial<{ projects: Project[]; tasks: Task[]; sections: Section[]; dependencies: TaskDependency[] }>) {
-  useDataStore.setState({
-    projects: overrides.projects ?? [],
-    tasks: overrides.tasks ?? [],
-    sections: overrides.sections ?? [],
-    dependencies: overrides.dependencies ?? [],
-  });
-}
+const empty = { projects: [] as Project[], tasks: [] as Task[], sections: [] as Section[], dependencies: [] as TaskDependency[] };
 
-beforeEach(() => {
-  useDataStore.setState({ projects: [], tasks: [], sections: [], dependencies: [] });
-  vi.spyOn(console, 'log').mockImplementation(() => {});
-});
-
-describe('deduplicateDataStore', () => {
+describe('deduplicateEntities', () => {
   it('should return 0 when no duplicates exist', () => {
-    seedStore({ projects: [makeProject('a'), makeProject('b')] });
-    expect(deduplicateDataStore()).toBe(0);
+    const result = deduplicateEntities({ ...empty, projects: [makeProject('a'), makeProject('b')] });
+    expect(result.removedCount).toBe(0);
   });
 
   it('should remove duplicate projects by ID', () => {
     const p = makeProject('a', 'first');
     const pDup = makeProject('a', 'second');
-    seedStore({ projects: [p, pDup] });
+    const result = deduplicateEntities({ ...empty, projects: [p, pDup] });
 
-    const removed = deduplicateDataStore();
-
-    expect(removed).toBe(1);
-    expect(useDataStore.getState().projects).toHaveLength(1);
+    expect(result.removedCount).toBe(1);
+    expect(result.deduplicated.projects).toHaveLength(1);
   });
 
   it('should remove duplicate tasks by ID', () => {
     const t = makeTask('t1');
-    seedStore({ tasks: [t, { ...t }] });
+    const result = deduplicateEntities({ ...empty, tasks: [t, { ...t }] });
 
-    expect(deduplicateDataStore()).toBe(1);
-    expect(useDataStore.getState().tasks).toHaveLength(1);
+    expect(result.removedCount).toBe(1);
+    expect(result.deduplicated.tasks).toHaveLength(1);
   });
 
   it('should remove duplicate sections by ID', () => {
     const s = makeSection('s1');
-    seedStore({ sections: [s, { ...s }] });
+    const result = deduplicateEntities({ ...empty, sections: [s, { ...s }] });
 
-    expect(deduplicateDataStore()).toBe(1);
-    expect(useDataStore.getState().sections).toHaveLength(1);
+    expect(result.removedCount).toBe(1);
+    expect(result.deduplicated.sections).toHaveLength(1);
   });
 
   it('should remove duplicate dependencies by ID', () => {
     const d = makeDep('d1');
-    seedStore({ dependencies: [d, { ...d }] });
+    const result = deduplicateEntities({ ...empty, dependencies: [d, { ...d }] });
 
-    expect(deduplicateDataStore()).toBe(1);
-    expect(useDataStore.getState().dependencies).toHaveLength(1);
+    expect(result.removedCount).toBe(1);
+    expect(result.deduplicated.dependencies).toHaveLength(1);
   });
 
   it('should handle duplicates across all entity types at once', () => {
-    seedStore({
+    const result = deduplicateEntities({
       projects: [makeProject('a'), makeProject('a')],
       tasks: [makeTask('t'), makeTask('t')],
       sections: [makeSection('s'), makeSection('s')],
       dependencies: [makeDep('d'), makeDep('d')],
     });
 
-    expect(deduplicateDataStore()).toBe(4);
+    expect(result.removedCount).toBe(4);
+  });
+
+  it('should not mutate the input arrays', () => {
+    const projects = [makeProject('a'), makeProject('a')];
+    const original = [...projects];
+    deduplicateEntities({ ...empty, projects });
+    expect(projects).toEqual(original);
   });
 });
 
-describe('checkForDuplicates', () => {
+describe('countDuplicates', () => {
   it('should return zeros when no duplicates', () => {
-    seedStore({ projects: [makeProject('a')] });
-    const result = checkForDuplicates();
-
+    const result = countDuplicates({ ...empty, projects: [makeProject('a')] });
     expect(result).toEqual({ projects: 0, tasks: 0, sections: 0, dependencies: 0, total: 0 });
   });
 
   it('should count duplicates per entity type', () => {
-    seedStore({
+    const result = countDuplicates({
+      ...empty,
       projects: [makeProject('a'), makeProject('a'), makeProject('a')],
       tasks: [makeTask('t'), makeTask('t')],
     });
 
-    const result = checkForDuplicates();
-
     expect(result.projects).toBe(2);
     expect(result.tasks).toBe(1);
     expect(result.total).toBe(3);
-  });
-
-  it('should not modify the store', () => {
-    const p = makeProject('a');
-    seedStore({ projects: [p, { ...p }] });
-
-    checkForDuplicates();
-
-    expect(useDataStore.getState().projects).toHaveLength(2);
   });
 });

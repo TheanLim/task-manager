@@ -153,6 +153,10 @@ describe('rulePreviewService - Property Tests', () => {
             expect(sentence).toContain('marked complete');
           } else if (triggerMeta.type === 'card_marked_incomplete') {
             expect(sentence).toContain('marked incomplete');
+          } else if (triggerMeta.type === 'section_created') {
+            expect(sentence).toMatch(/^When a section is created/);
+          } else if (triggerMeta.type === 'section_renamed') {
+            expect(sentence).toMatch(/^When a section is renamed/);
           }
         }
 
@@ -179,8 +183,8 @@ describe('rulePreviewService - Property Tests', () => {
           }
         }
 
-        // Assert: sentence starts with "When a card is"
-        expect(sentence).toMatch(/^When a card is /);
+        // Assert: sentence starts with "When a card is" or "When a section is"
+        expect(sentence).toMatch(/^When a (card|section) is /);
 
         // Assert: sentence contains the separator ", "
         expect(sentence).toContain(', ');
@@ -267,8 +271,8 @@ describe('rulePreviewService - Property Tests', () => {
 
           expect(hasFilterKeywords).toBe(true);
 
-          // Assert: sentence still starts with "When a card"
-          expect(sentence).toMatch(/^When a card /);
+          // Assert: sentence still starts with "When a card" or "When a section"
+          expect(sentence).toMatch(/^When a (card|section) /);
         }
       ),
       { numRuns: 100 }

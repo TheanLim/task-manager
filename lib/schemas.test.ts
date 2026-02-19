@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import fc from 'fast-check';
-import { LocalStorageAdapter, ImportError } from './storage';
+import { importFromJSON, ImportError, validateAppState } from '../features/sharing/services/importExport';
 import { AppStateSchema, TaskSchema } from './schemas';
 
 // Minimum 100 iterations per property
@@ -184,11 +184,9 @@ const invalidJsonForImportArb = fc.oneof(
 );
 
 describe('Feature: architecture-refactor', () => {
-  let adapter: LocalStorageAdapter;
   let mockLocalStorage: Record<string, string>;
 
   beforeEach(() => {
-    adapter = new LocalStorageAdapter();
     mockLocalStorage = {};
 
     global.localStorage = {
@@ -213,8 +211,7 @@ describe('Feature: architecture-refactor', () => {
        * **Validates: Requirements 1.3**
        *
        * For any object that does not conform to the AppState Zod schema,
-       * calling the storage adapter's load method with that object in
-       * localStorage SHALL return null.
+       * validateAppState SHALL return false.
        */
       fc.assert(
         fc.property(invalidAppStateArb, (invalidState) => {
@@ -222,19 +219,14 @@ describe('Feature: architecture-refactor', () => {
           const parseResult = AppStateSchema.safeParse(invalidState);
           fc.pre(!parseResult.success);
 
-          // Place the invalid object in localStorage under the unified key
-          mockLocalStorage['task-management-app-state'] = JSON.stringify(invalidState);
-
           // Suppress console.error from validation logging
           const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-          const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
           try {
-            const result = adapter.load();
-            expect(result).toBeNull();
+            const result = validateAppState(invalidState);
+            expect(result).toBe(false);
           } finally {
             consoleSpy.mockRestore();
-            consoleLogSpy.mockRestore();
           }
         }),
         PROPERTY_CONFIG
@@ -262,7 +254,7 @@ describe('Feature: architecture-refactor', () => {
             // Syntactically invalid JSON is fine — importFromJSON should still throw ImportError
           }
 
-          expect(() => adapter.importFromJSON(invalidJson)).toThrow(ImportError);
+          expect(() => importFromJSON(invalidJson)).toThrow(ImportError);
         }),
         PROPERTY_CONFIG
       );

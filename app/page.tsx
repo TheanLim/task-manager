@@ -9,7 +9,7 @@ import { TaskDialog } from '@/features/tasks/components/TaskDialog';
 import { TaskDetailPanel } from '@/features/tasks/components/TaskDetailPanel';
 import { DependencyDialog } from '@/features/tasks/components/DependencyDialog';
 import { ProjectView } from '@/features/projects/components/ProjectView';
-import { GlobalTasksContainer } from '@/components/GlobalTasksContainer';
+import { GlobalTasksContainer } from '@/features/tasks/components/GlobalTasksContainer';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { useDataStore, automationService } from '@/stores/dataStore';
@@ -18,18 +18,18 @@ import { useTMSStore } from '@/features/tms/stores/tmsStore';
 import { getTMSHandler } from '@/features/tms/handlers';
 import { ViewMode, Priority, TimeManagementSystem } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
-import { ImportExportMenu } from '@/components/ImportExportMenu';
+import { ImportExportMenu } from '@/features/sharing/components/ImportExportMenu';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { toast as sonnerToast } from 'sonner';
 import { SharedStateDialog } from '@/features/sharing/components/SharedStateDialog';
-import { useDialogManager } from '@/lib/hooks/useDialogManager';
+import { useDialogManager } from '@/app/hooks/useDialogManager';
 import { useSharedStateLoader, handleLoadSharedState } from '@/features/sharing/hooks/useSharedStateLoader';
 import { useGlobalShortcuts } from '@/features/keyboard/hooks/useGlobalShortcuts';
 import { getDefaultShortcutMap, mergeShortcutMaps } from '@/features/keyboard/services/shortcutService';
 import { ShortcutHelpOverlay } from '@/features/keyboard/components/ShortcutHelpOverlay';
 import { useKeyboardNavStore } from '@/features/keyboard/stores/keyboardNavStore';
 import { formatAutomationToastMessage } from '@/features/automations/services/toastMessageFormatter';
-import { performUndo, getUndoSnapshot, getUndoSnapshots, performUndoById } from '@/features/automations/services/automationService';
+import { getUndoSnapshots, performUndoById } from '@/features/automations/services/automationService';
 import { taskRepository } from '@/stores/dataStore';
 import {
   AlertDialog,
@@ -147,7 +147,7 @@ function HomeContent() {
     (result: { message: string; type: 'success' | 'error' | 'info' }) => {
       showToast(result.message, result.type);
     },
-    [dm]
+    [showToast]
   );
 
   useSharedStateLoader({
@@ -180,7 +180,7 @@ function HomeContent() {
     return () => {
       automationService.setRuleExecutionCallback(undefined);
     };
-  }, [dm]);
+  }, [showToast]);
 
   // --- Sync URL with active project and handle invalid project IDs ---
   useEffect(() => {

@@ -93,13 +93,13 @@ export const TRIGGER_META: TriggerMeta[] = [
   {
     type: 'section_created',
     category: 'section_change',
-    label: 'section created',
+    label: 'created',
     needsSection: false,
   },
   {
     type: 'section_renamed',
     category: 'section_change',
-    label: 'section renamed',
+    label: 'renamed',
     needsSection: false,
   },
 ];
@@ -242,8 +242,12 @@ export function buildPreviewParts(
 ): PreviewPart[] {
   const parts: PreviewPart[] = [];
 
+  // Determine subject based on trigger category
+  const triggerMeta = trigger.type ? TRIGGER_META.find((m) => m.type === trigger.type) : null;
+  const isSectionTrigger = triggerMeta?.category === 'section_change';
+
   // Build trigger part
-  parts.push({ type: 'text', content: 'When a card ' });
+  parts.push({ type: 'text', content: isSectionTrigger ? 'When a section ' : 'When a card ' });
 
   // Add filter descriptions if present
   if (filters && filters.length > 0) {
@@ -265,7 +269,6 @@ export function buildPreviewParts(
   if (!trigger.type) {
     parts.push({ type: 'value', content: '___' });
   } else {
-    const triggerMeta = TRIGGER_META.find((m) => m.type === trigger.type);
     if (!triggerMeta) {
       parts.push({ type: 'value', content: '___' });
     } else {

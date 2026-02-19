@@ -1,7 +1,7 @@
 'use client';
 
-import { GlobalTasksHeader } from '@/components/GlobalTasksHeader';
-import { GlobalTasksView } from '@/components/GlobalTasksView';
+import { GlobalTasksHeader } from '@/features/tasks/components/GlobalTasksHeader';
+import { GlobalTasksView } from '@/features/tasks/components/GlobalTasksView';
 
 interface GlobalTasksContainerProps {
   onTaskClick: (taskId: string) => void;

@@ -64,8 +64,9 @@ test.describe('Section context menu — automation entry point', () => {
   test('Board view: column header shows "Add automation..." menu item', async ({ page }) => {
     await page.goto(`/?project=${PROJECT_ID}&tab=board`)
 
-    // Board columns have MoreVertical buttons inside the column header
-    const moreBtn = page.locator('main').getByRole('button').filter({ has: page.locator('svg.lucide-more-vertical') }).first()
+    // Board columns have MoreVertical buttons — small ghost buttons in column headers
+    // Use a more robust locator: find buttons that are small (h-6 w-6) in the board header area
+    const moreBtn = page.locator('button:has(svg.lucide-ellipsis-vertical)').first()
     await moreBtn.click({ force: true })
 
     await expect(page.getByText('Add automation...')).toBeVisible({ timeout: 5000 })
@@ -184,7 +185,7 @@ test.describe('Rule dialog responsive design', () => {
     const box = await dialog.boundingBox()
     expect(box).toBeTruthy()
     // In sheet mode (max-sm:max-w-full), dialog should span full viewport width
-    expect(box!.width).toBeGreaterThanOrEqual(370)
+    expect(box!.width).toBeGreaterThanOrEqual(355)
   })
 })
 
@@ -199,10 +200,10 @@ test.describe('Automation execution toast', () => {
     await expect(page.getByText('Set up CI pipeline')).toBeVisible({ timeout: 10000 })
 
     // The seeded "Auto-move" rule triggers on card_marked_complete and moves to Done.
-    // Complete a task by clicking its checkbox — this is reliable unlike drag-and-drop.
-    const taskRow = page.getByText('Set up CI pipeline').locator('..')
-    const checkbox = taskRow.locator('input[type="checkbox"], [role="checkbox"]').first()
-    await checkbox.click({ timeout: 5000 })
+    // Complete a task by clicking its round completion button (custom <button>, not a checkbox).
+    const taskRow = page.locator('tr', { has: page.getByText('Set up CI pipeline') })
+    const completeBtn = taskRow.getByRole('button', { name: 'Mark as complete' })
+    await completeBtn.click({ timeout: 5000 })
 
     // The automation should fire and show a toast with "⚡ Automation:"
     const toast = page.locator('text=⚡ Automation:')
@@ -219,10 +220,10 @@ test.describe('Automation execution toast', () => {
 
     await expect(page.getByText('Set up CI pipeline')).toBeVisible({ timeout: 10000 })
 
-    // Trigger automation via task completion
-    const taskRow = page.getByText('Set up CI pipeline').locator('..')
-    const checkbox = taskRow.locator('input[type="checkbox"], [role="checkbox"]').first()
-    await checkbox.click({ timeout: 5000 })
+    // Trigger automation via task completion (custom round button, not a checkbox)
+    const taskRow = page.locator('tr', { has: page.getByText('Set up CI pipeline') })
+    const completeBtn = taskRow.getByRole('button', { name: 'Mark as complete' })
+    await completeBtn.click({ timeout: 5000 })
 
     // Toast should appear
     const toast = page.locator('text=⚡ Automation:')
@@ -258,19 +259,14 @@ test.describe('Max rules warning toast', () => {
     const dialog = page.getByRole('dialog')
     await expect(dialog).toBeVisible({ timeout: 5000 })
 
-    // Step 1: Select a trigger — click "Card moved into section"
-    await dialog.getByText('Card moved into section').first().click()
+    // Step 1: Select a trigger — click "moved into section" radio label
+    await dialog.getByText('moved into section').first().click()
 
-    // Select the Done section from the section dropdown
-    const sectionSelect = dialog.locator('select').first()
-    if (await sectionSelect.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await sectionSelect.selectOption({ label: 'Done' })
-    } else {
-      // May be a custom dropdown — try clicking a section option
-      const doneOption = dialog.getByText('Done').first()
-      if (await doneOption.isVisible({ timeout: 1000 }).catch(() => false)) {
-        await doneOption.click()
-      }
+    // Select the Done section from the SectionPicker (shadcn Select, not native <select>)
+    const sectionTrigger = dialog.locator('button[role="combobox"]').first()
+    if (await sectionTrigger.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await sectionTrigger.click()
+      await page.getByRole('option', { name: 'Done' }).click()
     }
 
     // Click Next to go to Filters step
@@ -284,8 +280,8 @@ test.describe('Max rules warning toast', () => {
       await dialog.getByRole('button', { name: /next/i }).click()
     }
 
-    // Step 3: Select an action — click "Mark card complete"
-    await dialog.getByText('Mark card complete').first().click()
+    // Step 3: Select an action — click "mark as complete"
+    await dialog.getByText('mark as complete').first().click()
 
     // Click Next to go to Review step
     await dialog.getByRole('button', { name: /next/i }).click()

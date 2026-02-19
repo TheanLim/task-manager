@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import { Task } from '@/types';
-import { useFilterStore } from '@/stores/filterStore';
+import { useFilterStore } from '@/features/tasks/stores/filterStore';
 import { useAppStore } from '@/stores/appStore';
-import { DependencyResolverImpl } from '@/features/tasks/dependencyResolver';
+import { DependencyResolverImpl } from '@/features/tasks/services/dependencyResolver';
 import { useDataStore } from '@/stores/dataStore';
 
 export function useFilteredTasks(tasks: Task[]): Task[] {

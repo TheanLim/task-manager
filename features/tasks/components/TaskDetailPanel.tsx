@@ -12,7 +12,7 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { DependencyList } from '@/features/tasks/components/DependencyList';
-import { RichTextEditor } from '@/components/RichTextEditor';
+import { RichTextEditor } from '@/features/tasks/components/RichTextEditor';
 import {
   AlertDialog,
   AlertDialogAction,

@@ -1,6 +1,6 @@
 import { AppState } from '@/types';
-import { LocalStorageAdapter } from '@/lib/storage';
 import { TimeManagementSystem } from '@/types';
+import { validateAppState } from '@/features/sharing/services/importExport';
 import type { AutomationRuleRepository } from '@/features/automations/repositories/types';
 import type { AutomationRule } from '@/features/automations/types';
 import { validateImportedRules } from '@/features/automations/services/ruleImportExport';
@@ -87,12 +87,10 @@ export interface LoadResult {
  * Service for sharing application state via URL
  */
 export class ShareService {
-  private storageAdapter: LocalStorageAdapter;
   private lzmaLoaded: boolean = false;
   private automationRuleRepo?: AutomationRuleRepository;
 
-  constructor(storageAdapter?: LocalStorageAdapter, automationRuleRepo?: AutomationRuleRepository) {
-    this.storageAdapter = storageAdapter || new LocalStorageAdapter();
+  constructor(automationRuleRepo?: AutomationRuleRepository) {
     this.automationRuleRepo = automationRuleRepo;
   }
 
@@ -228,7 +226,7 @@ export class ShareService {
       // Parse and validate JSON
       const parsed = JSON.parse(json);
       
-      if (!this.storageAdapter.validateState(parsed)) {
+      if (!validateAppState(parsed)) {
         throw new ShareError(
           ShareErrorType.VALIDATION_FAILED,
           'Shared state format is incompatible'
@@ -414,44 +412,36 @@ export class ShareService {
     const includeAutomations = options?.includeAutomations ?? true;
 
     try {
-      let state: AppState;
-      
-      if (currentState) {
-        // Use provided state
-        state = currentState;
-      } else {
-        // Fall back to reading from storage
-        state = this.storageAdapter.load() || {
-          projects: [],
-          tasks: [],
-          sections: [],
-          dependencies: [],
-          tmsState: {
-            activeSystem: TimeManagementSystem.NONE,
-            dit: {
-              todayTasks: [],
-              tomorrowTasks: [],
-              lastDayChange: new Date().toISOString()
-            },
-            af4: {
-              markedTasks: [],
-              markedOrder: []
-            },
-            fvp: {
-              dottedTasks: [],
-              currentX: null,
-              selectionInProgress: false
-            }
+      const state: AppState = currentState ?? {
+        projects: [],
+        tasks: [],
+        sections: [],
+        dependencies: [],
+        tmsState: {
+          activeSystem: TimeManagementSystem.NONE,
+          dit: {
+            todayTasks: [],
+            tomorrowTasks: [],
+            lastDayChange: new Date().toISOString()
           },
-          settings: {
-            activeProjectId: null,
-            timeManagementSystem: TimeManagementSystem.NONE,
-            showOnlyActionableTasks: false,
-            theme: 'system' as const
+          af4: {
+            markedTasks: [],
+            markedOrder: []
           },
-          version: '1.0.0'
-        };
-      }
+          fvp: {
+            dottedTasks: [],
+            currentX: null,
+            selectionInProgress: false
+          }
+        },
+        settings: {
+          activeProjectId: null,
+          timeManagementSystem: TimeManagementSystem.NONE,
+          showOnlyActionableTasks: false,
+          theme: 'system' as const
+        },
+        version: '1.0.0'
+      };
       
       // Add export metadata
       const exportData: Record<string, unknown> = {

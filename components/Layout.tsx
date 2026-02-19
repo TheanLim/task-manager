@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Menu } from 'lucide-react';
-import { useCrossTabSync } from '@/lib/hooks/useCrossTabSync';
+import { useCrossTabSync } from '@/app/hooks/useCrossTabSync';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';

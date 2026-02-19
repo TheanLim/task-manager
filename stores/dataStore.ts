@@ -7,60 +7,34 @@ import type {
   Section,
   TaskDependency,
 } from '@/types';
-import { LocalStorageBackend } from '@/lib/repositories/localStorageBackend';
-import {
-  LocalStorageProjectRepository,
-  LocalStorageTaskRepository,
-  LocalStorageSectionRepository,
-  LocalStorageDependencyRepository,
-} from '@/lib/repositories/localStorageRepositories';
-import { TaskService } from '@/features/tasks/services/taskService';
-import { ProjectService } from '@/features/projects/services/projectService';
-import { DependencyService } from '@/features/tasks/services/dependencyService';
-import { DependencyResolverImpl } from '@/features/tasks/dependencyResolver';
-import { emitDomainEvent, subscribeToDomainEvents } from '@/features/automations/events';
-import { detectBrokenRules } from '@/features/automations/services/brokenRuleDetector';
-import { LocalStorageAutomationRuleRepository } from '@/features/automations/repositories/localStorageAutomationRuleRepository';
-import { RuleExecutor } from '@/features/automations/services/ruleExecutor';
-import { AutomationService } from '@/features/automations/services/automationService';
+import { emitDomainEvent, subscribeToDomainEvents } from '@/lib/events';
 import type { AutomationRule } from '@/features/automations/types';
-
-// --- Repository & Service singletons ---
-export const localStorageBackend = new LocalStorageBackend();
-export const projectRepository = new LocalStorageProjectRepository(localStorageBackend);
-export const taskRepository = new LocalStorageTaskRepository(localStorageBackend);
-export const sectionRepository = new LocalStorageSectionRepository(localStorageBackend);
-export const dependencyRepository = new LocalStorageDependencyRepository(localStorageBackend);
-
-// Automation repository (separate localStorage key)
-export const automationRuleRepository = new LocalStorageAutomationRuleRepository();
-
-const dependencyResolver = new DependencyResolverImpl();
-export const taskService = new TaskService(taskRepository, dependencyRepository);
-export const projectService = new ProjectService(
+import {
   projectRepository,
-  sectionRepository,
-  taskService,
   taskRepository,
+  sectionRepository,
+  dependencyRepository,
   automationRuleRepository,
-);
-export const dependencyService = new DependencyService(dependencyRepository, dependencyResolver);
+  taskService,
+  projectService,
+  sectionService,
+  automationService,
+} from '@/lib/serviceContainer';
 
-// Automation services
-const ruleExecutor = new RuleExecutor(
+// Re-export for consumers that import from dataStore
+export {
+  localStorageBackend,
+  projectRepository,
   taskRepository,
   sectionRepository,
-  taskService,
-  automationRuleRepository
-);
-
-export const automationService = new AutomationService(
+  dependencyRepository,
   automationRuleRepository,
-  taskRepository,
-  sectionRepository,
   taskService,
-  ruleExecutor
-);
+  projectService,
+  sectionService,
+  dependencyService,
+  automationService,
+} from '@/lib/serviceContainer';
 
 // Data Store Interface
 interface DataStore {
@@ -219,25 +193,7 @@ export const useDataStore = create<DataStore>()(
       },
       
       deleteSection: (id) => {
-        // Reassign tasks from deleted section to "To Do" section, then delete
-        const sectionToDelete = sectionRepository.findById(id);
-        if (!sectionToDelete) return;
-        
-        const defaultSection = sectionRepository.findByProjectId(sectionToDelete.projectId)
-          .find(s => s.name === 'To Do');
-        
-        // Reassign tasks that belong to this section
-        const allTasks = taskRepository.findAll();
-        for (const task of allTasks) {
-          if (task.sectionId === id) {
-            taskRepository.update(task.id, { sectionId: defaultSection?.id || null });
-          }
-        }
-        
-        sectionRepository.delete(id);
-
-        // Detect and disable automation rules referencing the deleted section (Req 2.1, 2.2)
-        detectBrokenRules(id, sectionToDelete.projectId || '', automationRuleRepository);
+        sectionService.cascadeDelete(id);
       },
       
       toggleSectionCollapsed: (id) => {

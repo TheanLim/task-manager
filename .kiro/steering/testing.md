@@ -6,41 +6,25 @@ inclusion: always
 
 # Testing Rules
 
-## Update Tests With Every Change
-
-When modifying any source file with a co-located test file (`*.test.ts`, `*.test.tsx`), update tests in the same pass. If a changed module has no tests yet, note it but don't create tests unless asked.
-
-**Cross-file modifications**: When implementing a feature that modifies multiple existing files (e.g., adding integration points, wiring up services), identify ALL modified files and update their tests. Don't just test new files—test every file you touch.
+- Modify a file with a `.test.*` → update its tests in the same pass
+- Create a new `.ts`/`.tsx` with logic → create a co-located test file in the same commit (includes extraction/refactoring)
+- Existing file has no tests → note it, don't create unless asked
+- Cross-file changes → identify ALL modified files, update every test you touch
 
 ## Before Marking Work Complete
 
-Run this checklist:
-
-1. **Identify modified files**: List all files changed (not just created) during implementation
-2. **Check for test files**: For each modified file, verify if a `.test.ts` or `.test.tsx` exists
-3. **Update tests**: For each modified file with tests, add tests covering the new/changed behavior
-4. **Run tests**: Execute `npx vitest run` and verify all tests pass
-5. **Run lint**: Execute `npm run lint` and fix any issues
-
-## Run Tests After Every Change
-
-After edits, run `npx vitest run` (single file or broad). For e2e-impacting changes, run `npm run test:e2e`. Fix failures before marking done.
+1. List all changed + new `.ts`/`.tsx` files — each new file with logic needs a test
+2. For each modified file with tests, add tests covering new/changed behavior
+3. Run `npx vitest run` — all pass
+4. Run `npm run lint` — fix issues
+5. If any `.tsx` component files were changed, run `npx next build` — catches SWC/Webpack errors that vitest and lint miss
 
 ## Conventions
 
-- Unit tests: Vitest + React Testing Library + fast-check
-- E2E tests: Playwright (in `e2e/`)
+- Vitest + React Testing Library + fast-check; Playwright for e2e (`e2e/`)
 - Use `vitest run` (single execution), never watch mode
 
-## Mocking Guidelines
+## Mocking
 
-- **Don't implement classes** — When mocking a class dependency, don't use `implements ClassName`. Classes have properties that mocks don't need.
-- **Cast at boundaries** — Use `as any` when passing mocks to constructors/functions expecting the real type. This is pragmatic in tests.
-- **Keep mocks minimal** — Only implement methods actually called in tests. Don't over-engineer full implementations.
-- **In-memory repositories** — Use `Map<string, T>` for mock repositories. Provides isolation and clear/reset between tests.
-- **Fast-check type assertions** — When arbitraries generate broad types (e.g., `string | null`), cast generated data (`as any`) when passing to strictly-typed functions.
-
-## jsdom Limitations
-
-- `scrollIntoView`, `getBoundingClientRect` don't exist in jsdom — use optional chaining in hooks/effects.
-- When a hook exposes a consumer API (like `getCellProps`), verify the consumer actually calls it.
+- Cast mocks with `as any` at boundaries; keep mocks minimal; use `Map<string, T>` for in-memory repos
+- jsdom: `scrollIntoView`/`getBoundingClientRect` don't exist — use optional chaining

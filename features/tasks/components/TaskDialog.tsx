@@ -17,7 +17,7 @@ import { validateTaskDescription } from '@/lib/validation';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { Calendar as CalendarIcon, X } from 'lucide-react';
-import { RichTextEditor } from '@/components/RichTextEditor';
+import { RichTextEditor } from '@/features/tasks/components/RichTextEditor';
 
 interface TaskDialogProps {
   open: boolean;

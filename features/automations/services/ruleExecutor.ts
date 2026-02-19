@@ -129,6 +129,44 @@ export class RuleExecutor {
   }
 
   /**
+   * Shared logic for move-to-top and move-to-bottom actions.
+   */
+  private executeMoveToSection(
+    action: RuleAction,
+    task: any,
+    previousValues: any,
+    triggeringEvent: DomainEvent,
+    events: DomainEvent[],
+    position: 'top' | 'bottom'
+  ): void {
+    const targetSectionId = action.params.sectionId;
+    if (!targetSectionId) return;
+
+    const targetSection = this.sectionRepo.findById(targetSectionId);
+    if (!targetSection) return;
+
+    const tasksInSection = this.taskRepo
+      .findAll()
+      .filter(t => t.sectionId === targetSectionId && t.id !== task.id);
+
+    const newOrder = position === 'top'
+      ? (tasksInSection.length > 0 ? Math.min(...tasksInSection.map(t => t.order)) - 1 : -1)
+      : (tasksInSection.length > 0 ? Math.max(...tasksInSection.map(t => t.order)) + 1 : 1);
+
+    this.taskRepo.update(task.id, { sectionId: targetSectionId, order: newOrder });
+
+    events.push({
+      type: 'task.updated',
+      entityId: task.id,
+      projectId: task.projectId,
+      changes: { sectionId: targetSectionId, order: newOrder },
+      previousValues: { sectionId: previousValues.sectionId, order: previousValues.order },
+      triggeredByRule: action.ruleId,
+      depth: triggeringEvent.depth + 1,
+    });
+  }
+
+  /**
    * Move card to top of section (Requirement 5.1)
    */
   private executeMoveToTop(
@@ -138,46 +176,7 @@ export class RuleExecutor {
     triggeringEvent: DomainEvent,
     events: DomainEvent[]
   ): void {
-    const targetSectionId = action.params.sectionId;
-    if (!targetSectionId) return;
-
-    // Verify target section exists
-    const targetSection = this.sectionRepo.findById(targetSectionId);
-    if (!targetSection) return;
-
-    // Find all tasks in target section
-    const tasksInSection = this.taskRepo
-      .findAll()
-      .filter(t => t.sectionId === targetSectionId && t.id !== task.id);
-
-    // Calculate new order: one less than minimum order
-    const minOrder = tasksInSection.length > 0
-      ? Math.min(...tasksInSection.map(t => t.order))
-      : 0;
-    const newOrder = minOrder - 1;
-
-    // Update task
-    this.taskRepo.update(task.id, {
-      sectionId: targetSectionId,
-      order: newOrder,
-    });
-
-    // Emit domain event
-    events.push({
-      type: 'task.updated',
-      entityId: task.id,
-      projectId: task.projectId,
-      changes: {
-        sectionId: targetSectionId,
-        order: newOrder,
-      },
-      previousValues: {
-        sectionId: previousValues.sectionId,
-        order: previousValues.order,
-      },
-      triggeredByRule: action.ruleId,
-      depth: triggeringEvent.depth + 1,
-    });
+    this.executeMoveToSection(action, task, previousValues, triggeringEvent, events, 'top');
   }
 
   /**
@@ -190,46 +189,7 @@ export class RuleExecutor {
     triggeringEvent: DomainEvent,
     events: DomainEvent[]
   ): void {
-    const targetSectionId = action.params.sectionId;
-    if (!targetSectionId) return;
-
-    // Verify target section exists
-    const targetSection = this.sectionRepo.findById(targetSectionId);
-    if (!targetSection) return;
-
-    // Find all tasks in target section
-    const tasksInSection = this.taskRepo
-      .findAll()
-      .filter(t => t.sectionId === targetSectionId && t.id !== task.id);
-
-    // Calculate new order: one more than maximum order
-    const maxOrder = tasksInSection.length > 0
-      ? Math.max(...tasksInSection.map(t => t.order))
-      : 0;
-    const newOrder = maxOrder + 1;
-
-    // Update task
-    this.taskRepo.update(task.id, {
-      sectionId: targetSectionId,
-      order: newOrder,
-    });
-
-    // Emit domain event
-    events.push({
-      type: 'task.updated',
-      entityId: task.id,
-      projectId: task.projectId,
-      changes: {
-        sectionId: targetSectionId,
-        order: newOrder,
-      },
-      previousValues: {
-        sectionId: previousValues.sectionId,
-        order: previousValues.order,
-      },
-      triggeredByRule: action.ruleId,
-      depth: triggeringEvent.depth + 1,
-    });
+    this.executeMoveToSection(action, task, previousValues, triggeringEvent, events, 'bottom');
   }
 
   /**
@@ -244,24 +204,13 @@ export class RuleExecutor {
     triggeringEvent: DomainEvent,
     events: DomainEvent[]
   ): void {
-    // TaskService.cascadeComplete will emit events internally
     this.taskService.cascadeComplete(task.id, true);
-    
-    // We still need to emit an event for this action to track it was triggered by a rule
-    events.push({
-      type: 'task.updated',
-      entityId: task.id,
-      projectId: task.projectId,
-      changes: {
-        completed: true,
-      },
-      previousValues: {
-        completed: task.completed,
-        completedAt: task.completedAt ?? null,
-      },
-      triggeredByRule: action.ruleId,
-      depth: triggeringEvent.depth + 1,
-    });
+    this.emitTaskUpdatedEvent(
+      task,
+      { completed: true },
+      { completed: task.completed, completedAt: task.completedAt ?? null },
+      action.ruleId, triggeringEvent, events
+    );
   }
 
   /**
@@ -273,24 +222,13 @@ export class RuleExecutor {
     triggeringEvent: DomainEvent,
     events: DomainEvent[]
   ): void {
-    // TaskService.cascadeComplete will emit events internally
     this.taskService.cascadeComplete(task.id, false);
-    
-    // We still need to emit an event for this action to track it was triggered by a rule
-    events.push({
-      type: 'task.updated',
-      entityId: task.id,
-      projectId: task.projectId,
-      changes: {
-        completed: false,
-      },
-      previousValues: {
-        completed: task.completed,
-        completedAt: task.completedAt ?? null,
-      },
-      triggeredByRule: action.ruleId,
-      depth: triggeringEvent.depth + 1,
-    });
+    this.emitTaskUpdatedEvent(
+      task,
+      { completed: false },
+      { completed: task.completed, completedAt: task.completedAt ?? null },
+      action.ruleId, triggeringEvent, events
+    );
   }
 
   /**
@@ -306,7 +244,6 @@ export class RuleExecutor {
     const dateOption = action.params.dateOption;
     if (!dateOption) return;
 
-    // Calculate target date with optional parameters
     const targetDate = calculateRelativeDate(dateOption, undefined, {
       specificMonth: action.params.specificMonth,
       specificDay: action.params.specificDay,
@@ -314,25 +251,8 @@ export class RuleExecutor {
     });
     const dueDateString = targetDate.toISOString();
 
-    // Update task
-    this.taskRepo.update(task.id, {
-      dueDate: dueDateString,
-    });
-
-    // Emit domain event
-    events.push({
-      type: 'task.updated',
-      entityId: task.id,
-      projectId: task.projectId,
-      changes: {
-        dueDate: dueDateString,
-      },
-      previousValues: {
-        dueDate: previousValues.dueDate,
-      },
-      triggeredByRule: action.ruleId,
-      depth: triggeringEvent.depth + 1,
-    });
+    this.taskRepo.update(task.id, { dueDate: dueDateString });
+    this.emitTaskUpdatedEvent(task, { dueDate: dueDateString }, { dueDate: previousValues.dueDate }, action.ruleId, triggeringEvent, events);
   }
 
   /**
@@ -345,23 +265,28 @@ export class RuleExecutor {
     triggeringEvent: DomainEvent,
     events: DomainEvent[]
   ): void {
-    // Update task
-    this.taskRepo.update(task.id, {
-      dueDate: null,
-    });
+    this.taskRepo.update(task.id, { dueDate: null });
+    this.emitTaskUpdatedEvent(task, { dueDate: null }, { dueDate: previousValues.dueDate }, action.ruleId, triggeringEvent, events);
+  }
 
-    // Emit domain event
+  /**
+   * Helper: emit a task.updated domain event.
+   */
+  private emitTaskUpdatedEvent(
+    task: any,
+    changes: Record<string, unknown>,
+    previousValues: Record<string, unknown>,
+    ruleId: string,
+    triggeringEvent: DomainEvent,
+    events: DomainEvent[]
+  ): void {
     events.push({
       type: 'task.updated',
       entityId: task.id,
       projectId: task.projectId,
-      changes: {
-        dueDate: null,
-      },
-      previousValues: {
-        dueDate: previousValues.dueDate,
-      },
-      triggeredByRule: action.ruleId,
+      changes,
+      previousValues,
+      triggeredByRule: ruleId,
       depth: triggeringEvent.depth + 1,
     });
   }

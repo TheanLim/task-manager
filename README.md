@@ -30,6 +30,14 @@ A modern, feature-rich task management application with integrated time manageme
 - Drag-and-drop reordering (disabled in Review Queue mode)
 - Project column with drag-reorderable columns
 
+### Automation Rules
+- "If this, then that" rules scoped to projects
+- Triggers: card moved, completed, created, section events
+- Actions: move card, mark complete/incomplete, set/remove due date, create card
+- Filters: section membership, date ranges, overdue status
+- Cascade execution with loop protection (max depth 5)
+- Undo support (10-second window)
+
 ### Time Management Systems
 Four methodologies to choose from:
 
@@ -38,16 +46,14 @@ Four methodologies to choose from:
 3. **AF4 (Autofocus 4)** — Mark tasks to focus on, work through them in order
 4. **FVP (Final Version Perfected)** — Pairwise comparison to build a prioritized list
 
-### Sharing
+### Sharing & Data Management
 - Share project state via compressed, URL-safe links (LZMA compression)
 - Import shared state with data integrity validation
-
-### Data Management
+- Export/import data as JSON (merge or replace modes)
+- Data deduplication on merge imports
 - Automatic localStorage persistence with per-entity repository layer
 - Cross-tab synchronization
-- Export/import data as JSON (merge or replace)
 - Zod-based schema validation
-- Data deduplication utilities
 
 ### Keyboard Navigation
 - Full keyboard navigation for task lists with vim-style shortcuts
@@ -57,7 +63,6 @@ Four methodologies to choose from:
 - Space to toggle completion, Enter to open details
 - Subtask-aware navigation (respects expanded/collapsed state)
 - Customizable shortcuts via help overlay (press ?)
-- Visual focus indicator with auto-fade
 
 ### User Interface
 - Responsive design (mobile, tablet, desktop)
@@ -139,67 +144,112 @@ npm run test:e2e:ui
 ## Project Structure
 
 ```
-├── app/                          # Next.js app directory
-│   ├── page.tsx                  # Main application page
-│   ├── layout.tsx                # Root layout with providers
-│   ├── globals.css               # Global styles
-│   └── quill-custom.css          # Rich text editor styles
-├── components/                   # Shared UI components
-│   ├── ui/                       # shadcn/ui primitives
-│   ├── Layout.tsx                # Main layout shell
-│   ├── ErrorBoundary.tsx         # Error handling
-│   ├── FilterPanel.tsx           # Search & filter controls
-│   ├── GlobalTasksContainer.tsx  # Cross-project task view
-│   ├── GlobalTasksHeader.tsx
-│   ├── GlobalTasksView.tsx
-│   ├── ImportExportMenu.tsx      # Data import/export
-│   ├── InlineEditable.tsx        # Inline editing component
-│   ├── RichTextEditor.tsx        # Quill wrapper
-│   ├── SearchBar.tsx
-│   ├── ThemeProvider.tsx
-│   ├── ThemeToggle.tsx
-│   └── ViewModeSelector.tsx
-├── features/                     # Feature modules
-│   ├── keyboard/
-│   │   ├── components/           # ShortcutHelpOverlay, ShortcutSettings
-│   │   ├── hooks/                # useGlobalShortcuts, useKeyboardNavigation
-│   │   ├── services/             # gridNavigationService, shortcutService
-│   │   ├── stores/               # keyboardNavStore
-│   │   ├── schemas.ts
-│   │   └── types.ts
-│   ├── projects/
-│   │   ├── components/           # ProjectDialog, ProjectList, ProjectView, etc.
-│   │   └── services/             # projectService (CRUD, business logic)
-│   ├── tasks/
-│   │   ├── components/           # TaskBoard, TaskCalendar, TaskDialog, TaskList, TaskRow, etc.
-│   │   ├── hooks/                # useFilteredTasks
-│   │   ├── services/             # taskService, dependencyService, autoHideService
-│   │   └── dependencyResolver.ts
-│   ├── tms/
-│   │   ├── components/           # AF4View, DITView, FVPView, TMSSelector
-│   │   ├── handlers/             # AF4Handler, DITHandler, FVPHandler, StandardHandler
-│   │   └── stores/               # tmsStore
-│   └── sharing/
-│       ├── components/           # ShareButton, SharedStateDialog
-│       ├── hooks/                # useSharedStateLoader
-│       └── services/             # shareService, data integrity
-├── lib/                          # Shared utilities
-│   ├── repositories/             # Per-entity localStorage repositories
-│   ├── hooks/                    # useCrossTabSync, useDialogManager
-│   ├── schemas.ts                # Zod schemas
-│   ├── storage.ts                # Legacy storage helpers
-│   ├── validation.ts             # Input validation
-│   ├── deduplicateData.ts
-│   └── utils.ts                  # General helpers
-├── stores/                       # Zustand stores
-│   ├── dataStore.ts              # Projects, tasks, sections
-│   ├── appStore.ts               # App settings & UI state
-│   └── filterStore.ts            # Search and filter state
-├── types/                        # TypeScript type definitions
-├── e2e/                          # Playwright end-to-end tests
-├── scripts/                      # Build/CI scripts
-└── public/                       # Static assets
+├── app/                              # Next.js app directory
+│   ├── page.tsx                      # Main application page (app shell)
+│   ├── layout.tsx                    # Root layout with providers
+│   ├── hooks/                        # App-shell hooks
+│   │   ├── useDialogManager.ts       # Dialog/panel/toast orchestration
+│   │   └── useCrossTabSync.ts        # localStorage cross-tab sync
+│   ├── globals.css
+│   └── quill-custom.css
+│
+├── components/                       # Shared UI components
+│   ├── ui/                           # shadcn/ui primitives (Button, Dialog, etc.)
+│   ├── Layout.tsx                    # Main layout shell (sidebar + content)
+│   ├── ErrorBoundary.tsx             # Error handling wrapper
+│   ├── EmptyState.tsx                # Reusable empty state display
+│   ├── InlineEditable.tsx            # Inline editing component
+│   ├── ThemeProvider.tsx / ThemeToggle.tsx
+│   └── _unused/                      # Inactive components (FilterPanel, SearchBar, ViewModeSelector)
+│
+├── features/                         # Feature modules (see features/README.md)
+│   ├── automations/                  # Rule-based automation engine
+│   │   ├── components/               # AutomationTab, RuleDialog, RuleCard, etc.
+│   │   ├── hooks/                    # useAutomationRules, useUndoAutomation
+│   │   ├── services/                 # automationService, ruleEngine, ruleExecutor, etc.
+│   │   ├── repositories/             # LocalStorageAutomationRuleRepository
+│   │   ├── events.ts                 # Re-exports from lib/events (backward compat)
+│   │   ├── schemas.ts / types.ts
+│   │   └── index.ts                  # Barrel export
+│   │
+│   ├── keyboard/                     # Keyboard navigation & shortcuts
+│   │   ├── components/               # ShortcutHelpOverlay, ShortcutSettings
+│   │   ├── hooks/                    # useGlobalShortcuts, useKeyboardNavigation
+│   │   ├── services/                 # gridNavigationService, shortcutService
+│   │   ├── stores/                   # keyboardNavStore
+│   │   ├── schemas.ts / types.ts
+│   │   └── index.ts
+│   │
+│   ├── projects/                     # Project & section management
+│   │   ├── components/               # ProjectDialog, ProjectList, ProjectView, SectionManager
+│   │   ├── services/                 # projectService, sectionService
+│   │   └── index.ts
+│   │
+│   ├── sharing/                      # Import/export, URL sharing, deduplication
+│   │   ├── components/               # ShareButton, SharedStateDialog, ImportExportMenu
+│   │   ├── hooks/                    # useSharedStateLoader
+│   │   ├── services/                 # shareService, importExport, deduplicateData
+│   │   ├── types/                    # lzma.d.ts
+│   │   └── index.ts
+│   │
+│   ├── tasks/                        # Task CRUD, views, filtering, dependencies
+│   │   ├── components/               # TaskList, TaskBoard, TaskCalendar, TaskRow,
+│   │   │                             # TaskDetailPanel, TaskDialog, DependencyDialog,
+│   │   │                             # GlobalTasksView, GlobalTasksHeader, GlobalTasksContainer,
+│   │   │                             # RichTextEditor
+│   │   ├── hooks/                    # useFilteredTasks
+│   │   ├── services/                 # taskService, dependencyService, dependencyResolver,
+│   │   │                             # autoHideService, taskSortService
+│   │   ├── stores/                   # filterStore
+│   │   └── index.ts
+│   │
+│   └── tms/                          # Time management strategies (DIT, AF4, FVP)
+│       ├── components/               # TMSSelector, DITView, AF4View, FVPView
+│       ├── handlers/                 # Pure strategy handlers per methodology
+│       ├── stores/                   # tmsStore
+│       └── index.ts
+│
+├── lib/                              # Domain infrastructure (no UI code)
+│   ├── events/                       # Cross-cutting domain event pub/sub
+│   │   ├── domainEvents.ts           # emitDomainEvent, subscribeToDomainEvents
+│   │   ├── types.ts                  # DomainEvent interface
+│   │   └── index.ts
+│   ├── repositories/                 # Per-entity localStorage repositories
+│   │   ├── localStorageBackend.ts    # Unified persistence + Zod validation
+│   │   ├── localStorageRepositories.ts
+│   │   └── types.ts                  # Repository<T> interface + entity-specific interfaces
+│   ├── serviceContainer.ts           # Composition root (DI wiring)
+│   ├── schemas.ts                    # Zod schemas (source of truth for entity types)
+│   ├── validation.ts                 # Input validation (ValidationError)
+│   └── utils.ts                      # cn() classnames helper
+│
+├── stores/                           # Global Zustand stores
+│   ├── dataStore.ts                  # Entity cache + CRUD actions + repo subscriptions
+│   └── appStore.ts                   # UI preferences (theme, sort, columns, shortcuts)
+│
+├── types/                            # TypeScript type definitions
+│   └── index.ts                      # Enums (Priority, ViewMode, TMS) + re-exports from schemas
+│
+├── e2e/                              # Playwright end-to-end tests
+└── public/                           # Static assets (lzma_worker.js)
 ```
+
+## Architecture
+
+See [features/README.md](features/README.md) for the feature module conventions and cross-feature dependency map.
+
+### Key Architectural Patterns
+
+- **Feature-based modules** — Each feature owns its components, services, hooks, and types behind a barrel export (`index.ts`)
+- **Service layer** — Business logic lives in services, not stores or components
+- **Repository pattern** — Per-entity CRUD interfaces backed by `LocalStorageBackend`
+- **Domain events** — Cross-cutting pub/sub in `lib/events/` decouples features (automations subscribe to task/section mutations)
+- **Composition root** — `lib/serviceContainer.ts` wires all repositories and services as singletons
+- **Zod at the boundary** — Schema validation on localStorage load and data import
+
+### Cross-Feature Integration Guide
+
+See [CROSS-FEATURE-GUIDE.md](CROSS-FEATURE-GUIDE.md) for the dependency map, integration points, and "if you change X, also update Y" checklist.
 
 ## Data Storage
 

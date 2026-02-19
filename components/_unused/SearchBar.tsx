@@ -3,7 +3,7 @@
 import { Search, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { useFilterStore } from '@/stores/filterStore';
+import { useFilterStore } from '@/features/tasks/stores/filterStore';
 
 export function SearchBar() {
   const { searchQuery, setSearchQuery } = useFilterStore();

@@ -122,7 +122,7 @@ export function ShareButton({
         console.log(`[ShareButton] Sharing all data: ${dataStore.projects.length} projects, ${dataStore.tasks.length} tasks`);
       }
       
-      const shareService = new ShareService(undefined, automationRuleRepository);
+      const shareService = new ShareService(automationRuleRepository);
       const result = await shareService.generateShareURL(currentState, { includeAutomations });
       
       if (!result.success) {

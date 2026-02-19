@@ -14,7 +14,7 @@ Step-by-step guides for common extension scenarios.
 ## Adding a New Action Type
 
 1. **Schema** (`schemas.ts`): Add the new value to `ActionTypeSchema` enum
-2. **Rule Executor** (`services/ruleExecutor.ts`): Add a new `private executeXxx()` method and wire it into the `switch` in `executeAction()`
+2. **Rule Executor** (`services/ruleExecutor.ts`): Add a new `private executeXxx()` method and wire it into the `switch` in `executeAction()`. Use `emitTaskUpdatedEvent()` for the domain event and `executeMoveToSection()` if the action involves moving tasks
 3. **Undo** (`services/automationService.ts`): Add the new action type to the `switch` in `performUndo()`. Capture the appropriate `previousState` fields in `buildUndoSnapshot()`
 4. **UI — Action Step** (`components/RuleDialogStepAction.tsx`): Add the action option to the appropriate group (Move, Status, Dates, Create)
 5. **Preview** (`services/rulePreviewService.ts`): Add the action to `ACTION_META` array and update `buildPreviewParts()`
@@ -24,7 +24,7 @@ Step-by-step guides for common extension scenarios.
 ## Adding a New Filter Type
 
 1. **Schema** (`schemas.ts`): Add a new entry to the `CardFilterSchema` discriminated union
-2. **Predicate** (`services/filterPredicates.ts`): Add the evaluation logic in `evaluateFilter()`
+2. **Predicate** (`services/filterPredicates.ts`): Add the evaluation logic to `filterPredicateMap`. For date-range filters that need a negated counterpart, use `createNegatedFilter('positive_key')` instead of writing the negation by hand
 3. **UI — Filter Row** (`components/FilterRow.tsx`): Add rendering for the new filter type's controls
 4. **UI — Filter Step** (`components/RuleDialogStepFilters.tsx`): Add the filter to the "+ Add filter" dropdown menu
 5. **Preview** (`services/rulePreviewService.ts`): Update `formatFilterDescription()` for the natural language description
