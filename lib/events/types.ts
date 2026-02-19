@@ -3,8 +3,8 @@
  * Cross-cutting concern — consumed by automations, potentially by analytics, logging, etc.
  */
 export interface DomainEvent {
-  /** Event type: task.created, task.updated, task.deleted, section.created, or section.updated */
-  type: 'task.created' | 'task.updated' | 'task.deleted' | 'section.created' | 'section.updated';
+  /** Event type: task.created, task.updated, task.deleted, section.created, section.updated, or schedule.fired */
+  type: 'task.created' | 'task.updated' | 'task.deleted' | 'section.created' | 'section.updated' | 'schedule.fired';
   /** ID of the affected entity */
   entityId: string;
   /** Project scope */

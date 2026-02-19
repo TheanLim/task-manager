@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
-export const TriggerTypeSchema = z.enum([
+/** Event-based triggers (existing behavior) */
+export const EventTriggerTypeSchema = z.enum([
   'card_moved_into_section',
   'card_moved_out_of_section',
   'card_marked_complete',
@@ -8,6 +9,46 @@ export const TriggerTypeSchema = z.enum([
   'card_created_in_section',
   'section_created',
   'section_renamed',
+]);
+
+/** Schedule-based triggers (new) */
+export const ScheduledTriggerTypeSchema = z.enum([
+  'scheduled_interval',
+  'scheduled_cron',
+  'scheduled_due_date_relative',
+]);
+
+/** Combined trigger type (superset) */
+export const TriggerTypeSchema = z.enum([
+  ...EventTriggerTypeSchema.options,
+  ...ScheduledTriggerTypeSchema.options,
+]);
+
+// ─── Schedule Configuration Schemas ─────────────────────────────────────
+
+export const IntervalScheduleSchema = z.object({
+  intervalMinutes: z.number().int().min(5).max(10080), // 5 min to 7 days
+});
+
+export const CronScheduleSchema = z.object({
+  hour: z.number().int().min(0).max(23),
+  minute: z.number().int().min(0).max(59),
+  daysOfWeek: z.array(z.number().int().min(0).max(6)).default([]),
+  daysOfMonth: z.array(z.number().int().min(1).max(31)).default([]),
+}).refine(
+  (data) => !(data.daysOfWeek.length > 0 && data.daysOfMonth.length > 0),
+  { message: 'Cannot specify both daysOfWeek and daysOfMonth' }
+);
+
+export const DueDateRelativeScheduleSchema = z.object({
+  offsetMinutes: z.number().int(),
+  displayUnit: z.enum(['minutes', 'hours', 'days']).default('days'),
+});
+
+export const ScheduleConfigSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('interval'), ...IntervalScheduleSchema.shape }),
+  z.object({ kind: z.literal('cron'), ...CronScheduleSchema.shape }),
+  z.object({ kind: z.literal('due_date_relative'), ...DueDateRelativeScheduleSchema.shape }),
 ]);
 
 export const ActionTypeSchema = z.enum([
@@ -122,6 +163,8 @@ export const CardFilterTypeSchema = z.enum([
   'has_due_date',
   'no_due_date',
   'is_overdue',
+  'is_complete',
+  'is_incomplete',
   'due_today',
   'due_tomorrow',
   'due_this_week',
@@ -150,6 +193,8 @@ export const CardFilterSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('has_due_date') }),
   z.object({ type: z.literal('no_due_date') }),
   z.object({ type: z.literal('is_overdue') }),
+  z.object({ type: z.literal('is_complete') }),
+  z.object({ type: z.literal('is_incomplete') }),
   z.object({ type: z.literal('due_today') }),
   z.object({ type: z.literal('due_tomorrow') }),
   z.object({ type: z.literal('due_this_week') }),
@@ -188,10 +233,69 @@ export const CardFilterSchema = z.discriminatedUnion('type', [
   ),
 ]);
 
-export const TriggerSchema = z.object({
-  type: TriggerTypeSchema,
-  sectionId: z.string().min(1).nullable(),
-});
+export const TriggerSchema = z.discriminatedUnion('type', [
+  // Event triggers — each gets its own entry for type narrowing
+  z.object({
+    type: z.literal('card_moved_into_section'),
+    sectionId: z.string().min(1).nullable(),
+  }),
+  z.object({
+    type: z.literal('card_moved_out_of_section'),
+    sectionId: z.string().min(1).nullable(),
+  }),
+  z.object({
+    type: z.literal('card_marked_complete'),
+    sectionId: z.string().min(1).nullable(),
+  }),
+  z.object({
+    type: z.literal('card_marked_incomplete'),
+    sectionId: z.string().min(1).nullable(),
+  }),
+  z.object({
+    type: z.literal('card_created_in_section'),
+    sectionId: z.string().min(1).nullable(),
+  }),
+  z.object({
+    type: z.literal('section_created'),
+    sectionId: z.string().min(1).nullable(),
+  }),
+  z.object({
+    type: z.literal('section_renamed'),
+    sectionId: z.string().min(1).nullable(),
+  }),
+  // Scheduled triggers
+  z.object({
+    type: z.literal('scheduled_interval'),
+    sectionId: z.null().default(null),
+    schedule: z.object({
+      kind: z.literal('interval'),
+      intervalMinutes: z.number().int().min(5).max(10080),
+    }),
+    lastEvaluatedAt: z.string().datetime().nullable().default(null),
+  }),
+  z.object({
+    type: z.literal('scheduled_cron'),
+    sectionId: z.null().default(null),
+    schedule: z.object({
+      kind: z.literal('cron'),
+      hour: z.number().int().min(0).max(23),
+      minute: z.number().int().min(0).max(59),
+      daysOfWeek: z.array(z.number().int().min(0).max(6)).default([]),
+      daysOfMonth: z.array(z.number().int().min(1).max(31)).default([]),
+    }),
+    lastEvaluatedAt: z.string().datetime().nullable().default(null),
+  }),
+  z.object({
+    type: z.literal('scheduled_due_date_relative'),
+    sectionId: z.null().default(null),
+    schedule: z.object({
+      kind: z.literal('due_date_relative'),
+      offsetMinutes: z.number().int(),
+      displayUnit: z.enum(['minutes', 'hours', 'days']).default('days'),
+    }),
+    lastEvaluatedAt: z.string().datetime().nullable().default(null),
+  }),
+]);
 
 export const ActionSchema = z.object({
   type: ActionTypeSchema,
@@ -210,6 +314,10 @@ export const ExecutionLogEntrySchema = z.object({
   triggerDescription: z.string(),
   actionDescription: z.string(),
   taskName: z.string(),
+  // Aggregated entries for scheduled rules
+  matchCount: z.number().int().optional(),
+  details: z.array(z.string()).optional(),
+  executionType: z.enum(['event', 'scheduled', 'catch-up', 'manual']).optional(),
 });
 
 export const AutomationRuleSchema = z.object({
