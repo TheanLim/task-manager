@@ -148,6 +148,19 @@ User action in UI
 - [ ] Update import/export flow in `features/sharing/`
 - [ ] Update share URL serialization in `features/sharing/services/shareService.ts`
 
+### If you change shared task UI components (DatePickerPopover, TagEditorPopover)
+
+- [ ] These are used in: TaskDetailPanel, TaskRow, TaskBoard
+- [ ] Check all 3 consumer files for prop compatibility
+- [ ] Test: `DatePickerPopover.test.tsx`, `TagEditorPopover.test.tsx`
+- [ ] Test: visual regression in all 3 views (List, Board, Detail Panel)
+
+### If you change Layout.tsx (mobile drawer behavior)
+
+- [ ] Check `app/page.tsx` — mobile task panel overlay uses same z-index range (z-40 sidebar, z-50 task panel)
+- [ ] Verify body scroll lock works on both overlays
+- [ ] Test: e2e mobile viewport tests
+
 ## Fragile Integration Points
 
 These are areas where bugs have historically appeared:

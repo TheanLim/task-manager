@@ -40,3 +40,12 @@
 **Decision**: Merge mode uses `deduplicateEntities()` for dedup, then writes the merged result via `repository.replaceAll()` for each entity type.
 
 **Why**: The previous implementation called `useDataStore.setState()` directly, bypassing repository subscriptions and the `LocalStorageBackend`. This could leave the backend out of sync with the Zustand store. Writing through repositories ensures the same write path as replace mode.
+
+
+## 6. TODO: Inline entity construction in page.tsx
+
+**Status**: Known violation, deferred.
+
+**Issue**: `app/page.tsx` `handleProjectSubmit` and `handleTaskSubmit` construct entities inline with `uuidv4()` and `new Date().toISOString()`. This violates architecture rule #5 ("No inline entity construction in components").
+
+**Plan**: Extract to `projectService.create(data)` and `taskService.create(data)` factory methods in the service layer. The `handleTaskComplete` cascade logic should also move to `taskService`.

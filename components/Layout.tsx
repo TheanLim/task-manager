@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Menu } from 'lucide-react';
 import { useCrossTabSync } from '@/app/hooks/useCrossTabSync';
+import { useMediaQuery } from '@/app/hooks/useMediaQuery';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -12,13 +13,65 @@ interface LayoutProps {
   children: React.ReactNode;
   sidebar?: React.ReactNode;
   header?: React.ReactNode;
+  breadcrumb?: React.ReactNode;
+  searchInput?: React.ReactNode;
+}
+
+/** Mobile sidebar drawer with body scroll lock */
+function MobileSidebarDrawer({
+  sidebarRef,
+  onClose,
+  onKeyDown,
+  onContentClick,
+  sidebar,
+}: {
+  sidebarRef: React.RefObject<HTMLDivElement | null>;
+  onClose: () => void;
+  onKeyDown: (e: React.KeyboardEvent) => void;
+  onContentClick: () => void;
+  sidebar: React.ReactNode;
+}) {
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-40 flex" role="dialog" aria-modal="true">
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-black/50 transition-opacity"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      {/* Drawer panel */}
+      <aside
+        ref={sidebarRef as React.RefObject<HTMLElement>}
+        className="relative z-50 w-64 max-w-[80vw] bg-card h-full overflow-y-auto shadow-lg"
+        onKeyDown={onKeyDown}
+      >
+        <div className="flex h-full flex-col">
+          <div
+            className="flex-1 overflow-y-auto p-4"
+            onClick={onContentClick}
+          >
+            {sidebar}
+          </div>
+        </div>
+      </aside>
+    </div>
+  );
 }
 
 /**
- * Main layout component with responsive sidebar
+ * Main layout component with responsive sidebar.
+ * On mobile (< lg), the sidebar renders as a fixed overlay drawer with backdrop.
  */
-export function Layout({ children, sidebar, header }: LayoutProps) {
+export function Layout({ children, sidebar, header, breadcrumb, searchInput }: LayoutProps) {
   useCrossTabSync();
+  const isMobile = useMediaQuery('(max-width: 1023px)');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState(256); // Default 256px (w-64)
   const [isResizing, setIsResizing] = useState(false);
@@ -29,8 +82,13 @@ export function Layout({ children, sidebar, header }: LayoutProps) {
   const minWidth = 200;
   const maxWidth = 600;
 
+  // Close mobile drawer on navigation (listen for click on links/buttons inside sidebar)
+  const closeMobileSidebar = useCallback(() => {
+    if (isMobile) setSidebarOpen(false);
+  }, [isMobile]);
+
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (!sidebarOpen) return;
+    if (!sidebarOpen || isMobile) return;
     e.preventDefault();
     setIsResizing(true);
   };
@@ -74,18 +132,71 @@ export function Layout({ children, sidebar, header }: LayoutProps) {
     prevSidebarOpen.current = sidebarOpen;
   }, [sidebarOpen]);
 
-  // Escape key in sidebar: return focus to toggle button
+  // Escape key in sidebar: return focus to toggle button (and close on mobile)
   const handleSidebarKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       e.stopPropagation();
+      if (isMobile) setSidebarOpen(false);
       toggleRef.current?.focus();
     }
+  };
+
+  // Mobile sidebar: rendered as a fixed overlay drawer
+  const renderMobileSidebar = () => {
+    if (!isMobile || !sidebarOpen) return null;
+    return (
+      <MobileSidebarDrawer
+        sidebarRef={sidebarRef}
+        onClose={() => setSidebarOpen(false)}
+        onKeyDown={handleSidebarKeyDown}
+        onContentClick={closeMobileSidebar}
+        sidebar={sidebar}
+      />
+    );
+  };
+
+  // Desktop sidebar: original sliding panel with resize handle
+  const renderDesktopSidebar = () => {
+    if (isMobile) return null;
+    return (
+      <aside
+        ref={sidebarRef}
+        className={cn(
+          "relative bg-card flex-shrink-0 overflow-hidden dark:border-r dark:border-white/5",
+          sidebarOpen
+            ? "transition-[transform,margin] duration-200 ease-out"
+            : "pointer-events-none transition-[transform,margin,visibility] duration-200 ease-out invisible"
+        )}
+        style={{
+          width: sidebarWidth,
+          transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
+          marginLeft: sidebarOpen ? 0 : -sidebarWidth,
+        }}
+        aria-hidden={!sidebarOpen}
+        onKeyDown={handleSidebarKeyDown}
+        {...(!sidebarOpen && { inert: true })}
+      >
+        <div className="flex h-full flex-col">
+          <div className="flex-1 overflow-y-auto p-4">
+            {sidebar}
+          </div>
+        </div>
+
+        {/* Resize handle */}
+        {sidebarOpen && (
+          <div
+            className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/50 active:bg-primary transition-colors"
+            onMouseDown={handleMouseDown}
+          />
+        )}
+      </aside>
+    );
   };
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-background">
       {/* Header - always visible at top */}
-      <header className="flex h-12 items-center gap-3 shadow-elevation-base bg-card px-4 flex-shrink-0">
+      <header className="flex h-14 items-center gap-3 shadow-elevation-base bg-card px-4 flex-shrink-0">
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -105,14 +216,19 @@ export function Layout({ children, sidebar, header }: LayoutProps) {
           </Tooltip>
         </TooltipProvider>
 
-        {/* TODO: Replace this placeholder dot with actual app logo/favicon when branding is finalized */}
-        <span className="w-2 h-2 rounded-full bg-accent-brand" aria-hidden="true" />
+        {/* App wordmark */}
+        <span className="text-accent-brand font-bold text-sm tracking-tight">Tasks</span>
 
-        {header && (
+        {(breadcrumb || header) && (
           <>
             <Separator orientation="vertical" className="h-5" />
+            {breadcrumb}
             <div className="flex flex-1 items-center justify-between">
-              {header}
+              <div className="flex-1" />
+              <div className="flex items-center gap-2">
+                {searchInput}
+                {header}
+              </div>
             </div>
           </>
         )}
@@ -120,39 +236,11 @@ export function Layout({ children, sidebar, header }: LayoutProps) {
 
       {/* Content area below header */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
-        <aside
-          ref={sidebarRef}
-          className={cn(
-            "relative bg-card flex-shrink-0 overflow-hidden dark:border-r dark:border-white/5",
-            sidebarOpen 
-              ? "transition-[transform,margin] duration-200 ease-out" 
-              : "pointer-events-none transition-[transform,margin,visibility] duration-200 ease-out invisible"
-          )}
-          style={{
-            width: sidebarWidth,
-            transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
-            marginLeft: sidebarOpen ? 0 : -sidebarWidth,
-          }}
-          aria-hidden={!sidebarOpen}
-          onKeyDown={handleSidebarKeyDown}
-          {...(!sidebarOpen && { inert: true })}
-        >
-          <div className="flex h-full flex-col">
-            {/* Sidebar content */}
-            <div className="flex-1 overflow-y-auto p-4">
-              {sidebar}
-            </div>
-          </div>
+        {/* Mobile sidebar drawer */}
+        {renderMobileSidebar()}
 
-          {/* Resize handle */}
-          {sidebarOpen && (
-            <div
-              className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/50 active:bg-primary transition-colors"
-              onMouseDown={handleMouseDown}
-            />
-          )}
-        </aside>
+        {/* Desktop sidebar */}
+        {renderDesktopSidebar()}
 
         {/* Main content */}
         <main className="flex-1 overflow-y-auto p-4">

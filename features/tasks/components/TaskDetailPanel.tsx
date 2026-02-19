@@ -2,15 +2,12 @@
 
 import { Task, UUID, Priority } from '@/types';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { DatePickerPopover } from '@/features/tasks/components/DatePickerPopover';
+import { TagEditorPopover } from '@/features/tasks/components/TagEditorPopover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
 import { DependencyList } from '@/features/tasks/components/DependencyList';
 import { RichTextEditor } from '@/features/tasks/components/RichTextEditor';
 import {
@@ -33,7 +30,6 @@ import {
   ChevronsRight,
   Maximize2,
   Minimize2,
-  X,
   GripVertical,
   Check,
   ChevronRight
@@ -44,6 +40,7 @@ import { InlineEditable } from '@/components/InlineEditable';
 import { validateTaskDescription } from '@/lib/validation';
 import { useDataStore } from '@/stores/dataStore';
 import { cn } from '@/lib/utils';
+import { getPriorityVariant } from '@/features/tasks/services/priorityUtils';
 
 interface TaskDetailPanelProps {
   task: Task;
@@ -84,8 +81,6 @@ export function TaskDetailPanel({
   scrollToSubtasks = false
 }: TaskDetailPanelProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [isEditingTags, setIsEditingTags] = useState(false);
-  const [tagInput, setTagInput] = useState('');
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [notesValue, setNotesValue] = useState(task.notes);
   const subtasksRef = useRef<HTMLDivElement>(null);
@@ -108,30 +103,6 @@ export function TaskDetailPanel({
       }, 100);
     }
   }, [scrollToSubtasks]);
-
-  const getPriorityVariant = (priority: string): 'default' | 'destructive' | 'secondary' | 'outline' => {
-    switch (priority) {
-      case Priority.HIGH:
-        return 'destructive';
-      case Priority.MEDIUM:
-        return 'default';
-      case Priority.LOW:
-        return 'secondary';
-      default:
-        return 'outline';
-    }
-  };
-
-  const handleAddTag = () => {
-    if (tagInput.trim() && !task.tags.includes(tagInput.trim())) {
-      updateTask(task.id, { tags: [...task.tags, tagInput.trim()] });
-      setTagInput('');
-    }
-  };
-
-  const handleRemoveTag = (tagToRemove: string) => {
-    updateTask(task.id, { tags: task.tags.filter(t => t !== tagToRemove) });
-  };
 
   const handleSaveNotes = () => {
     if (notesValue !== task.notes) {
@@ -209,6 +180,28 @@ export function TaskDetailPanel({
     <>
       <TooltipProvider>
         <div className="space-y-6">
+        {/* Status Strip */}
+        <div className={cn(
+          "h-1 rounded-full",
+          task.completed
+            ? "bg-green-500"
+            : task.dueDate && !task.completed && new Date(task.dueDate) < new Date()
+              ? "bg-destructive"
+              : task.dueDate
+                ? "bg-accent-brand"
+                : "bg-muted"
+        )}>
+          <span className="sr-only">
+            {task.completed
+              ? "Status: Completed"
+              : task.dueDate && new Date(task.dueDate) < new Date()
+                ? "Status: Overdue"
+                : task.dueDate
+                  ? "Status: In progress"
+                  : "Status: No status"}
+          </span>
+        </div>
+
         {/* Action Bar */}
         <div className="flex items-center justify-between gap-2">
           {/* Completion Button - Left */}
@@ -309,7 +302,7 @@ export function TaskDetailPanel({
       <Separator />
 
       {/* Properties */}
-      <div className="space-y-4">
+      <div className="bg-muted/30 rounded-lg p-3 space-y-3">
         {/* Priority */}
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">Priority:</span>
@@ -342,8 +335,11 @@ export function TaskDetailPanel({
         {/* Due Date */}
         <div className="flex items-center gap-2 text-sm">
           <Calendar className="h-4 w-4 text-muted-foreground" />
-          <Popover>
-            <PopoverTrigger asChild>
+          <DatePickerPopover
+            value={task.dueDate}
+            onChange={(date) => updateTask(task.id, { dueDate: date })}
+            align="start"
+            trigger={
               <div className="cursor-pointer hover:bg-accent rounded px-2 py-1 -mx-2">
                 {task.dueDate ? (
                   <span>Due {format(new Date(task.dueDate), 'PPP')}</span>
@@ -351,32 +347,8 @@ export function TaskDetailPanel({
                   <span className="text-muted-foreground italic">No due date</span>
                 )}
               </div>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <CalendarComponent
-                mode="single"
-                selected={task.dueDate ? new Date(task.dueDate) : undefined}
-                onSelect={(date) => {
-                  updateTask(task.id, { dueDate: date?.toISOString() || null });
-                }}
-                initialFocus
-              />
-              {task.dueDate && (
-                <div className="p-2 border-t">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full"
-                    onClick={() => {
-                      updateTask(task.id, { dueDate: null });
-                    }}
-                  >
-                    Clear date
-                  </Button>
-                </div>
-              )}
-            </PopoverContent>
-          </Popover>
+            }
+          />
         </div>
 
         {/* Assignee */}
@@ -396,8 +368,11 @@ export function TaskDetailPanel({
         {/* Tags */}
         <div className="flex items-start gap-2">
           <Tag className="h-4 w-4 text-muted-foreground mt-0.5" />
-          <Popover open={isEditingTags} onOpenChange={setIsEditingTags}>
-            <PopoverTrigger asChild>
+          <TagEditorPopover
+            tags={task.tags}
+            onAddTag={(tag) => updateTask(task.id, { tags: [...task.tags, tag] })}
+            onRemoveTag={(tagToRemove) => updateTask(task.id, { tags: task.tags.filter(t => t !== tagToRemove) })}
+            trigger={
               <div className="flex flex-wrap gap-2 cursor-pointer hover:bg-accent rounded px-2 py-1 -mx-2 min-h-[28px]">
                 {task.tags.length > 0 ? (
                   task.tags.map((tag) => (
@@ -409,44 +384,8 @@ export function TaskDetailPanel({
                   <span className="text-muted-foreground italic text-sm">No tags</span>
                 )}
               </div>
-            </PopoverTrigger>
-            <PopoverContent className="w-64" align="start">
-              <div className="space-y-2">
-                <div className="flex gap-2">
-                  <Input
-                    value={tagInput}
-                    onChange={(e) => setTagInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleAddTag();
-                      }
-                    }}
-                    placeholder="Add tag..."
-                    className="h-8 text-sm"
-                  />
-                  <Button size="sm" onClick={handleAddTag} disabled={!tagInput.trim()}>
-                    Add
-                  </Button>
-                </div>
-                {task.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {task.tags.map(tag => (
-                      <Badge key={tag} variant="outline" className="text-xs">
-                        {tag}
-                        <button
-                          onClick={() => handleRemoveTag(tag)}
-                          className="ml-1 hover:text-destructive"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </PopoverContent>
-          </Popover>
+            }
+          />
         </div>
       </div>
 
@@ -562,8 +501,12 @@ export function TaskDetailPanel({
                 {/* Right side: Due date and chevron */}
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {/* Due date - show icon only when no date, show date only when set */}
-                  <Popover>
-                    <PopoverTrigger asChild>
+                  <DatePickerPopover
+                    value={subtask.dueDate}
+                    onChange={(date) => updateTask(subtask.id, { dueDate: date })}
+                    align="end"
+                    onTriggerClick={(e) => e.stopPropagation()}
+                    trigger={
                       <button
                         onClick={(e) => e.stopPropagation()}
                         className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -574,30 +517,8 @@ export function TaskDetailPanel({
                           <Calendar className="h-3 w-3" />
                         )}
                       </button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="end" onClick={(e) => e.stopPropagation()}>
-                      <CalendarComponent
-                        mode="single"
-                        selected={subtask.dueDate ? new Date(subtask.dueDate) : undefined}
-                        onSelect={(date) => {
-                          updateTask(subtask.id, { dueDate: date?.toISOString() || null });
-                        }}
-                        initialFocus
-                      />
-                      {subtask.dueDate && (
-                        <div className="p-2 border-t">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="w-full"
-                            onClick={() => updateTask(subtask.id, { dueDate: null })}
-                          >
-                            Clear date
-                          </Button>
-                        </div>
-                      )}
-                    </PopoverContent>
-                  </Popover>
+                    }
+                  />
                   
                   {/* Chevron */}
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
@@ -636,10 +557,13 @@ export function TaskDetailPanel({
 
       {/* Metadata */}
       <Separator />
-      <div className="text-xs text-muted-foreground">
-        <p>Created {format(new Date(task.createdAt), 'PPP')}</p>
-        <p>Updated {format(new Date(task.updatedAt), 'PPP')}</p>
-      </div>
+      <details className="text-xs text-muted-foreground">
+        <summary className="cursor-pointer hover:text-foreground">Details</summary>
+        <div className="mt-2 space-y-1">
+          <p>Created {format(new Date(task.createdAt), 'PPP')}</p>
+          <p>Updated {format(new Date(task.updatedAt), 'PPP')}</p>
+        </div>
+      </details>
     </div>
     </TooltipProvider>
 

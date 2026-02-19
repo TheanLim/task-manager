@@ -6,8 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { DatePickerPopover } from '@/features/tasks/components/DatePickerPopover';
 import { Calendar, GripVertical, Plus, ListTree, ChevronDown, MoreVertical, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import {
@@ -116,7 +115,7 @@ function DraggableTaskCard({ task, children }: { task: Task; children: React.Rea
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <div ref={setNodeRef} style={style} className="hover:scale-[1.01] transition-transform duration-150" {...attributes} {...listeners}>
       {children}
     </div>
   );
@@ -418,61 +417,24 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
                       inputClassName="text-sm w-full"
                     />
                   </div>
-                  {subtask.dueDate ? (
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-1 text-xs text-muted-foreground hover:text-foreground flex-shrink-0"
-                        >
+                  <DatePickerPopover
+                    value={subtask.dueDate}
+                    onChange={(date) => updateTask(subtask.id, { dueDate: date })}
+                    align="start"
+                    trigger={
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-1 text-xs text-muted-foreground hover:text-foreground flex-shrink-0"
+                      >
+                        {subtask.dueDate ? (
                           <span>{format(new Date(subtask.dueDate), 'MMM d')}</span>
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <CalendarComponent
-                          mode="single"
-                          selected={subtask.dueDate ? new Date(subtask.dueDate) : undefined}
-                          onSelect={(date) => {
-                            updateTask(subtask.id, { dueDate: date?.toISOString() || null });
-                          }}
-                        />
-                        {subtask.dueDate && (
-                          <div className="p-2 border-t">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="w-full"
-                              onClick={() => updateTask(subtask.id, { dueDate: null })}
-                            >
-                              Clear date
-                            </Button>
-                          </div>
-                        )}
-                      </PopoverContent>
-                    </Popover>
-                  ) : (
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-1 text-xs text-muted-foreground hover:text-foreground flex-shrink-0"
-                        >
+                        ) : (
                           <Calendar className="h-3 w-3" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <CalendarComponent
-                          mode="single"
-                          selected={undefined}
-                          onSelect={(date) => {
-                            updateTask(subtask.id, { dueDate: date?.toISOString() || null });
-                          }}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  )}
+                        )}
+                      </Button>
+                    }
+                  />
                 </div>
               ))}
               

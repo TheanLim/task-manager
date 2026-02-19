@@ -1,24 +1,18 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ChevronRight, ChevronDown, Check, Calendar, GripVertical, X, ListTree, User, FolderTree, CornerDownRight, RotateCw } from 'lucide-react';
+import { ChevronRight, ChevronDown, Check, Calendar, GripVertical, ListTree, User, FolderTree, CornerDownRight, RotateCw } from 'lucide-react';
 import { Task, Priority } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { getPriorityVariant } from '@/features/tasks/services/priorityUtils';
+import { DatePickerPopover } from '@/features/tasks/components/DatePickerPopover';
+import { TagEditorPopover } from '@/features/tasks/components/TagEditorPopover';
 
-const PRIORITY_BORDER: Record<string, string> = {
-  high: 'border-l-accent-brand',
-  medium: 'border-l-accent-brand',
-  low: 'border-l-accent-brand',
-  none: 'border-l-accent-brand',
-};
 import { useDataStore } from '@/stores/dataStore';
 import { InlineEditable } from '@/components/InlineEditable';
 import { validateTaskDescription } from '@/lib/validation';
@@ -63,6 +57,8 @@ interface TaskRowProps {
   subtasksExpanded?: boolean;
   /** Callback to toggle subtask expansion (lifted from parent). */
   onToggleSubtasks?: (taskId: string) => void;
+  /** Index for staggered fade-in animation. When provided, applies animate-fade-in-up with delay. */
+  animationIndex?: number;
 }
 
 export function TaskRow({
@@ -72,7 +68,7 @@ export function TaskRow({
   taskWasExpanded = false, onSetTaskWasExpanded, showProjectColumn = false,
   projectName, onProjectClick, flatMode = false, columnOrder,
   showReinsertButton = false, onReinsert, hideCompletedSubtasks = false,
-  subtasksExpanded: controlledExpanded, onToggleSubtasks,
+  subtasksExpanded: controlledExpanded, onToggleSubtasks, animationIndex,
 }: TaskRowProps) {
   const [localExpanded, setLocalExpanded] = useState(false);
   // Use controlled state if provided, otherwise fall back to local state
@@ -84,8 +80,6 @@ export function TaskRow({
       setLocalExpanded(expanded);
     }
   };
-  const [isEditingTags, setIsEditingTags] = useState(false);
-  const [tagInput, setTagInput] = useState('');
   const [justCompleted, setJustCompleted] = useState(false);
   const { getSubtasks, updateTask } = useDataStore();
   const rawSubtasks = getSubtasks(task.id);
@@ -110,26 +104,6 @@ export function TaskRow({
   const isDragging = draggedTaskId === task.id;
   const isDragOver = dragOverTaskId === task.id;
 
-  const getPriorityVariant = (priority: string): 'default' | 'destructive' | 'secondary' | 'outline' => {
-    switch (priority) {
-      case Priority.HIGH: return 'destructive';
-      case Priority.MEDIUM: return 'default';
-      case Priority.LOW: return 'secondary';
-      default: return 'outline';
-    }
-  };
-
-  const handleAddTag = () => {
-    if (tagInput.trim() && !task.tags.includes(tagInput.trim())) {
-      updateTask(task.id, { tags: [...task.tags, tagInput.trim()] });
-      setTagInput('');
-    }
-  };
-
-  const handleRemoveTag = (tagToRemove: string) => {
-    updateTask(task.id, { tags: task.tags.filter(t => t !== tagToRemove) });
-  };
-
   // Render a single column cell by ID
   const renderCell = (colId: TaskColumnId, idx: number) => {
     const key = `${idx}-${colId}`;
@@ -139,17 +113,16 @@ export function TaskRow({
       case 'dueDate':
         return (
           <td key={key} role="gridcell" className={cn("p-1 text-sm text-muted-foreground cursor-pointer", borderCls)} onClick={(e) => e.stopPropagation()}>
-            <Popover>
-              <PopoverTrigger asChild>
+            <DatePickerPopover
+              value={task.dueDate}
+              onChange={(date) => updateTask(task.id, { dueDate: date })}
+              align="start"
+              trigger={
                 <div className="flex items-center gap-1 hover:bg-accent rounded px-1 py-0.5">
                   {task.dueDate ? <span>{format(new Date(task.dueDate), 'MMM d')}</span> : <Calendar className="h-3 w-3 text-muted-foreground/50" />}
                 </div>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <CalendarComponent mode="single" selected={task.dueDate ? new Date(task.dueDate) : undefined} onSelect={(date) => updateTask(task.id, { dueDate: date?.toISOString() || null })} />
-                {task.dueDate && (<div className="p-2 border-t"><Button variant="ghost" size="sm" className="w-full" onClick={() => updateTask(task.id, { dueDate: null })}>Clear date</Button></div>)}
-              </PopoverContent>
-            </Popover>
+              }
+            />
           </td>
         );
       case 'priority':
@@ -181,8 +154,11 @@ export function TaskRow({
       case 'tags':
         return (
           <td key={key} role="gridcell" className={cn("p-1 cursor-pointer", borderCls)} onClick={(e) => e.stopPropagation()}>
-            <Popover open={isEditingTags} onOpenChange={setIsEditingTags}>
-              <PopoverTrigger asChild>
+            <TagEditorPopover
+              tags={task.tags}
+              onAddTag={(tag) => updateTask(task.id, { tags: [...task.tags, tag] })}
+              onRemoveTag={(tagToRemove) => updateTask(task.id, { tags: task.tags.filter(t => t !== tagToRemove) })}
+              trigger={
                 <div className="flex gap-1 flex-wrap hover:bg-accent rounded px-1 py-0.5 min-h-[24px]">
                   {task.tags.length > 0 ? (
                     <>
@@ -191,23 +167,8 @@ export function TaskRow({
                     </>
                   ) : (<span className="text-xs text-muted-foreground/50">Add tags</span>)}
                 </div>
-              </PopoverTrigger>
-              <PopoverContent className="w-64" align="start">
-                <div className="space-y-2">
-                  <div className="flex gap-2">
-                    <Input value={tagInput} onChange={(e) => setTagInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddTag(); } }} placeholder="Add tag..." className="h-8 text-sm" />
-                    <Button size="sm" onClick={handleAddTag} disabled={!tagInput.trim()}>Add</Button>
-                  </div>
-                  {task.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {task.tags.map(tag => (
-                        <Badge key={tag} variant="outline" className="text-xs">{tag}<button onClick={() => handleRemoveTag(tag)} className="ml-1 hover:text-destructive"><X className="h-3 w-3" /></button></Badge>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </PopoverContent>
-            </Popover>
+              }
+            />
           </td>
         );
       case 'project':
@@ -226,7 +187,8 @@ export function TaskRow({
       <tr
         data-task-id={task.id}
         role="row"
-        className={cn("border-b hover:bg-accent hover:shadow-elevation-base group transition-colors", task.completed && "opacity-60", isDragging && "opacity-50", isDragOver && "ring-2 ring-primary")}
+        className={cn("border-b hover:bg-accent hover:shadow-elevation-base group transition-colors", task.completed && "opacity-60", isDragging && "opacity-50", isDragOver && "ring-2 ring-primary", animationIndex !== undefined && "animate-fade-in-up")}
+        style={animationIndex !== undefined ? { animationDelay: `${Math.min(animationIndex * 30, 300)}ms` } : undefined}
         draggable={draggable}
         onDragStart={onDragStart ? (e) => { if (hasSubtasks && subtasksExpanded) { onSetTaskWasExpanded?.(true); setSubtasksExpanded(false); } onDragStart(e, task.id); } : undefined}
         onDragOver={onDragOver ? (e) => onDragOver(e, task.id) : undefined}

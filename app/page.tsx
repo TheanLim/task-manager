@@ -11,7 +11,7 @@ import { DependencyDialog } from '@/features/tasks/components/DependencyDialog';
 import { ProjectView } from '@/features/projects/components/ProjectView';
 import { GlobalTasksContainer } from '@/features/tasks/components/GlobalTasksContainer';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import { useDataStore, automationService } from '@/stores/dataStore';
 import { useAppStore } from '@/stores/appStore';
 import { useTMSStore } from '@/features/tms/stores/tmsStore';
@@ -19,7 +19,14 @@ import { getTMSHandler } from '@/features/tms/handlers';
 import { ViewMode, Priority, TimeManagementSystem } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 import { ImportExportMenu } from '@/features/sharing/components/ImportExportMenu';
+import { LandingEmptyState } from '@/components/LandingEmptyState';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { Breadcrumb } from '@/components/Breadcrumb';
+import { SearchInput } from '@/components/SearchInput';
+import { SkeletonProjectList } from '@/components/SkeletonProjectList';
+import { SkeletonTaskList } from '@/components/SkeletonTaskList';
+import { useHydrated } from '@/app/hooks/useHydrated';
+import { useMediaQuery } from '@/app/hooks/useMediaQuery';
 import { toast as sonnerToast } from 'sonner';
 import { SharedStateDialog } from '@/features/sharing/components/SharedStateDialog';
 import { useDialogManager } from '@/app/hooks/useDialogManager';
@@ -64,6 +71,9 @@ function HomeContent() {
   const expandedFromUrl = searchParams.get('expanded') === 'true';
 
   const isGlobalView = viewFromUrl === 'tasks';
+
+  const hydrated = useHydrated();
+  const isMobile = useMediaQuery('(max-width: 1023px)');
 
   // --- Dialog & panel state via useDialogManager ---
   const dm = useDialogManager();
@@ -459,24 +469,40 @@ function HomeContent() {
         .filter((t): t is NonNullable<typeof t> => t !== undefined)
     : [];
 
+  // Lock body scroll when mobile task panel overlay is visible
+  useEffect(() => {
+    if (isMobile && selectedTask && !expandedFromUrl) {
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = '';
+      };
+    }
+  }, [isMobile, selectedTask, expandedFromUrl]);
+
   // --- Render ---
   return (
     <Layout
       sidebar={
-        <ProjectList
-          projects={projects}
-          activeProjectId={settings.activeProjectId}
-          onProjectSelect={setActiveProject}
-          onNewProject={handleNewProject}
-        />
+        hydrated ? (
+          <ProjectList
+            projects={projects}
+            activeProjectId={settings.activeProjectId}
+            onProjectSelect={setActiveProject}
+            onNewProject={handleNewProject}
+          />
+        ) : (
+          <SkeletonProjectList />
+        )
       }
+      breadcrumb={<Breadcrumb />}
+      searchInput={<SearchInput />}
       header={
         <>
           <div className="flex items-center gap-2 flex-wrap shrink-0 ml-auto">
             <ImportExportMenu />
             <ThemeToggle />
             {(activeProject || isGlobalView) && (
-              <Button onClick={() => handleNewTask()} size="sm" className="sm:size-default">
+              <Button onClick={() => handleNewTask()} size="sm" className="bg-accent-brand hover:bg-accent-brand-hover text-white sm:size-default">
                 <Plus className="mr-0 sm:mr-2 h-4 w-4" />
                 <span className="hidden sm:inline">New Task</span>
               </Button>
@@ -498,7 +524,9 @@ function HomeContent() {
             }
           }}
         >
-          {isGlobalView ? (
+          {!hydrated ? (
+            <SkeletonTaskList />
+          ) : isGlobalView ? (
             <GlobalTasksContainer
               onTaskClick={handleTaskClick}
               onTaskComplete={handleTaskComplete}
@@ -518,79 +546,117 @@ function HomeContent() {
               onShowToast={showToast}
             />
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <p className="text-muted-foreground mb-4">
-                Select a project from the sidebar or create a new one to get started
-              </p>
-              <Button onClick={handleNewProject}>
-                <Plus className="mr-2 h-4 w-4" />
-                Create Project
-              </Button>
-            </div>
+            <LandingEmptyState
+              onNewProject={handleNewProject}
+              onImport={() => {
+                const fileInput = document.getElementById('import-file-input') as HTMLInputElement;
+                fileInput?.click();
+              }}
+            />
           )}
         </div>
 
-        {/* Task detail panel — sidebar */}
+        {/* Task detail panel — mobile: full-screen overlay, desktop: sidebar */}
         {selectedTask && !expandedFromUrl && (
-          <div
-            ref={(el) => {
-              // Auto-focus first interactive element when panel opens
-              if (el) {
-                requestAnimationFrame(() => {
-                  const focusable = el.querySelector<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
-                  focusable?.focus();
-                });
-              }
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                e.stopPropagation();
-                dm.deselectTask();
-                // Return focus to the task row that opened the panel
-                const taskId = dm.taskDetailPanel.selectedTaskId;
-                requestAnimationFrame(() => {
-                  const row = document.querySelector<HTMLElement>(`[data-task-id="${taskId}"]`);
-                  const focusable = row?.querySelector<HTMLElement>('button, [tabindex]:not([tabindex="-1"])');
-                  focusable?.focus();
-                });
-              }
-            }}
-            className="relative border-t lg:border-t-0 lg:border-l overflow-y-auto flex-shrink-0 bg-card shadow-elevation-raised animate-slide-in-right"
-            style={{ width: dm.taskDetailPanel.panelWidth }}
-          >
+          isMobile ? (
             <div
-              className="absolute top-0 left-0 w-1 h-full cursor-col-resize hover:bg-primary/50 active:bg-primary transition-colors z-10"
-              onMouseDown={handleTaskPanelMouseDown}
-            />
-            <div className="p-6">
-              <TaskDetailPanel
-                task={selectedTask}
-                parentTask={parentTask}
-                subtasks={subtasks}
-                blockingTasks={blockingTasks}
-                blockedTasks={blockedTasks}
-                onDelete={handleTaskDelete}
-                onClose={() => {
-                  const taskId = selectedTask.id;
+              className="fixed inset-0 z-50 bg-background overflow-y-auto"
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  e.stopPropagation();
                   dm.deselectTask();
+                }
+              }}
+            >
+              <div className="sticky top-0 z-10 flex items-center gap-2 bg-background border-b px-4 py-2">
+                <Button variant="ghost" size="sm" onClick={() => dm.deselectTask()}>
+                  <X className="h-4 w-4 mr-1" /> Close
+                </Button>
+              </div>
+              <div className="p-6">
+                <TaskDetailPanel
+                  task={selectedTask}
+                  parentTask={parentTask}
+                  subtasks={subtasks}
+                  blockingTasks={blockingTasks}
+                  blockedTasks={blockedTasks}
+                  onDelete={handleTaskDelete}
+                  onClose={() => {
+                    dm.deselectTask();
+                  }}
+                  onComplete={(completed) => handleTaskComplete(selectedTask.id, completed)}
+                  onExpand={handleTaskExpand}
+                  onAddSubtask={() => {
+                    handleNewTask(selectedTask.sectionId ?? undefined, selectedTask.id);
+                  }}
+                  onAddDependency={handleAddDependency}
+                  onRemoveDependency={handleRemoveDependency}
+                  onSubtaskClick={handleTaskClick}
+                  scrollToSubtasks={dm.taskDetailPanel.scrollToSubtasks}
+                />
+              </div>
+            </div>
+          ) : (
+            <div
+              ref={(el) => {
+                // Auto-focus first interactive element when panel opens
+                if (el) {
+                  requestAnimationFrame(() => {
+                    const focusable = el.querySelector<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+                    focusable?.focus();
+                  });
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  e.stopPropagation();
+                  dm.deselectTask();
+                  // Return focus to the task row that opened the panel
+                  const taskId = dm.taskDetailPanel.selectedTaskId;
                   requestAnimationFrame(() => {
                     const row = document.querySelector<HTMLElement>(`[data-task-id="${taskId}"]`);
                     const focusable = row?.querySelector<HTMLElement>('button, [tabindex]:not([tabindex="-1"])');
                     focusable?.focus();
                   });
-                }}
-                onComplete={(completed) => handleTaskComplete(selectedTask.id, completed)}
-                onExpand={handleTaskExpand}
-                onAddSubtask={() => {
-                  handleNewTask(selectedTask.sectionId ?? undefined, selectedTask.id);
-                }}
-                onAddDependency={handleAddDependency}
-                onRemoveDependency={handleRemoveDependency}
-                onSubtaskClick={handleTaskClick}
-                scrollToSubtasks={dm.taskDetailPanel.scrollToSubtasks}
+                }
+              }}
+              className="relative border-t lg:border-t-0 lg:border-l overflow-y-auto flex-shrink-0 bg-card shadow-elevation-raised animate-slide-in-right"
+              style={{ width: dm.taskDetailPanel.panelWidth }}
+            >
+              <div
+                className="absolute top-0 left-0 w-1 h-full cursor-col-resize hover:bg-primary/50 active:bg-primary transition-colors z-10"
+                onMouseDown={handleTaskPanelMouseDown}
               />
+              <div className="p-6">
+                <TaskDetailPanel
+                  task={selectedTask}
+                  parentTask={parentTask}
+                  subtasks={subtasks}
+                  blockingTasks={blockingTasks}
+                  blockedTasks={blockedTasks}
+                  onDelete={handleTaskDelete}
+                  onClose={() => {
+                    const taskId = selectedTask.id;
+                    dm.deselectTask();
+                    requestAnimationFrame(() => {
+                      const row = document.querySelector<HTMLElement>(`[data-task-id="${taskId}"]`);
+                      const focusable = row?.querySelector<HTMLElement>('button, [tabindex]:not([tabindex="-1"])');
+                      focusable?.focus();
+                    });
+                  }}
+                  onComplete={(completed) => handleTaskComplete(selectedTask.id, completed)}
+                  onExpand={handleTaskExpand}
+                  onAddSubtask={() => {
+                    handleNewTask(selectedTask.sectionId ?? undefined, selectedTask.id);
+                  }}
+                  onAddDependency={handleAddDependency}
+                  onRemoveDependency={handleRemoveDependency}
+                  onSubtaskClick={handleTaskClick}
+                  scrollToSubtasks={dm.taskDetailPanel.scrollToSubtasks}
+                />
+              </div>
             </div>
-          </div>
+          )
         )}
 
         {/* Expanded task view — full page */}

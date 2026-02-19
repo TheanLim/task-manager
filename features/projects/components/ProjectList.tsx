@@ -1,11 +1,14 @@
 'use client';
 
+import { useMemo } from 'react';
 import { Plus, FolderOpen, ListTodo } from 'lucide-react';
 import { EmptyState } from '@/components/EmptyState';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { useDataStore } from '@/stores/dataStore';
 import { Project } from '@/types';
 
 const DOT_COLORS = [
@@ -33,6 +36,22 @@ export function ProjectList({
   const searchParams = useSearchParams();
   const viewFromUrl = searchParams.get('view');
   const isGlobalTasksActive = viewFromUrl === 'tasks';
+
+  const tasks = useDataStore((s) => s.tasks);
+
+  const { taskCountByProject, completedCountByProject } = useMemo(() => {
+    const countMap: Record<string, number> = {};
+    const completedMap: Record<string, number> = {};
+    for (const task of tasks) {
+      if (task.projectId) {
+        countMap[task.projectId] = (countMap[task.projectId] || 0) + 1;
+        if (task.completed) {
+          completedMap[task.projectId] = (completedMap[task.projectId] || 0) + 1;
+        }
+      }
+    }
+    return { taskCountByProject: countMap, completedCountByProject: completedMap };
+  }, [tasks]);
 
   const handleProjectClick = (projectId: string) => {
     // Update URL with project query parameter and default to list view
@@ -108,16 +127,29 @@ export function ProjectList({
                       className={cn(
                         "cursor-pointer px-2 py-1.5 transition-colors rounded-md border-l-[3px] outline-none focus-visible:ring-2 focus-visible:ring-ring",
                         activeProjectId === project.id
-                          ? "border-l-accent-brand bg-accent/50"
+                          ? "border-l-accent-brand bg-accent-brand/5"
                           : "border-l-transparent hover:bg-accent"
                       )}
                       onClick={() => handleProjectClick(project.id)}
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleProjectClick(project.id); } }}
                     >
                       <div className="flex items-center gap-2">
-                        <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", DOT_COLORS[index % DOT_COLORS.length])} />
+                        <span className={cn("w-2 h-2 rounded-full flex-shrink-0", DOT_COLORS[index % DOT_COLORS.length])} />
                         <h3 className="font-medium text-sm truncate">{project.name}</h3>
+                        {(taskCountByProject[project.id] ?? 0) > 0 && (
+                          <Badge variant="secondary" className="text-xs h-5 min-w-5 px-1 ml-auto flex-shrink-0">
+                            {taskCountByProject[project.id]}
+                          </Badge>
+                        )}
                       </div>
+                      {(taskCountByProject[project.id] ?? 0) > 0 && (
+                        <div className="bg-muted rounded-full h-0.5 mt-1">
+                          <div
+                            className="bg-accent-brand h-full rounded-full transition-all"
+                            style={{ width: `${Math.round(((completedCountByProject[project.id] ?? 0) / taskCountByProject[project.id]) * 100)}%` }}
+                          />
+                        </div>
+                      )}
                     </div>
                   </TooltipTrigger>
                   <TooltipContent side="right" align="start">

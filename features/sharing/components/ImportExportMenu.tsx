@@ -219,6 +219,7 @@ export function ImportExportMenu() {
 
       <input
         ref={fileInputRef}
+        id="import-file-input"
         type="file"
         accept=".json"
         onChange={handleFileSelect}

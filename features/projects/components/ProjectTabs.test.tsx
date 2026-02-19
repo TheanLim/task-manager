@@ -134,6 +134,34 @@ describe('ProjectTabs', () => {
     });
   });
 
+  describe('Tab icons', () => {
+    it('should render icons for all tabs', () => {
+      const { container } = render(
+        <ProjectTabs activeTab="overview" onTabChange={() => {}}>
+          {mockChildren}
+        </ProjectTabs>
+      );
+
+      // Each tab trigger should contain an SVG icon
+      const tabs = screen.getAllByRole('tab');
+      tabs.forEach((tab) => {
+        const svg = tab.querySelector('svg');
+        expect(svg).toBeInTheDocument();
+      });
+    });
+
+    it('should apply active accent class to tab triggers', () => {
+      render(
+        <ProjectTabs activeTab="overview" onTabChange={() => {}}>
+          {mockChildren}
+        </ProjectTabs>
+      );
+
+      const overviewTab = screen.getByRole('tab', { name: /overview/i });
+      expect(overviewTab.className).toContain('data-[state=active]:text-accent-brand');
+    });
+  });
+
   describe('Tab navigation', () => {
     it('should render all tabs', () => {
       render(

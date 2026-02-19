@@ -41,3 +41,16 @@
 **Decision**: `filterStore.ts` moved from `stores/` to `features/tasks/stores/`.
 
 **Why**: Its only consumers are task-filtering components and hooks (`useFilteredTasks`, `FilterPanel`, `SearchBar`). It doesn't serve other features.
+
+## 7. Shared UI extractions: DatePickerPopover, TagEditorPopover, getPriorityVariant
+
+**Decision**: Extracted three duplicated patterns into shared components/utilities within `features/tasks/`.
+
+**What was extracted**:
+- `DatePickerPopover` — Popover with CalendarComponent + "Clear date" button. Was duplicated 5 times across TaskDetailPanel (2), TaskRow (1), TaskBoard (2).
+- `TagEditorPopover` — Popover with tag input, add/remove, badge list. Was duplicated in TaskDetailPanel and TaskRow.
+- `getPriorityVariant()` — Priority enum → Badge variant mapping. Was duplicated in TaskDetailPanel and TaskRow.
+
+**Why**: Code review identified these as the top 3 highest-ROI refactoring targets. Each extraction eliminates shotgun surgery risk — changes to date picking, tag editing, or priority display now require touching one file instead of 3-5.
+
+**Location**: Components stay in `features/tasks/components/` (not `components/`) because they depend on task-domain types and are only used within task views. `getPriorityVariant` is in `services/` as a pure function.

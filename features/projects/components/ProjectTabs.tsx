@@ -2,7 +2,7 @@
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Zap, AlertTriangle } from 'lucide-react';
+import { LayoutDashboard, List, Columns3, Calendar, Zap, AlertTriangle } from 'lucide-react';
 
 interface ProjectTabsProps {
   activeTab: string;
@@ -21,13 +21,25 @@ interface ProjectTabsProps {
 export function ProjectTabs({ activeTab, onTabChange, enabledRuleCount, totalRuleCount, children }: ProjectTabsProps) {
   return (
     <Tabs value={activeTab} onValueChange={onTabChange} className="w-full h-full flex flex-col">
-      <TabsList className="w-full justify-start flex-shrink-0 sticky top-0 bg-background z-10">
-        <TabsTrigger value="overview">Overview</TabsTrigger>
-        <TabsTrigger value="list">List</TabsTrigger>
-        <TabsTrigger value="board">Board</TabsTrigger>
-        <TabsTrigger value="calendar">Calendar</TabsTrigger>
-        <TabsTrigger value="automations" className="gap-2">
-          <Zap className="h-4 w-4" />
+      <TabsList className="w-full justify-start flex-shrink-0 sticky top-0 bg-background z-10 overflow-x-auto">
+        <TabsTrigger value="overview" className="gap-2 data-[state=active]:text-accent-brand">
+          <LayoutDashboard className="h-4 w-4" aria-hidden="true" />
+          Overview
+        </TabsTrigger>
+        <TabsTrigger value="list" className="gap-2 data-[state=active]:text-accent-brand">
+          <List className="h-4 w-4" aria-hidden="true" />
+          List
+        </TabsTrigger>
+        <TabsTrigger value="board" className="gap-2 data-[state=active]:text-accent-brand">
+          <Columns3 className="h-4 w-4" aria-hidden="true" />
+          Board
+        </TabsTrigger>
+        <TabsTrigger value="calendar" className="gap-2 data-[state=active]:text-accent-brand">
+          <Calendar className="h-4 w-4" aria-hidden="true" />
+          Calendar
+        </TabsTrigger>
+        <TabsTrigger value="automations" className="gap-2 data-[state=active]:text-accent-brand">
+          <Zap className="h-4 w-4" aria-hidden="true" />
           Automations
           {enabledRuleCount !== undefined && enabledRuleCount > 0 && (
             <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5 text-xs">

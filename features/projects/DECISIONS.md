@@ -44,3 +44,11 @@ Default section IDs use the pattern `{projectId}-section-todo` rather than UUIDs
 Services receive repositories via constructor injection. Components never call services directly — they go through `useDataStore` (Zustand). Services are invoked by the store's action methods or by other services.
 
 **Rationale**: Keeps business logic testable without UI framework dependencies. Repositories are mockable via simple `Map<string, T>` implementations in tests.
+
+## 6. Sidebar visual enhancements (task counts, progress bars)
+
+**Decision**: ProjectList derives task counts and completion progress from `useDataStore().tasks` via `useMemo`. Renders Badge + progress bar per project.
+
+**Why**: Provides at-a-glance project health without navigating into each project. The computation is memoized on `tasks` array reference to avoid re-computing on unrelated state changes.
+
+**Active project styling**: Changed from `bg-accent/50` to `bg-accent-brand/5` to align with the brand accent color system.
