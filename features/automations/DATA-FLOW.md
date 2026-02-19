@@ -49,7 +49,8 @@ How data moves through the automation system. Use this when debugging why a rule
 
 5. app/page.tsx callback
    ├─ formatAutomationToastMessage(params)
-   ├─ Checks getUndoSnapshot() — if exists, shows toast with Undo button (10s)
+   ├─ Looks up matching snapshot via getUndoSnapshots().find(s => s.ruleId === params.ruleId)
+   ├─ If found: shows toast with Undo button calling performUndoById(ruleId) (10s)
    └─ Otherwise shows basic toast (5s)
 ```
 
@@ -82,11 +83,12 @@ Check in this order:
 
 ## Debugging: Undo Not Working
 
-1. **Snapshot exists?** — `getUndoSnapshot()` returns null if expired (>10s) or if no execution happened
-2. **Depth 0?** — Snapshots are only captured for user-initiated events
-3. **Task still exists?** — If the user deleted the task before clicking Undo, the undo silently fails
-4. **New execution replaced it?** — Only the most recent snapshot is kept
-5. **Subtasks not reverting?** — Check `snapshot.subtaskSnapshots` is populated. Subtask state is captured BEFORE `executeActions` runs. If the parent task has no subtasks at capture time, the array will be empty/undefined
+1. **Snapshot exists?** — `getUndoSnapshots()` returns empty if all expired (>10s) or no execution happened
+2. **Correct ruleId?** — `performUndoById(ruleId)` looks up by ruleId in the stack. If the ruleId doesn't match, returns false
+3. **Depth 0?** — Snapshots are only captured for user-initiated events
+4. **Task still exists?** — If the user deleted the task before clicking Undo, the undo silently fails
+5. **Stack cleared by new gesture?** — `clearAllUndoSnapshots()` is called at the start of each new batch execution. If the user triggers another action before clicking undo, previous snapshots are gone
+6. **Subtasks not reverting?** — Check `snapshot.subtaskSnapshots` is populated. Subtask state is captured BEFORE `executeActions` runs
 
 ## Debugging: Import/Export Missing Rules
 

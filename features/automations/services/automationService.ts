@@ -13,25 +13,56 @@ import { RuleExecutor } from './ruleExecutor';
 export const UNDO_EXPIRY_MS = 10_000;
 
 let currentUndoSnapshot: UndoSnapshot | null = null;
+let undoSnapshotStack: UndoSnapshot[] = [];
 
-/** Get the current undo snapshot, or null if none or expired (Req 6.7) */
+/** Get the current (most recent) undo snapshot, or null if none or expired (Req 6.7) */
 export function getUndoSnapshot(): UndoSnapshot | null {
-  if (!currentUndoSnapshot) return null;
+  // Clean expired
+  undoSnapshotStack = undoSnapshotStack.filter(
+    (s) => Date.now() - s.timestamp <= UNDO_EXPIRY_MS
+  );
+  if (!currentUndoSnapshot) return undoSnapshotStack.length > 0 ? undoSnapshotStack[undoSnapshotStack.length - 1] : null;
   if (Date.now() - currentUndoSnapshot.timestamp > UNDO_EXPIRY_MS) {
     currentUndoSnapshot = null;
-    return null;
+    return undoSnapshotStack.length > 0 ? undoSnapshotStack[undoSnapshotStack.length - 1] : null;
   }
   return currentUndoSnapshot;
 }
 
-/** Set the current undo snapshot (replaces any previous — Req 6.9) */
+/** Get all non-expired undo snapshots (for multi-rule undo) */
+export function getUndoSnapshots(): UndoSnapshot[] {
+  undoSnapshotStack = undoSnapshotStack.filter(
+    (s) => Date.now() - s.timestamp <= UNDO_EXPIRY_MS
+  );
+  return [...undoSnapshotStack];
+}
+
+/** Push an undo snapshot onto the stack (for multi-rule batch) */
+export function pushUndoSnapshot(snapshot: UndoSnapshot): void {
+  undoSnapshotStack.push(snapshot);
+  currentUndoSnapshot = snapshot;
+}
+
+/** Set the current undo snapshot (replaces entire stack — Req 6.9) */
 export function setUndoSnapshot(snapshot: UndoSnapshot | null): void {
   currentUndoSnapshot = snapshot;
+  if (snapshot) {
+    undoSnapshotStack = [snapshot];
+  } else {
+    undoSnapshotStack = [];
+  }
 }
 
 /** Clear the current undo snapshot */
 export function clearUndoSnapshot(): void {
   currentUndoSnapshot = null;
+  undoSnapshotStack = [];
+}
+
+/** Clear all undo snapshots */
+export function clearAllUndoSnapshots(): void {
+  currentUndoSnapshot = null;
+  undoSnapshotStack = [];
 }
 
 /**
@@ -46,10 +77,37 @@ export function performUndo(taskRepo: TaskRepository): boolean {
   const snapshot = getUndoSnapshot();
   if (!snapshot) return false;
 
+  applyUndo(snapshot, taskRepo);
+  clearUndoSnapshot();
+  return true;
+}
+
+/**
+ * Perform undo of a specific rule's execution by its ruleId.
+ * Removes that snapshot from the stack. Other snapshots remain.
+ * Returns true if undo was performed.
+ */
+export function performUndoById(ruleId: string, taskRepo: TaskRepository): boolean {
+  const idx = undoSnapshotStack.findIndex((s) => s.ruleId === ruleId && Date.now() - s.timestamp <= UNDO_EXPIRY_MS);
+  if (idx === -1) return false;
+
+  const snapshot = undoSnapshotStack[idx];
+  applyUndo(snapshot, taskRepo);
+
+  // Remove from stack
+  undoSnapshotStack.splice(idx, 1);
+  // Update currentUndoSnapshot
+  currentUndoSnapshot = undoSnapshotStack.length > 0 ? undoSnapshotStack[undoSnapshotStack.length - 1] : null;
+  return true;
+}
+
+/**
+ * Apply undo logic for a single snapshot (shared by performUndo and performUndoById).
+ */
+function applyUndo(snapshot: UndoSnapshot, taskRepo: TaskRepository): void {
   const { actionType, targetEntityId, previousState, createdEntityId } = snapshot;
 
   switch (actionType) {
-    // Req 6.3: Move undo — move task back to previous section with previous order
     case 'move_card_to_top_of_section':
     case 'move_card_to_bottom_of_section': {
       const task = taskRepo.findById(targetEntityId);
@@ -60,8 +118,6 @@ export function performUndo(taskRepo: TaskRepository): boolean {
       taskRepo.update(targetEntityId, updates);
       break;
     }
-
-    // Req 6.4: Mark complete/incomplete undo — revert completed and completedAt
     case 'mark_card_complete':
     case 'mark_card_incomplete': {
       const task = taskRepo.findById(targetEntityId);
@@ -70,8 +126,6 @@ export function performUndo(taskRepo: TaskRepository): boolean {
       if (previousState.completed !== undefined) updates.completed = previousState.completed;
       if (previousState.completedAt !== undefined) updates.completedAt = previousState.completedAt;
       taskRepo.update(targetEntityId, updates);
-
-      // Also revert subtasks that were cascade-completed/incompleted
       if (snapshot.subtaskSnapshots) {
         for (const sub of snapshot.subtaskSnapshots) {
           const subtask = taskRepo.findById(sub.taskId);
@@ -84,8 +138,6 @@ export function performUndo(taskRepo: TaskRepository): boolean {
       }
       break;
     }
-
-    // Req 6.5: Set/remove due date undo — revert dueDate
     case 'set_due_date':
     case 'remove_due_date': {
       const task = taskRepo.findById(targetEntityId);
@@ -95,24 +147,15 @@ export function performUndo(taskRepo: TaskRepository): boolean {
       }
       break;
     }
-
-    // Req 6.6: Create card undo — delete the created task
     case 'create_card': {
       const entityToDelete = createdEntityId ?? targetEntityId;
       taskRepo.delete(entityToDelete);
       break;
     }
-
     default:
       break;
   }
-
-  clearUndoSnapshot();
-  return true;
-}
-
-
-/**
+}/**
  * Map a RuleAction's actionType to the ActionType used in UndoSnapshot.
  * Move actions (top/bottom) both map to the same actionType for undo purposes.
  */
@@ -158,7 +201,7 @@ function buildUndoSnapshot(
  * Callback invoked when an automation rule executes successfully.
  */
 export interface RuleExecutionCallback {
-  (params: { ruleName: string; taskDescription: string; batchSize: number }): void;
+  (params: { ruleId: string; ruleName: string; taskDescription: string; batchSize: number }): void;
 }
 
 /**
@@ -225,13 +268,14 @@ export class AutomationService {
     if (!batch || batch.executions.length === 0 || !this.onRuleExecuted) return;
 
     // Group executions by ruleId
-    const byRule = new Map<string, { ruleName: string; count: number; taskDescription: string }>();
+    const byRule = new Map<string, { ruleId: string; ruleName: string; count: number; taskDescription: string }>();
     for (const exec of batch.executions) {
       const existing = byRule.get(exec.ruleId);
       if (existing) {
         existing.count++;
       } else {
         byRule.set(exec.ruleId, {
+          ruleId: exec.ruleId,
           ruleName: exec.ruleName,
           count: 1,
           taskDescription: exec.taskName,
@@ -242,6 +286,7 @@ export class AutomationService {
     // Emit one aggregated callback per rule (Req 8.3)
     for (const [, entry] of byRule) {
       this.onRuleExecuted({
+        ruleId: entry.ruleId,
         ruleName: entry.ruleName,
         taskDescription: entry.count === 1 ? entry.taskDescription : '',
         batchSize: entry.count,
@@ -292,20 +337,21 @@ export class AutomationService {
     });
 
     // Capture subtask state BEFORE execution for undo (mark_complete/incomplete cascade)
-    let preExecutionSubtaskSnapshots: Array<{ taskId: string; previousState: { completed: boolean; completedAt: string | null } }> | undefined;
+    const preExecutionSubtaskMap = new Map<string, Array<{ taskId: string; previousState: { completed: boolean; completedAt: string | null } }>>();
     if (event.depth === 0 && filteredActions.length > 0) {
-      const lastAction = filteredActions[filteredActions.length - 1];
-      if (lastAction.actionType === 'mark_card_complete' || lastAction.actionType === 'mark_card_incomplete') {
-        const allTasks = this.taskRepo.findAll();
-        const subtasks = allTasks.filter((t) => t.parentTaskId === lastAction.targetEntityId);
-        if (subtasks.length > 0) {
-          preExecutionSubtaskSnapshots = subtasks.map((sub) => ({
-            taskId: sub.id,
-            previousState: {
-              completed: sub.completed,
-              completedAt: sub.completedAt ?? null,
-            },
-          }));
+      for (const action of filteredActions) {
+        if (action.actionType === 'mark_card_complete' || action.actionType === 'mark_card_incomplete') {
+          const allTasks = this.taskRepo.findAll();
+          const subtasks = allTasks.filter((t) => t.parentTaskId === action.targetEntityId);
+          if (subtasks.length > 0) {
+            preExecutionSubtaskMap.set(action.ruleId, subtasks.map((sub) => ({
+              taskId: sub.id,
+              previousState: {
+                completed: sub.completed,
+                completedAt: sub.completedAt ?? null,
+              },
+            })));
+          }
         }
       }
     }
@@ -313,26 +359,28 @@ export class AutomationService {
     // Requirement 6.2: Delegate execution to the rule executor
     const newEvents = this.ruleExecutor.executeActions(filteredActions, event);
 
-    // Requirements 6.8, 6.9: Capture undo snapshot for user-initiated (depth 0) executions only.
-    // The last executed action's snapshot replaces any previous one.
+    // Capture undo snapshots for ALL actions (depth 0 only).
+    // Each action gets its own snapshot so each toast can undo independently.
     if (event.depth === 0 && filteredActions.length > 0 && newEvents.length > 0) {
-      // Find the last action that produced a domain event (i.e., succeeded)
-      // Match actions to their result events via triggeredByRule
-      const lastAction = filteredActions[filteredActions.length - 1];
-      const matchingEvent = newEvents.find(
-        e => e.triggeredByRule === lastAction.ruleId &&
-             (e.entityId === lastAction.targetEntityId || lastAction.actionType === 'create_card')
-      );
+      // Clear previous snapshots for this new user gesture
+      clearAllUndoSnapshots();
 
-      if (matchingEvent) {
-        const rule = rules.find(r => r.id === lastAction.ruleId);
-        if (rule) {
-          const snapshot = buildUndoSnapshot(lastAction, rule.name, matchingEvent);
-          // Attach pre-captured subtask snapshots
-          if (preExecutionSubtaskSnapshots) {
-            snapshot.subtaskSnapshots = preExecutionSubtaskSnapshots;
+      for (const action of filteredActions) {
+        const matchingEvent = newEvents.find(
+          e => e.triggeredByRule === action.ruleId &&
+               (e.entityId === action.targetEntityId || action.actionType === 'create_card')
+        );
+
+        if (matchingEvent) {
+          const rule = rules.find(r => r.id === action.ruleId);
+          if (rule) {
+            const snapshot = buildUndoSnapshot(action, rule.name, matchingEvent);
+            const subtaskSnaps = preExecutionSubtaskMap.get(action.ruleId);
+            if (subtaskSnaps) {
+              snapshot.subtaskSnapshots = subtaskSnaps;
+            }
+            pushUndoSnapshot(snapshot);
           }
-          setUndoSnapshot(snapshot);
         }
       }
     }
@@ -374,6 +422,7 @@ export class AutomationService {
           }
 
           this.onRuleExecuted({
+            ruleId,
             ruleName: rule.name,
             taskDescription,
             batchSize,

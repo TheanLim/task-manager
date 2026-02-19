@@ -29,7 +29,7 @@ import { getDefaultShortcutMap, mergeShortcutMaps } from '@/features/keyboard/se
 import { ShortcutHelpOverlay } from '@/features/keyboard/components/ShortcutHelpOverlay';
 import { useKeyboardNavStore } from '@/features/keyboard/stores/keyboardNavStore';
 import { formatAutomationToastMessage } from '@/features/automations/services/toastMessageFormatter';
-import { performUndo, getUndoSnapshot } from '@/features/automations/services/automationService';
+import { performUndo, getUndoSnapshot, getUndoSnapshots, performUndoById } from '@/features/automations/services/automationService';
 import { taskRepository } from '@/stores/dataStore';
 import {
   AlertDialog,
@@ -159,13 +159,15 @@ function HomeContent() {
   useEffect(() => {
     automationService.setRuleExecutionCallback((params) => {
       const message = formatAutomationToastMessage(params);
-      const snapshot = getUndoSnapshot();
-      if (snapshot) {
+      const snapshots = getUndoSnapshots();
+      const matchingSnapshot = snapshots.find((s) => s.ruleId === params.ruleId);
+      if (matchingSnapshot) {
         // Undo-capable toast: 10s duration with Undo action button (Req 6.1, 8.5)
+        const ruleIdForUndo = params.ruleId;
         showToast(message, 'info', 10000, {
           label: 'Undo',
           onClick: () => {
-            performUndo(taskRepository);
+            performUndoById(ruleIdForUndo, taskRepository);
           },
         });
       } else {

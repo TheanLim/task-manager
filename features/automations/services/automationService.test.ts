@@ -758,9 +758,13 @@ describe('Property 11: Loop protection terminates', () => {
 // --- Undo Snapshot Tests (Task 5.1) ---
 import {
   getUndoSnapshot,
+  getUndoSnapshots,
   setUndoSnapshot,
+  pushUndoSnapshot,
   clearUndoSnapshot,
+  clearAllUndoSnapshots,
   performUndo,
+  performUndoById,
   UNDO_EXPIRY_MS,
 } from './automationService';
 import type { UndoSnapshot } from '../types';
@@ -2503,5 +2507,147 @@ describe('performUndo with subtasks', () => {
 
     expect(performUndo(taskRepo)).toBe(true);
     expect(taskRepo.findById('task-1')!.completed).toBe(false);
+  });
+});
+
+
+// --- Multi-rule undo: each rule's action should be independently undoable ---
+describe('Multi-rule undo (per-snapshot undo)', () => {
+  let taskRepo: MockTaskRepository;
+
+  beforeEach(() => {
+    taskRepo = new MockTaskRepository();
+    clearUndoSnapshot();
+  });
+
+  function createTask(overrides: Partial<Task> = {}): Task {
+    const task: Task = {
+      id: 'task-1',
+      projectId: 'project-1',
+      parentTaskId: null,
+      sectionId: 'section-a',
+      description: 'Test task',
+      notes: '',
+      assignee: '',
+      priority: 'none',
+      tags: [],
+      dueDate: null,
+      completed: false,
+      completedAt: null,
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      ...overrides,
+    };
+    taskRepo.create(task);
+    return task;
+  }
+
+  it('pushUndoSnapshot adds to the stack, getUndoSnapshots returns all non-expired', () => {
+    const snap1: UndoSnapshot = {
+      ruleId: 'rule-1',
+      ruleName: 'Rule A',
+      actionType: 'mark_card_complete',
+      targetEntityId: 'task-1',
+      previousState: { completed: false, completedAt: null },
+      timestamp: Date.now(),
+    };
+    const snap2: UndoSnapshot = {
+      ruleId: 'rule-2',
+      ruleName: 'Rule B',
+      actionType: 'set_due_date',
+      targetEntityId: 'task-1',
+      previousState: { dueDate: null },
+      timestamp: Date.now(),
+    };
+
+    pushUndoSnapshot(snap1);
+    pushUndoSnapshot(snap2);
+
+    const all = getUndoSnapshots();
+    expect(all).toHaveLength(2);
+    expect(all[0].ruleId).toBe('rule-1');
+    expect(all[1].ruleId).toBe('rule-2');
+  });
+
+  it('performUndoById reverts only the specified snapshot', () => {
+    createTask({ id: 'task-1', completed: true, completedAt: '2025-06-01T00:00:00.000Z', dueDate: '2025-07-01' });
+
+    const snap1: UndoSnapshot = {
+      ruleId: 'rule-1',
+      ruleName: 'Rule A',
+      actionType: 'mark_card_complete',
+      targetEntityId: 'task-1',
+      previousState: { completed: false, completedAt: null },
+      timestamp: Date.now(),
+    };
+    const snap2: UndoSnapshot = {
+      ruleId: 'rule-2',
+      ruleName: 'Rule B',
+      actionType: 'set_due_date',
+      targetEntityId: 'task-1',
+      previousState: { dueDate: null },
+      timestamp: Date.now(),
+    };
+
+    pushUndoSnapshot(snap1);
+    pushUndoSnapshot(snap2);
+
+    // Undo only the mark_complete (snap1)
+    expect(performUndoById('rule-1', taskRepo)).toBe(true);
+
+    const task = taskRepo.findById('task-1')!;
+    // mark_complete was undone
+    expect(task.completed).toBe(false);
+    expect(task.completedAt).toBeNull();
+    // set_due_date was NOT undone — still has the automation-set date
+    expect(task.dueDate).toBe('2025-07-01');
+
+    // snap1 removed from stack, snap2 still there
+    const remaining = getUndoSnapshots();
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].ruleId).toBe('rule-2');
+  });
+
+  it('performUndoById returns false for non-existent snapshot ID', () => {
+    expect(performUndoById('nonexistent', taskRepo)).toBe(false);
+  });
+
+  it('clearAllUndoSnapshots empties the stack', () => {
+    pushUndoSnapshot({
+      ruleId: 'rule-1',
+      ruleName: 'Rule A',
+      actionType: 'mark_card_complete',
+      targetEntityId: 'task-1',
+      previousState: { completed: false },
+      timestamp: Date.now(),
+    });
+
+    clearAllUndoSnapshots();
+    expect(getUndoSnapshots()).toHaveLength(0);
+    expect(getUndoSnapshot()).toBeNull();
+  });
+
+  it('expired snapshots are filtered out of getUndoSnapshots', () => {
+    pushUndoSnapshot({
+      ruleId: 'rule-old',
+      ruleName: 'Old Rule',
+      actionType: 'mark_card_complete',
+      targetEntityId: 'task-1',
+      previousState: { completed: false },
+      timestamp: Date.now() - UNDO_EXPIRY_MS - 1,
+    });
+    pushUndoSnapshot({
+      ruleId: 'rule-new',
+      ruleName: 'New Rule',
+      actionType: 'set_due_date',
+      targetEntityId: 'task-1',
+      previousState: { dueDate: null },
+      timestamp: Date.now(),
+    });
+
+    const all = getUndoSnapshots();
+    expect(all).toHaveLength(1);
+    expect(all[0].ruleId).toBe('rule-new');
   });
 });

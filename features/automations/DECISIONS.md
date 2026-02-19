@@ -12,11 +12,20 @@ Key design decisions and their rationale. Read this before changing the automati
 
 ## 2. Undo snapshot is in-memory only
 
-**Decision**: `currentUndoSnapshot` is a module-level variable in `automationService.ts`, not persisted to localStorage.
+**Decision**: Undo snapshots are stored as a module-level array (`undoSnapshotStack`) in `automationService.ts`, not persisted to localStorage.
 
-**Why**: Undo is ephemeral by design — only the most recent execution can be undone, and only within 10 seconds. Persisting would add complexity (stale snapshots after page reload, storage bloat) with no user benefit.
+**Why**: Undo is ephemeral by design — snapshots expire after 10 seconds. Persisting would add complexity with no user benefit.
 
-**Trade-off**: Page refresh kills the undo window. This is acceptable because the 10-second window is short enough that users won't refresh mid-undo.
+**Multi-rule undo**: When multiple rules fire from one user action, each rule gets its own snapshot pushed onto the stack. Each toast gets an undo button that calls `performUndoById(ruleId)` to revert that specific rule's action without affecting others. The stack is cleared when a new user gesture triggers new automations.
+
+**Key functions**:
+- `pushUndoSnapshot(snapshot)` — adds to the stack (used during batch execution)
+- `performUndoById(ruleId, taskRepo)` — undoes a specific rule's action, removes it from stack
+- `performUndo(taskRepo)` — undoes the most recent snapshot (backward compat)
+- `getUndoSnapshots()` — returns all non-expired snapshots
+- `clearAllUndoSnapshots()` — empties the stack
+
+**Trade-off**: Page refresh kills all undo windows. Acceptable given the 10-second expiry.
 
 ## 3. Batch mode uses synchronous collection
 
