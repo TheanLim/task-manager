@@ -1,6 +1,6 @@
 import type { TaskDependency, Task } from '@/lib/schemas';
 import type { DependencyRepository } from '@/lib/repositories/types';
-import type { DependencyResolver } from '@/features/tasks/dependencyResolver';
+import type { DependencyResolver } from '@/features/tasks/services/dependencyResolver';
 
 export class DependencyService {
   constructor(

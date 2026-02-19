@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useFilterStore } from '@/stores/filterStore';
+import { useFilterStore } from '@/features/tasks/stores/filterStore';
 import { useAppStore } from '@/stores/appStore';
 import { Priority } from '@/types';
 import { Calendar } from '@/components/ui/calendar';

@@ -6,15 +6,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Plus, Trash2, GripVertical, Check, X } from 'lucide-react';
-import { useDataStore } from '@/stores/dataStore';
-import { v4 as uuidv4 } from 'uuid';
+import { useDataStore, sectionService } from '@/stores/dataStore';
 
 interface SectionManagerProps {
   projectId: UUID;
 }
 
 export function SectionManager({ projectId }: SectionManagerProps) {
-  const { addSection, updateSection, deleteSection, getSectionsByProjectId } = useDataStore();
+  const { updateSection, deleteSection, getSectionsByProjectId } = useDataStore();
   const [editingId, setEditingId] = useState<UUID | null>(null);
   const [editingName, setEditingName] = useState('');
   const [newSectionName, setNewSectionName] = useState('');
@@ -23,18 +22,7 @@ export function SectionManager({ projectId }: SectionManagerProps) {
 
   const handleAddSection = () => {
     if (!newSectionName.trim()) return;
-
-    const newSection: Section = {
-      id: uuidv4(),
-      projectId,
-      name: newSectionName.trim(),
-      order: projectSections.length,
-      collapsed: false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    addSection(newSection);
+    sectionService.createWithDefaults(newSectionName.trim(), projectId, projectSections.length);
     setNewSectionName('');
   };
 

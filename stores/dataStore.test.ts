@@ -9,7 +9,7 @@ import {
   dependencyRepository,
   automationRuleRepository,
 } from './dataStore';
-import { subscribeToDomainEvents } from '@/features/automations/events';
+import { subscribeToDomainEvents } from '@/lib/events';
 import type { Project, Task, Section, TaskDependency } from '@/types';
 import type { AutomationRule } from '@/features/automations/types';
 import { Priority, ViewMode } from '@/types';

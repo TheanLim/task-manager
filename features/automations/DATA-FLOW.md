@@ -39,7 +39,7 @@ How data moves through the automation system. Use this when debugging why a rule
    │     │     ├─ Update rule metadata (executionCount++, lastExecutedAt)
    │     │     └─ Return domain event (depth + 1, triggeredByRule)
    │     └─ Returns newEvents[]
-   ├─ Capture undo snapshot (depth 0 only, last action)
+   ├─ Capture undo snapshot (depth 0 only, via undoService)
    ├─ Collect toast data into batchContext (or emit immediately if not batched)
    └─ Recurse: for each newEvent → handleEvent(newEvent, dedupSet)
 
@@ -92,7 +92,7 @@ Check in this order:
 
 ## Debugging: Import/Export Missing Rules
 
-1. **Repository passed?** — `new ShareService(undefined, automationRuleRepository)` — the second arg must be the repo. If omitted, `serializeState` skips rules
+1. **Repository passed?** — `new ShareService(automationRuleRepository)` — the constructor arg must be the repo. If omitted, `serializeState` skips rules
 2. **Checkbox checked?** — The "Include automations" checkbox defaults to true but can be unchecked
 3. **Section validation on import** — Rules referencing sections not in the imported data get `brokenReason: 'section_deleted'`
 

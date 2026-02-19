@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useDataStore } from '@/stores/dataStore';
-import { DependencyResolverImpl } from '@/features/tasks/dependencyResolver';
+import { DependencyResolverImpl } from '@/features/tasks/services/dependencyResolver';
 import { v4 as uuidv4 } from 'uuid';
 
 interface DependencyDialogProps {

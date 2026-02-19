@@ -288,37 +288,21 @@ export const filterPredicateMap: Record<string, FilterPredicate> = {
   },
 };
 
-// Negated date filters - logical negation of positive counterparts
-// Also return true when dueDate is null
-filterPredicateMap.not_due_today = (task, filter, ctx) => {
-  if (task.dueDate === null) return true;
-  return !filterPredicateMap.due_today(task, filter, ctx);
-};
+// Negated date filters — generated via factory to eliminate duplication.
+// Returns true when dueDate is null (no date = not matching the positive condition).
+function createNegatedFilter(positiveKey: string): FilterPredicate {
+  return (task, filter, ctx) => {
+    if (task.dueDate === null) return true;
+    return !filterPredicateMap[positiveKey](task, filter, ctx);
+  };
+}
 
-filterPredicateMap.not_due_tomorrow = (task, filter, ctx) => {
-  if (task.dueDate === null) return true;
-  return !filterPredicateMap.due_tomorrow(task, filter, ctx);
-};
-
-filterPredicateMap.not_due_this_week = (task, filter, ctx) => {
-  if (task.dueDate === null) return true;
-  return !filterPredicateMap.due_this_week(task, filter, ctx);
-};
-
-filterPredicateMap.not_due_next_week = (task, filter, ctx) => {
-  if (task.dueDate === null) return true;
-  return !filterPredicateMap.due_next_week(task, filter, ctx);
-};
-
-filterPredicateMap.not_due_this_month = (task, filter, ctx) => {
-  if (task.dueDate === null) return true;
-  return !filterPredicateMap.due_this_month(task, filter, ctx);
-};
-
-filterPredicateMap.not_due_next_month = (task, filter, ctx) => {
-  if (task.dueDate === null) return true;
-  return !filterPredicateMap.due_next_month(task, filter, ctx);
-};
+filterPredicateMap.not_due_today = createNegatedFilter('due_today');
+filterPredicateMap.not_due_tomorrow = createNegatedFilter('due_tomorrow');
+filterPredicateMap.not_due_this_week = createNegatedFilter('due_this_week');
+filterPredicateMap.not_due_next_week = createNegatedFilter('due_next_week');
+filterPredicateMap.not_due_this_month = createNegatedFilter('due_this_month');
+filterPredicateMap.not_due_next_month = createNegatedFilter('due_next_month');
 
 /**
  * Evaluate a single filter against a task.

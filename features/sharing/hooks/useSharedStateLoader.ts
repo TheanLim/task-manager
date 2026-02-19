@@ -105,7 +105,7 @@ export function handleLoadSharedState(
   // Import automation rules if included
   const includeAutomations = options?.includeAutomations ?? true;
   if (includeAutomations) {
-    const shareService = new ShareService(undefined, automationRuleRepository);
+    const shareService = new ShareService(automationRuleRepository);
     shareService.importAutomationRules(sharedState as unknown as Record<string, unknown>, { includeAutomations });
   }
 

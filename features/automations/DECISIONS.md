@@ -12,7 +12,7 @@ Key design decisions and their rationale. Read this before changing the automati
 
 ## 2. Undo snapshot is in-memory only
 
-**Decision**: Undo snapshots are stored as a module-level array (`undoSnapshotStack`) in `automationService.ts`, not persisted to localStorage.
+**Decision**: Undo snapshots are stored as a module-level array (`undoSnapshotStack`) in `services/undoService.ts`, not persisted to localStorage.
 
 **Why**: Undo is ephemeral by design — snapshots expire after 10 seconds. Persisting would add complexity with no user benefit.
 
@@ -85,6 +85,16 @@ Key design decisions and their rationale. Read this before changing the automati
 
 **Bug history**: This was missed initially — `ShareButton` created `new ShareService()` without the repo, silently producing exports without automation rules. Fixed by importing `automationRuleRepository` from `stores/dataStore` and passing it to the constructor. Added a steering rule to prevent this class of bug: "When adding optional parameters to constructors, grep for ALL existing call sites."
 
+
+## 9. ShareService no longer depends on LocalStorageAdapter
+
+**Decision**: `ShareService` constructor takes only an optional `AutomationRuleRepository`. The old `LocalStorageAdapter` dependency was removed.
+
+**Why**: `ShareService` only needed two things from `LocalStorageAdapter`: `validateState()` and `load()`. Validation is now a standalone function (`validateAppState` in `lib/importExport.ts`). The `load()` fallback was replaced by requiring callers to pass `currentState` explicitly — which they already did in practice.
+
+**Trade-off**: `serializeState()` without a `currentState` argument now returns an empty default state instead of reading from localStorage. All real call sites already pass the state.
+
+**Constructor change**: `new ShareService(storageAdapter?, automationRuleRepo?)` → `new ShareService(automationRuleRepo?)`. All call sites updated.
 
 ## 10. Automations skip subtasks
 

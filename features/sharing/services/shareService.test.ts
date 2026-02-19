@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ShareService, ShareError, ShareErrorType } from './shareService';
-import { LocalStorageAdapter } from '@/lib/storage';
 import type { AutomationRule } from '@/features/automations/types';
 import type { AutomationRuleRepository } from '@/features/automations/repositories/types';
 import type { SubscriptionCallback, Unsubscribe } from '@/lib/repositories/types';
@@ -177,7 +176,7 @@ describe('ShareService — automation rules', () => {
     it('should include automationRules when includeAutomations is true', () => {
       const rule = makeRule();
       const repo = createMockRuleRepo([rule]);
-      const service = new ShareService(undefined, repo as any);
+      const service = new ShareService(repo as any);
 
       const json = service.serializeState(undefined, { includeAutomations: true });
       const parsed = JSON.parse(json);
@@ -189,7 +188,7 @@ describe('ShareService — automation rules', () => {
 
     it('should include automationRules by default when repo is provided', () => {
       const repo = createMockRuleRepo([makeRule()]);
-      const service = new ShareService(undefined, repo as any);
+      const service = new ShareService(repo as any);
 
       const json = service.serializeState();
       const parsed = JSON.parse(json);
@@ -200,7 +199,7 @@ describe('ShareService — automation rules', () => {
 
     it('should omit automationRules when includeAutomations is false', () => {
       const repo = createMockRuleRepo([makeRule()]);
-      const service = new ShareService(undefined, repo as any);
+      const service = new ShareService(repo as any);
 
       const json = service.serializeState(undefined, { includeAutomations: false });
       const parsed = JSON.parse(json);
@@ -219,7 +218,7 @@ describe('ShareService — automation rules', () => {
 
     it('should include empty array when repo has no rules', () => {
       const repo = createMockRuleRepo([]);
-      const service = new ShareService(undefined, repo as any);
+      const service = new ShareService(repo as any);
 
       const json = service.serializeState();
       const parsed = JSON.parse(json);
@@ -231,7 +230,7 @@ describe('ShareService — automation rules', () => {
   describe('importAutomationRules', () => {
     it('should import valid rules into the repository', () => {
       const repo = createMockRuleRepo();
-      const service = new ShareService(undefined, repo as any);
+      const service = new ShareService(repo as any);
       const rule = makeRule({ id: 'imported-1', trigger: { type: 'card_moved_into_section', sectionId: 'sec-1' } });
 
       service.importAutomationRules({
@@ -247,7 +246,7 @@ describe('ShareService — automation rules', () => {
 
     it('should mark rules with missing section references as broken', () => {
       const repo = createMockRuleRepo();
-      const service = new ShareService(undefined, repo as any);
+      const service = new ShareService(repo as any);
       const rule = makeRule({
         id: 'broken-1',
         trigger: { type: 'card_moved_into_section', sectionId: 'missing-sec' },
@@ -266,7 +265,7 @@ describe('ShareService — automation rules', () => {
 
     it('should skip import when includeAutomations is false', () => {
       const repo = createMockRuleRepo();
-      const service = new ShareService(undefined, repo as any);
+      const service = new ShareService(repo as any);
 
       service.importAutomationRules(
         { sections: [], automationRules: [makeRule()] },
@@ -287,7 +286,7 @@ describe('ShareService — automation rules', () => {
 
     it('should skip import when automationRules is missing from payload', () => {
       const repo = createMockRuleRepo();
-      const service = new ShareService(undefined, repo as any);
+      const service = new ShareService(repo as any);
 
       service.importAutomationRules({ sections: [] });
 
@@ -296,7 +295,7 @@ describe('ShareService — automation rules', () => {
 
     it('should skip import when automationRules is empty', () => {
       const repo = createMockRuleRepo();
-      const service = new ShareService(undefined, repo as any);
+      const service = new ShareService(repo as any);
 
       service.importAutomationRules({ sections: [], automationRules: [] });
 
@@ -305,7 +304,7 @@ describe('ShareService — automation rules', () => {
 
     it('should import multiple rules and validate each independently', () => {
       const repo = createMockRuleRepo();
-      const service = new ShareService(undefined, repo as any);
+      const service = new ShareService(repo as any);
       const validRule = makeRule({ id: 'valid-1', trigger: { type: 'card_moved_into_section', sectionId: 'sec-1' } });
       const brokenRule = makeRule({ id: 'broken-1', trigger: { type: 'card_moved_into_section', sectionId: 'gone-sec' } });
 

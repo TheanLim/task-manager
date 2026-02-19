@@ -14,5 +14,6 @@ inclusion: always
 4. **No whole-blob storage interfaces** — Use per-entity repository interfaces with granular CRUD, not `load(): AppState` / `save(state: AppState)`.
 5. **No inline entity construction in components** — Centralize `new Date().toISOString()` and `uuidv4()` calls in services, not scattered across UI code.
 6. **Trace all call sites when adding optional parameters** — When adding optional parameters to constructors or functions, grep for ALL existing call sites (`new ClassName(`, `functionName(`) and verify each one passes the new parameter where needed. Optional params that default to `undefined` cause silent degradation.
+7. **Prefer static imports over dynamic `import()`** — Only use dynamic `import()` for genuine code-splitting. Dynamic imports require `async` context and are easy to misuse in synchronous callbacks. If the module is already imported elsewhere in the file or re-exported from a known barrel, use a static import.
 
 

@@ -7,9 +7,10 @@ Rule-based automation engine that executes actions when domain events occur. Use
 | Concept | Location |
 |---------|----------|
 | Data model & Zod schemas | `schemas.ts`, `types.ts` |
-| Domain event pub/sub | `events.ts` |
+| Domain event pub/sub | `events.ts` (re-exports from `lib/events/`) |
 | Rule evaluation (pure) | `services/ruleEngine.ts` |
 | Action execution | `services/ruleExecutor.ts` |
+| Undo snapshot management | `services/undoService.ts` |
 | Orchestrator | `services/automationService.ts` |
 | Date calculations | `services/dateCalculations.ts` |
 | Filter predicates | `services/filterPredicates.ts` |
