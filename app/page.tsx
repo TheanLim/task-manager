@@ -20,7 +20,7 @@ import { ViewMode, Priority, TimeManagementSystem } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 import { ImportExportMenu } from '@/components/ImportExportMenu';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { Toast } from '@/components/ui/toast';
+import { toast as sonnerToast } from 'sonner';
 import { SharedStateDialog } from '@/features/sharing/components/SharedStateDialog';
 import { useDialogManager } from '@/lib/hooks/useDialogManager';
 import { useSharedStateLoader, handleLoadSharedState } from '@/features/sharing/hooks/useSharedStateLoader';
@@ -29,6 +29,8 @@ import { getDefaultShortcutMap, mergeShortcutMaps } from '@/features/keyboard/se
 import { ShortcutHelpOverlay } from '@/features/keyboard/components/ShortcutHelpOverlay';
 import { useKeyboardNavStore } from '@/features/keyboard/stores/keyboardNavStore';
 import { formatAutomationToastMessage } from '@/features/automations/services/toastMessageFormatter';
+import { performUndo, getUndoSnapshot } from '@/features/automations/services/automationService';
+import { taskRepository } from '@/stores/dataStore';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,6 +45,18 @@ import {
 function HomeContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+
+  // Sonner-based toast helper — maps old showToast(message, type, duration?, action?) to sonner API
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info', duration?: number, action?: { label: string; onClick: () => void }) => {
+    const opts: Parameters<typeof sonnerToast>[1] = {
+      duration: duration ?? (type === 'error' ? 5000 : 3000),
+      ...(action ? { action: { label: action.label, onClick: action.onClick } } : {}),
+    };
+    if (type === 'success') sonnerToast.success(message, opts);
+    else if (type === 'error') sonnerToast.error(message, opts);
+    else sonnerToast.info(message, opts);
+  }, []);
+
   const projectIdFromUrl = searchParams.get('project');
   const viewFromUrl = searchParams.get('view');
   const tabFromUrl = searchParams.get('tab') || 'list';
@@ -131,7 +145,7 @@ function HomeContent() {
   // --- Shared state loading via useSharedStateLoader ---
   const onLoadResult = useCallback(
     (result: { message: string; type: 'success' | 'error' | 'info' }) => {
-      dm.showToast(result.message, result.type);
+      showToast(result.message, result.type);
     },
     [dm]
   );
@@ -145,7 +159,19 @@ function HomeContent() {
   useEffect(() => {
     automationService.setRuleExecutionCallback((params) => {
       const message = formatAutomationToastMessage(params);
-      dm.showToast(message, 'info', 5000);
+      const snapshot = getUndoSnapshot();
+      if (snapshot) {
+        // Undo-capable toast: 10s duration with Undo action button (Req 6.1, 8.5)
+        showToast(message, 'info', 10000, {
+          label: 'Undo',
+          onClick: () => {
+            performUndo(taskRepository);
+          },
+        });
+      } else {
+        // Basic toast: 5s duration (Req 8.5)
+        showToast(message, 'info', 5000);
+      }
     });
 
     // Cleanup: remove callback on unmount
@@ -487,7 +513,7 @@ function HomeContent() {
               onSubtaskButtonClick={handleSubtaskButtonClick}
               onNewTask={handleNewTask}
               onTaskComplete={handleTaskComplete}
-              onShowToast={dm.showToast}
+              onShowToast={showToast}
             />
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-center">
@@ -634,19 +660,10 @@ function HomeContent() {
             sections: sections.length,
             dependencies: dependencies.length,
           }}
-          onConfirm={(mode) => {
-            handleLoadSharedState(dm.sharedStateDialog.sharedState!, mode, onLoadResult);
+          onConfirm={(mode, options) => {
+            handleLoadSharedState(dm.sharedStateDialog.sharedState!, mode, onLoadResult, options);
             dm.closeSharedStateDialog();
           }}
-        />
-      )}
-
-      {dm.loadingToast && (
-        <Toast
-          message={dm.loadingToast.message}
-          type={dm.loadingToast.type}
-          duration={dm.loadingToast.duration}
-          onClose={() => dm.dismissToast()}
         />
       )}
 

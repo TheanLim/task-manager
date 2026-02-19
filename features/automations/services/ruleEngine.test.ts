@@ -863,3 +863,752 @@ describe('Property 17: Section triggers match events in the same project', () =>
     );
   });
 });
+
+// ============================================================================
+// Rule ordering tests — Task 10.2
+// Validates: Requirements 10.3, 10.4
+// ============================================================================
+
+describe('Rule engine evaluates in ascending order', () => {
+  const makeRule = (
+    id: string,
+    sectionId: string,
+    order: number,
+    createdAt: string,
+  ): AutomationRule =>
+    ({
+      id,
+      projectId: 'proj-1',
+      name: `Rule ${id}`,
+      trigger: { type: 'card_moved_into_section' as const, sectionId },
+      filters: [],
+      action: {
+        type: 'mark_card_complete' as const,
+        sectionId: null,
+        dateOption: null,
+        position: null,
+        cardTitle: null,
+        cardDateOption: null,
+        specificMonth: null,
+        specificDay: null,
+        monthTarget: null,
+      },
+      enabled: true,
+      brokenReason: null,
+      executionCount: 0,
+      lastExecutedAt: null,
+      order,
+      createdAt,
+      updatedAt: createdAt,
+      recentExecutions: [],
+    }) as AutomationRule;
+
+  const context: EvaluationContext = {
+    allTasks: [],
+    allSections: [],
+    maxDepth: 5,
+    executedSet: new Set(),
+  };
+
+  it('returns actions sorted by order ascending', () => {
+    const sectionId = 'section-1';
+    const rules = [
+      makeRule('rule-c', sectionId, 3, '2025-01-01T00:00:00.000Z'),
+      makeRule('rule-a', sectionId, 1, '2025-01-01T00:00:00.000Z'),
+      makeRule('rule-b', sectionId, 2, '2025-01-01T00:00:00.000Z'),
+    ];
+
+    const event: DomainEvent = {
+      type: 'task.updated',
+      entityId: 'task-1',
+      projectId: 'proj-1',
+      changes: { sectionId },
+      previousValues: { sectionId: 'old-section' },
+      depth: 0,
+    };
+
+    const actions = evaluateRules(event, rules, context);
+    expect(actions.map((a) => a.ruleId)).toEqual(['rule-a', 'rule-b', 'rule-c']);
+  });
+
+  it('uses createdAt as tiebreaker when order values are equal', () => {
+    const sectionId = 'section-1';
+    const rules = [
+      makeRule('rule-late', sectionId, 1, '2025-06-01T00:00:00.000Z'),
+      makeRule('rule-early', sectionId, 1, '2025-01-01T00:00:00.000Z'),
+      makeRule('rule-mid', sectionId, 1, '2025-03-01T00:00:00.000Z'),
+    ];
+
+    const event: DomainEvent = {
+      type: 'task.updated',
+      entityId: 'task-1',
+      projectId: 'proj-1',
+      changes: { sectionId },
+      previousValues: { sectionId: 'old-section' },
+      depth: 0,
+    };
+
+    const actions = evaluateRules(event, rules, context);
+    expect(actions.map((a) => a.ruleId)).toEqual([
+      'rule-early',
+      'rule-mid',
+      'rule-late',
+    ]);
+  });
+
+  it('sorts by order first, then createdAt within same order', () => {
+    const sectionId = 'section-1';
+    const rules = [
+      makeRule('rule-2b', sectionId, 2, '2025-06-01T00:00:00.000Z'),
+      makeRule('rule-1a', sectionId, 1, '2025-06-01T00:00:00.000Z'),
+      makeRule('rule-2a', sectionId, 2, '2025-01-01T00:00:00.000Z'),
+      makeRule('rule-1b', sectionId, 1, '2025-01-01T00:00:00.000Z'),
+    ];
+
+    const event: DomainEvent = {
+      type: 'task.updated',
+      entityId: 'task-1',
+      projectId: 'proj-1',
+      changes: { sectionId },
+      previousValues: { sectionId: 'old-section' },
+      depth: 0,
+    };
+
+    const actions = evaluateRules(event, rules, context);
+    expect(actions.map((a) => a.ruleId)).toEqual([
+      'rule-1b', // order 1, earlier createdAt
+      'rule-1a', // order 1, later createdAt
+      'rule-2a', // order 2, earlier createdAt
+      'rule-2b', // order 2, later createdAt
+    ]);
+  });
+
+  it('buildRuleIndex sorts rules within each trigger group', () => {
+    const rules = [
+      makeRule('rule-3', 'section-1', 3, '2025-01-01T00:00:00.000Z'),
+      makeRule('rule-1', 'section-1', 1, '2025-01-01T00:00:00.000Z'),
+      makeRule('rule-2', 'section-1', 2, '2025-01-01T00:00:00.000Z'),
+    ];
+
+    const index = buildRuleIndex(rules);
+    const indexed = index.get('card_moved_into_section')!;
+    expect(indexed.map((r) => r.id)).toEqual(['rule-1', 'rule-2', 'rule-3']);
+  });
+});
+
+// ============================================================================
+// Feature: automations-polish, Property 12: Rule engine evaluates in ascending order
+// **Validates: Requirements 10.3, 10.4**
+// ============================================================================
+
+describe('Property 12: Rule engine evaluates in ascending order', () => {
+  it('for any set of rules matching the same event, actions are returned in ascending order then createdAt', () => {
+    fc.assert(
+      fc.property(
+        // Generate 2-20 rules with varying order and createdAt values
+        fc.array(
+          fc.record({
+            order: fc.integer({ min: 0, max: 100 }),
+            createdAt: fc
+              .date({ min: new Date('2020-01-01'), max: new Date('2030-12-31') })
+              .map((d) => d.toISOString()),
+          }),
+          { minLength: 2, maxLength: 20 },
+        ),
+        idArb,
+        idArb,
+        (ruleSpecs, entityId, sectionId) => {
+          // Build rules that all match the same trigger (card_moved_into_section)
+          const rules: AutomationRule[] = ruleSpecs.map((spec, i) => ({
+            id: `rule-${i}`,
+            projectId: 'proj-1',
+            name: `Rule ${i}`,
+            trigger: { type: 'card_moved_into_section' as const, sectionId },
+            filters: [],
+            action: {
+              type: 'mark_card_complete' as const,
+              sectionId: null,
+              dateOption: null,
+              position: null,
+              cardTitle: null,
+              cardDateOption: null,
+              specificMonth: null,
+              specificDay: null,
+              monthTarget: null,
+            },
+            enabled: true,
+            brokenReason: null,
+            executionCount: 0,
+            lastExecutedAt: null,
+            order: spec.order,
+            createdAt: spec.createdAt,
+            updatedAt: spec.createdAt,
+            recentExecutions: [],
+          })) as AutomationRule[];
+
+          const event: DomainEvent = {
+            type: 'task.updated',
+            entityId,
+            projectId: 'proj-1',
+            changes: { sectionId },
+            previousValues: { sectionId: 'old-section' },
+            depth: 0,
+          };
+
+          const context: EvaluationContext = {
+            allTasks: [],
+            allSections: [],
+            maxDepth: 5,
+            executedSet: new Set(),
+          };
+
+          const actions = evaluateRules(event, rules, context);
+
+          // All enabled rules should produce actions
+          expect(actions).toHaveLength(rules.length);
+
+          // Verify actions are sorted by order ascending, then createdAt ascending
+          for (let i = 1; i < actions.length; i++) {
+            const prevRule = rules.find((r) => r.id === actions[i - 1].ruleId)!;
+            const currRule = rules.find((r) => r.id === actions[i].ruleId)!;
+
+            if (prevRule.order !== currRule.order) {
+              // Different order values: must be ascending
+              expect(prevRule.order).toBeLessThan(currRule.order);
+            } else {
+              // Same order: createdAt must be ascending (or equal)
+              expect(prevRule.createdAt.localeCompare(currRule.createdAt)).toBeLessThanOrEqual(0);
+            }
+          }
+        },
+      ),
+      { numRuns: 100 },
+    );
+  });
+});
+
+
+// ============================================================================
+// Rule engine filter integration tests
+// **Validates: Requirements 3.3, 3.4**
+// ============================================================================
+
+describe('Rule engine filter integration', () => {
+  it('rule with matching trigger but failing filter produces no action (Req 3.3, 3.5)', () => {
+    fc.assert(
+      fc.property(
+        idArb,
+        idArb,
+        idArb,
+        idArb,
+        (entityId, projectId, triggerSectionId, filterSectionId) => {
+          // Ensure the filter sectionId differs from the task's sectionId
+          // so the filter will fail
+          const taskSectionId = `task-section-${triggerSectionId}`;
+          fc.pre(taskSectionId !== filterSectionId);
+
+          const task = {
+            id: entityId,
+            projectId,
+            parentTaskId: null,
+            sectionId: taskSectionId,
+            description: 'Test task',
+            notes: '',
+            assignee: '',
+            priority: 'none' as const,
+            tags: [],
+            dueDate: null,
+            completed: false,
+            completedAt: null,
+            order: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+
+          const rule: AutomationRule = {
+            id: 'rule-with-filter',
+            projectId,
+            name: 'Rule with filter',
+            trigger: {
+              type: 'card_moved_into_section',
+              sectionId: triggerSectionId,
+            },
+            filters: [
+              { type: 'in_section', sectionId: filterSectionId } as any,
+            ],
+            action: {
+              type: 'mark_card_complete',
+              sectionId: null,
+              dateOption: null,
+              position: null,
+              cardTitle: null,
+              cardDateOption: null,
+              specificMonth: null,
+              specificDay: null,
+              monthTarget: null,
+            },
+            enabled: true,
+            brokenReason: null,
+            executionCount: 0,
+            lastExecutedAt: null,
+            order: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+
+          const event: DomainEvent = {
+            type: 'task.updated',
+            entityId,
+            projectId,
+            changes: { sectionId: triggerSectionId },
+            previousValues: { sectionId: 'old-section' },
+            depth: 0,
+          };
+
+          const context: EvaluationContext = {
+            allTasks: [task as any],
+            allSections: [],
+            maxDepth: 5,
+            executedSet: new Set(),
+          };
+
+          const actions = evaluateRules(event, [rule], context);
+
+          // Trigger matches but filter fails → no action
+          expect(actions).toHaveLength(0);
+        },
+      ),
+      { numRuns: 100 },
+    );
+  });
+
+  it('rule with matching trigger and passing filter produces an action (Req 3.3, 3.4)', () => {
+    fc.assert(
+      fc.property(
+        idArb,
+        idArb,
+        idArb,
+        (entityId, projectId, sectionId) => {
+          const task = {
+            id: entityId,
+            projectId,
+            parentTaskId: null,
+            sectionId,
+            description: 'Test task',
+            notes: '',
+            assignee: '',
+            priority: 'none' as const,
+            tags: [],
+            dueDate: new Date().toISOString(),
+            completed: false,
+            completedAt: null,
+            order: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+
+          const rule: AutomationRule = {
+            id: 'rule-with-passing-filter',
+            projectId,
+            name: 'Rule with passing filter',
+            trigger: {
+              type: 'card_moved_into_section',
+              sectionId,
+            },
+            filters: [
+              { type: 'has_due_date' } as any,
+            ],
+            action: {
+              type: 'mark_card_complete',
+              sectionId: null,
+              dateOption: null,
+              position: null,
+              cardTitle: null,
+              cardDateOption: null,
+              specificMonth: null,
+              specificDay: null,
+              monthTarget: null,
+            },
+            enabled: true,
+            brokenReason: null,
+            executionCount: 0,
+            lastExecutedAt: null,
+            order: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+
+          const event: DomainEvent = {
+            type: 'task.updated',
+            entityId,
+            projectId,
+            changes: { sectionId },
+            previousValues: { sectionId: 'old-section' },
+            depth: 0,
+          };
+
+          const context: EvaluationContext = {
+            allTasks: [task as any],
+            allSections: [],
+            maxDepth: 5,
+            executedSet: new Set(),
+          };
+
+          const actions = evaluateRules(event, [rule], context);
+
+          // Trigger matches and filter passes → action produced
+          expect(actions).toHaveLength(1);
+          expect(actions[0].ruleId).toBe('rule-with-passing-filter');
+        },
+      ),
+      { numRuns: 100 },
+    );
+  });
+
+  it('rule with empty filters still matches (backward compatible) (Req 3.1)', () => {
+    fc.assert(
+      fc.property(
+        idArb,
+        idArb,
+        idArb,
+        (entityId, projectId, sectionId) => {
+          const rule: AutomationRule = {
+            id: 'rule-no-filters',
+            projectId,
+            name: 'Rule without filters',
+            trigger: {
+              type: 'card_moved_into_section',
+              sectionId,
+            },
+            filters: [],
+            action: {
+              type: 'mark_card_complete',
+              sectionId: null,
+              dateOption: null,
+              position: null,
+              cardTitle: null,
+              cardDateOption: null,
+              specificMonth: null,
+              specificDay: null,
+              monthTarget: null,
+            },
+            enabled: true,
+            brokenReason: null,
+            executionCount: 0,
+            lastExecutedAt: null,
+            order: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+
+          const event: DomainEvent = {
+            type: 'task.updated',
+            entityId,
+            projectId,
+            changes: { sectionId },
+            previousValues: { sectionId: 'old-section' },
+            depth: 0,
+          };
+
+          const context: EvaluationContext = {
+            allTasks: [],
+            allSections: [],
+            maxDepth: 5,
+            executedSet: new Set(),
+          };
+
+          const actions = evaluateRules(event, [rule], context);
+
+          // Empty filters → backward compatible, matches all
+          expect(actions).toHaveLength(1);
+        },
+      ),
+      { numRuns: 100 },
+    );
+  });
+});
+
+// ============================================================================
+// Section triggers cross-project isolation
+// **Validates: Property 17 (events from different projects do not match)**
+// Note: Project filtering is handled upstream by the automation service,
+// which passes only rules for the relevant project to evaluateRules.
+// These tests verify that when rules from a different project are passed,
+// the rule engine still matches them (since it doesn't filter by project).
+// The actual cross-project isolation is tested at the automationService level.
+// ============================================================================
+
+describe('Section triggers — project scoping note', () => {
+  it('evaluateRules does not filter by projectId (that is the caller responsibility)', () => {
+    // This is a documentation test: evaluateRules matches rules regardless of projectId.
+    // The automationService is responsible for passing only rules for the relevant project.
+    const rule: AutomationRule = {
+      id: 'section-created-rule',
+      projectId: 'project-A',
+      name: 'Section Created Rule',
+      trigger: {
+        type: 'section_created',
+        sectionId: null,
+      },
+      filters: [],
+      action: {
+        type: 'mark_card_complete',
+        sectionId: null,
+        dateOption: null,
+        position: null,
+        cardTitle: null,
+        cardDateOption: null,
+        specificMonth: null,
+        specificDay: null,
+        monthTarget: null,
+      },
+      enabled: true,
+      brokenReason: null,
+      executionCount: 0,
+      lastExecutedAt: null,
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    // Event from a DIFFERENT project
+    const event: DomainEvent = {
+      type: 'section.created',
+      entityId: 'section-1',
+      projectId: 'project-B',
+      changes: {},
+      previousValues: {},
+      depth: 0,
+    };
+
+    const context: EvaluationContext = {
+      allTasks: [],
+      allSections: [],
+      maxDepth: 5,
+      executedSet: new Set(),
+    };
+
+    // evaluateRules does NOT filter by project — it matches
+    const actions = evaluateRules(event, [rule], context);
+    expect(actions).toHaveLength(1);
+  });
+});
+
+
+// ============================================================================
+// Subtask exclusion — automations should NOT fire on subtasks
+// ============================================================================
+
+describe('Subtask exclusion', () => {
+  it('does not produce actions for events on subtasks (parentTaskId is non-null)', () => {
+    const sectionId = 'section-done';
+    const subtask = {
+      id: 'subtask-1',
+      projectId: 'proj-1',
+      parentTaskId: 'parent-1', // This is a subtask
+      sectionId,
+      description: 'Subtask',
+      notes: '',
+      assignee: '',
+      priority: 'none' as const,
+      tags: [],
+      dueDate: null,
+      completed: false,
+      completedAt: null,
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const rule: AutomationRule = {
+      id: 'rule-1',
+      projectId: 'proj-1',
+      name: 'Auto-complete on move to Done',
+      trigger: { type: 'card_moved_into_section', sectionId },
+      filters: [],
+      action: {
+        type: 'mark_card_complete',
+        sectionId: null,
+        dateOption: null,
+        position: null,
+        cardTitle: null,
+        cardDateOption: null,
+        specificMonth: null,
+        specificDay: null,
+        monthTarget: null,
+      },
+      enabled: true,
+      brokenReason: null,
+      executionCount: 0,
+      lastExecutedAt: null,
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const event: DomainEvent = {
+      type: 'task.updated',
+      entityId: 'subtask-1',
+      projectId: 'proj-1',
+      changes: { sectionId },
+      previousValues: { sectionId: 'old-section' },
+      depth: 0,
+    };
+
+    const context: EvaluationContext = {
+      allTasks: [subtask as any],
+      allSections: [],
+      maxDepth: 5,
+      executedSet: new Set(),
+    };
+
+    const actions = evaluateRules(event, [rule], context);
+
+    // Subtask events should NOT produce actions
+    expect(actions).toHaveLength(0);
+  });
+
+  it('still produces actions for top-level tasks (parentTaskId is null)', () => {
+    const sectionId = 'section-done';
+    const topLevelTask = {
+      id: 'task-1',
+      projectId: 'proj-1',
+      parentTaskId: null, // Top-level task
+      sectionId,
+      description: 'Top-level task',
+      notes: '',
+      assignee: '',
+      priority: 'none' as const,
+      tags: [],
+      dueDate: null,
+      completed: false,
+      completedAt: null,
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const rule: AutomationRule = {
+      id: 'rule-1',
+      projectId: 'proj-1',
+      name: 'Auto-complete on move to Done',
+      trigger: { type: 'card_moved_into_section', sectionId },
+      filters: [],
+      action: {
+        type: 'mark_card_complete',
+        sectionId: null,
+        dateOption: null,
+        position: null,
+        cardTitle: null,
+        cardDateOption: null,
+        specificMonth: null,
+        specificDay: null,
+        monthTarget: null,
+      },
+      enabled: true,
+      brokenReason: null,
+      executionCount: 0,
+      lastExecutedAt: null,
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const event: DomainEvent = {
+      type: 'task.updated',
+      entityId: 'task-1',
+      projectId: 'proj-1',
+      changes: { sectionId },
+      previousValues: { sectionId: 'old-section' },
+      depth: 0,
+    };
+
+    const context: EvaluationContext = {
+      allTasks: [topLevelTask as any],
+      allSections: [],
+      maxDepth: 5,
+      executedSet: new Set(),
+    };
+
+    const actions = evaluateRules(event, [rule], context);
+
+    // Top-level task events SHOULD produce actions
+    expect(actions).toHaveLength(1);
+  });
+
+  it('property: for any subtask event, no actions are produced', () => {
+    fc.assert(
+      fc.property(
+        idArb,
+        idArb,
+        idArb,
+        idArb,
+        (entityId, projectId, sectionId, parentTaskId) => {
+          const subtask = {
+            id: entityId,
+            projectId,
+            parentTaskId, // Non-null = subtask
+            sectionId,
+            description: 'Subtask',
+            notes: '',
+            assignee: '',
+            priority: 'none' as const,
+            tags: [],
+            dueDate: null,
+            completed: false,
+            completedAt: null,
+            order: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+
+          const rule: AutomationRule = {
+            id: 'rule-1',
+            projectId,
+            name: 'Test Rule',
+            trigger: { type: 'card_moved_into_section', sectionId },
+            filters: [],
+            action: {
+              type: 'mark_card_complete',
+              sectionId: null,
+              dateOption: null,
+              position: null,
+              cardTitle: null,
+              cardDateOption: null,
+              specificMonth: null,
+              specificDay: null,
+              monthTarget: null,
+            },
+            enabled: true,
+            brokenReason: null,
+            executionCount: 0,
+            lastExecutedAt: null,
+            order: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+
+          const event: DomainEvent = {
+            type: 'task.updated',
+            entityId,
+            projectId,
+            changes: { sectionId },
+            previousValues: { sectionId: 'old-section' },
+            depth: 0,
+          };
+
+          const context: EvaluationContext = {
+            allTasks: [subtask as any],
+            allSections: [],
+            maxDepth: 5,
+            executedSet: new Set(),
+          };
+
+          const actions = evaluateRules(event, [rule], context);
+          expect(actions).toHaveLength(0);
+        },
+      ),
+      { numRuns: 100 },
+    );
+  });
+});

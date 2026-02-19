@@ -1,6 +1,9 @@
 import { AppState } from '@/types';
 import { LocalStorageAdapter } from '@/lib/storage';
 import { TimeManagementSystem } from '@/types';
+import type { AutomationRuleRepository } from '@/features/automations/repositories/types';
+import type { AutomationRule } from '@/features/automations/types';
+import { validateImportedRules } from '@/features/automations/services/ruleImportExport';
 
 // LZMA global object interface (when loading lzma_worker.js directly)
 interface LZMAGlobal {
@@ -86,9 +89,11 @@ export interface LoadResult {
 export class ShareService {
   private storageAdapter: LocalStorageAdapter;
   private lzmaLoaded: boolean = false;
+  private automationRuleRepo?: AutomationRuleRepository;
 
-  constructor(storageAdapter?: LocalStorageAdapter) {
+  constructor(storageAdapter?: LocalStorageAdapter, automationRuleRepo?: AutomationRuleRepository) {
     this.storageAdapter = storageAdapter || new LocalStorageAdapter();
+    this.automationRuleRepo = automationRuleRepo;
   }
 
   /**
@@ -145,11 +150,11 @@ export class ShareService {
    * Generate a shareable URL containing the current application state
    * @param currentState Optional current state to use instead of reading from storage
    */
-  async generateShareURL(currentState?: AppState): Promise<ShareResult> {
+  async generateShareURL(currentState?: AppState, options?: { includeAutomations?: boolean }): Promise<ShareResult> {
     try {
       // Serialize state
       console.log('[ShareService] Serializing state...');
-      const json = this.serializeState(currentState);
+      const json = this.serializeState(currentState, options);
       console.log('[ShareService] State serialized, length:', json.length);
       
       // Compress state
@@ -403,8 +408,11 @@ export class ShareService {
   /**
    * Serialize application state to JSON
    * @param currentState Optional current state to use instead of reading from storage
+   * @param options.includeAutomations Whether to include automation rules in the export (default: true)
    */
-  serializeState(currentState?: AppState): string {
+  serializeState(currentState?: AppState, options?: { includeAutomations?: boolean }): string {
+    const includeAutomations = options?.includeAutomations ?? true;
+
     try {
       let state: AppState;
       
@@ -446,10 +454,15 @@ export class ShareService {
       }
       
       // Add export metadata
-      const exportData = {
+      const exportData: Record<string, unknown> = {
         ...state,
         exportedAt: new Date().toISOString()
       };
+
+      // Optionally include automation rules
+      if (includeAutomations && this.automationRuleRepo) {
+        exportData.automationRules = this.automationRuleRepo.findAll();
+      }
       
       return JSON.stringify(exportData, null, 2);
     } catch (error) {
@@ -525,6 +538,52 @@ export class ShareService {
       // Clipboard write failed (permissions, etc.)
       console.error('Failed to copy to clipboard:', error);
       return false;
+    }
+  }
+
+  /**
+   * Import automation rules from a parsed export payload.
+   * Validates section references against the imported sections and merges
+   * valid/broken rules into the automation rule repository.
+   *
+   * @param payload The parsed import payload (should contain automationRules and sections)
+   * @param options.includeAutomations Whether to import automation rules (default: true)
+   * Validates: Requirements 5.1, 5.2
+   */
+  importAutomationRules(
+    payload: Record<string, unknown>,
+    options?: { includeAutomations?: boolean }
+  ): void {
+    const includeAutomations = options?.includeAutomations ?? true;
+
+    if (!includeAutomations || !this.automationRuleRepo) {
+      return;
+    }
+
+    const rawRules = payload.automationRules;
+    if (!Array.isArray(rawRules) || rawRules.length === 0) {
+      return;
+    }
+
+    // Build available section IDs from the imported sections
+    const sections = Array.isArray(payload.sections) ? payload.sections : [];
+    const availableSectionIds = new Set<string>(
+      sections
+        .filter((s: unknown): s is { id: string } =>
+          typeof s === 'object' && s !== null && typeof (s as Record<string, unknown>).id === 'string'
+        )
+        .map((s) => s.id)
+    );
+
+    // Validate imported rules against available sections
+    const validatedRules = validateImportedRules(
+      rawRules as AutomationRule[],
+      availableSectionIds
+    );
+
+    // Merge each validated rule into the repository
+    for (const rule of validatedRules) {
+      this.automationRuleRepo.create(rule);
     }
   }
 }

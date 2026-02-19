@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import * as fc from 'fast-check';
 import {
   AutomationRuleSchema,
+  ExecutionLogEntrySchema,
   TriggerTypeSchema,
   ActionTypeSchema,
   RelativeDateOptionSchema,
@@ -584,6 +585,110 @@ describe('Property 1: CardFilter schema round-trip validation', () => {
           expect(result.success).toBe(false);
         },
       ),
+      { numRuns: 100 },
+    );
+  });
+});
+
+// Feature: automations-polish, Property 3: Execution log entry schema round-trip
+// **Validates: Requirements 4.1, 4.2**
+describe('Property 3: Execution log entry schema round-trip', () => {
+  const idArb = fc.string({ minLength: 1, maxLength: 50 });
+  const isoDateTimeArb = fc
+    .date({ min: new Date('2020-01-01'), max: new Date('2030-12-31') })
+    .map((d) => d.toISOString());
+
+  const executionLogEntryArb = fc.record({
+    timestamp: isoDateTimeArb,
+    triggerDescription: fc.string({ minLength: 0, maxLength: 300 }),
+    actionDescription: fc.string({ minLength: 0, maxLength: 300 }),
+    taskName: fc.string({ minLength: 0, maxLength: 300 }),
+  });
+
+  const triggerTypeArb = fc.constantFrom(
+    'card_moved_into_section',
+    'card_moved_out_of_section',
+    'card_marked_complete',
+    'card_marked_incomplete',
+  );
+
+  const actionTypeArb = fc.constantFrom(
+    'move_card_to_top_of_section',
+    'move_card_to_bottom_of_section',
+    'mark_card_complete',
+    'mark_card_incomplete',
+    'set_due_date',
+    'remove_due_date',
+  );
+
+  const relativeDateOptionArb = fc.constantFrom('today', 'tomorrow', 'next_working_day');
+  const positionArb = fc.constantFrom('top', 'bottom');
+
+  const triggerArb = fc.record({
+    type: triggerTypeArb,
+    sectionId: fc.oneof(idArb, fc.constant(null)),
+  });
+
+  const actionArb = fc.record({
+    type: actionTypeArb,
+    sectionId: fc.oneof(idArb, fc.constant(null)),
+    dateOption: fc.oneof(relativeDateOptionArb, fc.constant(null)),
+    position: fc.oneof(positionArb, fc.constant(null)),
+    cardTitle: fc.oneof(fc.string({ minLength: 1, maxLength: 200 }), fc.constant(null)),
+    cardDateOption: fc.oneof(relativeDateOptionArb, fc.constant(null)),
+    specificMonth: fc.oneof(fc.integer({ min: 1, max: 12 }), fc.constant(null)),
+    specificDay: fc.oneof(fc.integer({ min: 1, max: 31 }), fc.constant(null)),
+    monthTarget: fc.oneof(fc.constantFrom('this_month', 'next_month'), fc.constant(null)),
+  });
+
+  const simpleFilterArb = fc.oneof(
+    fc.record({ type: fc.constant('has_due_date' as const) }),
+    fc.record({ type: fc.constant('in_section' as const), sectionId: idArb }),
+  );
+
+  const automationRuleWithExecutionsArb = fc.record({
+    id: idArb,
+    projectId: idArb,
+    name: fc.string({ minLength: 1, maxLength: 200 }),
+    trigger: triggerArb,
+    filters: fc.array(simpleFilterArb, { maxLength: 3 }),
+    action: actionArb,
+    enabled: fc.boolean(),
+    brokenReason: fc.oneof(fc.string({ minLength: 1, maxLength: 100 }), fc.constant(null)),
+    executionCount: fc.nat(),
+    lastExecutedAt: fc.oneof(isoDateTimeArb, fc.constant(null)),
+    recentExecutions: fc.array(executionLogEntryArb, { minLength: 1, maxLength: 20 }),
+    order: fc.integer(),
+    createdAt: isoDateTimeArb,
+    updatedAt: isoDateTimeArb,
+  });
+
+  it('for any valid ExecutionLogEntry, parsing, serializing to JSON, and parsing again produces an equivalent object', () => {
+    fc.assert(
+      fc.property(executionLogEntryArb, (entry) => {
+        const parsed1 = ExecutionLogEntrySchema.parse(entry);
+        const json = JSON.stringify(parsed1);
+        const deserialized = JSON.parse(json);
+        const parsed2 = ExecutionLogEntrySchema.parse(deserialized);
+
+        expect(parsed2).toEqual(parsed1);
+      }),
+      { numRuns: 100 },
+    );
+  });
+
+  it('for any AutomationRule with recentExecutions, the full AutomationRuleSchema round-trip preserves all entries', () => {
+    fc.assert(
+      fc.property(automationRuleWithExecutionsArb, (rule) => {
+        const parsed1 = AutomationRuleSchema.parse(rule);
+        const json = JSON.stringify(parsed1);
+        const deserialized = JSON.parse(json);
+        const parsed2 = AutomationRuleSchema.parse(deserialized);
+
+        expect(parsed2).toEqual(parsed1);
+        expect(parsed2.recentExecutions).toEqual(parsed1.recentExecutions);
+        expect(parsed2.recentExecutions.length).toBe(rule.recentExecutions.length);
+      }),
       { numRuns: 100 },
     );
   });

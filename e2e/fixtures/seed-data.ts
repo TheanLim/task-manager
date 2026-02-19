@@ -29,6 +29,11 @@ export const SECTION_2_IDS = {
   done: `${PROJECT_2_ID}-section-done`,
 } as const
 
+export const RULE_IDS = {
+  autoComplete: 'rule-auto-complete',
+  autoMove: 'rule-auto-move',
+} as const
+
 export const TASK_IDS = {
   todoTask1: 'task-todo-001',
   todoTask2: 'task-todo-002',
@@ -143,6 +148,62 @@ const tasks = [
   makeTask({ id: TASK_IDS.project2Task, projectId: PROJECT_2_ID, sectionId: SECTION_2_IDS.todo, description: 'Beta project kickoff', order: 0 }),
 ]
 
+// ── Automation Rules ─────────────────────────────────────────────────────────
+const automationRules = [
+  {
+    id: RULE_IDS.autoComplete,
+    projectId: PROJECT_ID,
+    name: 'Auto-complete',
+    trigger: { type: 'card_moved_into_section', sectionId: SECTION_IDS.done },
+    filters: [],
+    action: {
+      type: 'mark_card_complete',
+      sectionId: null,
+      dateOption: null,
+      position: null,
+      cardTitle: null,
+      cardDateOption: null,
+      specificMonth: null,
+      specificDay: null,
+      monthTarget: null,
+    },
+    enabled: true,
+    brokenReason: null,
+    executionCount: 0,
+    lastExecutedAt: null,
+    recentExecutions: [],
+    order: 0,
+    createdAt: NOW,
+    updatedAt: NOW,
+  },
+  {
+    id: RULE_IDS.autoMove,
+    projectId: PROJECT_ID,
+    name: 'Auto-move',
+    trigger: { type: 'card_marked_complete', sectionId: null },
+    filters: [],
+    action: {
+      type: 'move_card_to_bottom_of_section',
+      sectionId: SECTION_IDS.done,
+      dateOption: null,
+      position: 'bottom',
+      cardTitle: null,
+      cardDateOption: null,
+      specificMonth: null,
+      specificDay: null,
+      monthTarget: null,
+    },
+    enabled: true,
+    brokenReason: null,
+    executionCount: 0,
+    lastExecutedAt: null,
+    recentExecutions: [],
+    order: 1,
+    createdAt: NOW,
+    updatedAt: NOW,
+  },
+]
+
 // ── Zustand localStorage payloads ───────────────────────────────────────────
 const dataStorePayload = {
   state: { projects, tasks, sections, dependencies: [] },
@@ -190,11 +251,12 @@ export async function seedDatabase(
   // Navigate to a blank page first so we can set localStorage on the correct origin
   await page.goto('/')
   await page.evaluate(
-    ([dataJson, appJson]) => {
+    ([dataJson, appJson, automationsJson]) => {
       localStorage.setItem('task-management-data', dataJson)
       localStorage.setItem('task-management-settings', appJson)
+      localStorage.setItem('task-management-automations', automationsJson)
     },
-    [JSON.stringify(dataStorePayload), JSON.stringify(appPayload)] as const,
+    [JSON.stringify(dataStorePayload), JSON.stringify(appPayload), JSON.stringify(automationRules)] as const,
   )
   // Reload so the app picks up the seeded data
   await page.reload()

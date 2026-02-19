@@ -11,11 +11,12 @@ import {
   ACTION_META,
   buildPreviewParts,
   buildPreviewString,
+  isDuplicateRule,
   type TriggerConfig,
   type ActionConfig,
 } from '../services/rulePreviewService';
 import type { Section } from '@/lib/schemas';
-import type { CardFilter } from '../types';
+import type { AutomationRule, CardFilter } from '../types';
 
 interface RuleDialogStepReviewProps {
   trigger: TriggerConfig;
@@ -28,6 +29,8 @@ interface RuleDialogStepReviewProps {
   onNavigateToStep: (step: 0 | 1 | 2 | 3) => void;
   onSave: () => void;
   isSaveDisabled: boolean;
+  existingRules?: AutomationRule[];
+  editingRuleId?: string;
 }
 
 /**
@@ -93,9 +96,16 @@ export function RuleDialogStepReview({
   onNavigateToStep,
   onSave,
   isSaveDisabled,
+  existingRules,
+  editingRuleId,
 }: RuleDialogStepReviewProps) {
   // Build section lookup
   const sectionLookup = (id: string) => sections.find((s) => s.id === id)?.name;
+
+  // Check for duplicate rule
+  const showDuplicateWarning = existingRules
+    ? isDuplicateRule(trigger, action, existingRules, editingRuleId)
+    : false;
 
   // Handle filter removal
   const handleRemoveFilter = (index: number) => {
@@ -258,6 +268,13 @@ export function RuleDialogStepReview({
           Leave blank to use the auto-generated name
         </p>
       </div>
+
+      {/* Duplicate rule warning */}
+      {showDuplicateWarning && (
+        <div className="rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+          ⚠️ A similar rule already exists.
+        </div>
+      )}
 
       {/* Save Button */}
       <Button

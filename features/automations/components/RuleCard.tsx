@@ -1,6 +1,9 @@
 'use client';
 
-import { AlertTriangle, ArrowRight, MoreVertical } from 'lucide-react';
+import { useState } from 'react';
+import { AlertTriangle, ArrowRight, GripVertical, MoreVertical } from 'lucide-react';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -8,6 +11,9 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -18,6 +24,8 @@ import {
 } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 import { RulePreview } from './RulePreview';
+import { RuleCardExecutionLog } from './RuleCardExecutionLog';
+import { ProjectPickerDialog } from './ProjectPickerDialog';
 import { TRIGGER_META, ACTION_META } from '../services/rulePreviewService';
 import type { AutomationRule } from '../types';
 import type { Section } from '@/lib/schemas';
@@ -25,8 +33,10 @@ import type { Section } from '@/lib/schemas';
 interface RuleCardProps {
   rule: AutomationRule;
   sections: Section[];
+  projectId: string;
   onEdit: (ruleId: string) => void;
   onDuplicate: (ruleId: string) => void;
+  onDuplicateToProject: (ruleId: string, targetProjectId: string) => void;
   onDelete: (ruleId: string) => void;
   onToggle: (ruleId: string) => void;
 }
@@ -48,11 +58,15 @@ const ACTION_CATEGORY_COLORS: Record<string, string> = {
 export function RuleCard({
   rule,
   sections,
+  projectId,
   onEdit,
   onDuplicate,
+  onDuplicateToProject,
   onDelete,
   onToggle,
 }: RuleCardProps) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+
   // Get trigger and action metadata
   const triggerMeta = TRIGGER_META.find((t) => t.type === rule.trigger.type);
   const actionMeta = ACTION_META.find((a) => a.type === rule.action.type);
@@ -78,12 +92,42 @@ export function RuleCard({
   // Check if rule is broken
   const isBroken = rule.brokenReason !== null;
 
+  // Sortable drag-and-drop
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: rule.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
   return (
-    <Card className={`${!rule.enabled ? 'opacity-60' : ''}`}>
+    <Card
+      ref={setNodeRef}
+      style={style}
+      className={`${!rule.enabled ? 'opacity-60' : ''} ${isDragging ? 'opacity-50 z-50' : ''}`}
+      {...attributes}
+    >
       <CardContent className="p-4">
         <div className="space-y-3">
           {/* Header: Name, Toggle, Actions */}
           <div className="flex items-start justify-between gap-3">
+            <button
+              ref={setActivatorNodeRef}
+              {...listeners}
+              className="mt-0.5 cursor-grab touch-none text-muted-foreground hover:text-foreground active:cursor-grabbing"
+              aria-label="Drag to reorder"
+              tabIndex={-1}
+            >
+              <GripVertical className="h-4 w-4" />
+            </button>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <h3 className="font-medium text-sm truncate">{rule.name}</h3>
@@ -125,9 +169,17 @@ export function RuleCard({
                   <DropdownMenuItem onClick={() => onEdit(rule.id)}>
                     Edit
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => onDuplicate(rule.id)}>
-                    Duplicate
-                  </DropdownMenuItem>
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>Duplicate</DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      <DropdownMenuItem onClick={() => onDuplicate(rule.id)}>
+                        In this project
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setPickerOpen(true)}>
+                        To another project...
+                      </DropdownMenuItem>
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
                   <DropdownMenuItem
                     onClick={() => onDelete(rule.id)}
                     className="text-destructive focus:text-destructive"
@@ -183,8 +235,18 @@ export function RuleCard({
             Ran {rule.executionCount} {rule.executionCount === 1 ? 'time' : 'times'} · Last
             fired {formatLastExecuted(rule.lastExecutedAt)}
           </div>
+
+          {/* Execution log */}
+          <RuleCardExecutionLog entries={rule.recentExecutions ?? []} />
         </div>
       </CardContent>
+
+      <ProjectPickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        excludeProjectId={projectId}
+        onSelect={(targetProjectId) => onDuplicateToProject(rule.id, targetProjectId)}
+      />
     </Card>
   );
 }

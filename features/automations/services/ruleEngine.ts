@@ -10,9 +10,10 @@ import { evaluateFilters, type FilterContext } from './filterPredicates';
 /**
  * Builds an index of automation rules grouped by trigger type for O(1) lookup.
  * Only includes enabled rules with no brokenReason.
+ * Rules within each group are sorted by `order` ascending, then `createdAt` ascending as tiebreaker.
  *
  * @param rules - Array of automation rules to index
- * @returns Map of trigger types to arrays of matching rules
+ * @returns Map of trigger types to arrays of matching rules (sorted by order, then createdAt)
  */
 export function buildRuleIndex(
   rules: AutomationRule[]
@@ -30,6 +31,16 @@ export function buildRuleIndex(
     const existing = index.get(triggerType) ?? [];
     existing.push(rule);
     index.set(triggerType, existing);
+  }
+
+  // Sort each group by order ascending, then createdAt ascending as tiebreaker
+  for (const ruleList of index.values()) {
+    ruleList.sort((a, b) => {
+      if (a.order !== b.order) {
+        return a.order - b.order;
+      }
+      return a.createdAt.localeCompare(b.createdAt);
+    });
   }
 
   return index;
@@ -50,6 +61,14 @@ export function evaluateRules(
   context: EvaluationContext
 ): RuleAction[] {
   const actions: RuleAction[] = [];
+
+  // Skip subtask events — automations only apply to top-level tasks
+  if (event.type === 'task.created' || event.type === 'task.updated' || event.type === 'task.deleted') {
+    const task = context.allTasks.find((t) => t.id === event.entityId);
+    if (task && task.parentTaskId !== null) {
+      return actions; // Subtask — skip all rule evaluation
+    }
+  }
 
   // Build index for efficient lookup
   const ruleIndex = buildRuleIndex(rules);

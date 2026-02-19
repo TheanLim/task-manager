@@ -647,6 +647,180 @@ describe('Property 6: Comparison date filters evaluate correctly against N units
       { numRuns: 100 }
     );
   });
+
+  it('Feature: automations-filters-dates, Property 6: due_in_less_than with working_days - Validates: Requirements 2.19', () => {
+    fc.assert(
+      fc.property(
+        arbTask,
+        arbFilterContext,
+        fc.integer({ min: 1, max: 15 }),
+        (task, ctx, n) => {
+          const filter: CardFilter = { type: 'due_in_less_than', value: n, unit: 'working_days' };
+          const result = evaluateFilter(filter, task, ctx);
+
+          if (task.dueDate === null) {
+            expect(result).toBe(false);
+          } else {
+            const dueDate = new Date(task.dueDate);
+            dueDate.setHours(0, 0, 0, 0);
+
+            // Calculate N working days from now
+            const nowStart = new Date(ctx.now);
+            nowStart.setHours(0, 0, 0, 0);
+
+            // Manually count working days to find the target date
+            let count = 0;
+            const targetDate = new Date(nowStart);
+            while (count < n) {
+              targetDate.setDate(targetDate.getDate() + 1);
+              const day = targetDate.getDay();
+              if (day !== 0 && day !== 6) {
+                count++;
+              }
+            }
+
+            const expectedResult = dueDate > nowStart && dueDate <= targetDate;
+            expect(result).toBe(expectedResult);
+          }
+        }
+      ),
+      { numRuns: 100 }
+    );
+  });
+
+  it('Feature: automations-filters-dates, Property 6: due_in_more_than with working_days - Validates: Requirements 2.21', () => {
+    fc.assert(
+      fc.property(
+        arbTask,
+        arbFilterContext,
+        fc.integer({ min: 1, max: 15 }),
+        (task, ctx, n) => {
+          const filter: CardFilter = { type: 'due_in_more_than', value: n, unit: 'working_days' };
+          const result = evaluateFilter(filter, task, ctx);
+
+          if (task.dueDate === null) {
+            expect(result).toBe(false);
+          } else {
+            const dueDate = new Date(task.dueDate);
+            dueDate.setHours(0, 0, 0, 0);
+
+            // Calculate N working days from now
+            const nowStart = new Date(ctx.now);
+            nowStart.setHours(0, 0, 0, 0);
+
+            let count = 0;
+            const targetDate = new Date(nowStart);
+            while (count < n) {
+              targetDate.setDate(targetDate.getDate() + 1);
+              const day = targetDate.getDay();
+              if (day !== 0 && day !== 6) {
+                count++;
+              }
+            }
+
+            const expectedResult = dueDate > targetDate;
+            expect(result).toBe(expectedResult);
+          }
+        }
+      ),
+      { numRuns: 100 }
+    );
+  });
+
+  it('Feature: automations-filters-dates, Property 6: due_in_exactly with working_days - Validates: Requirements 2.23', () => {
+    fc.assert(
+      fc.property(
+        arbTask,
+        arbFilterContext,
+        fc.integer({ min: 1, max: 15 }),
+        (task, ctx, n) => {
+          const filter: CardFilter = { type: 'due_in_exactly', value: n, unit: 'working_days' };
+          const result = evaluateFilter(filter, task, ctx);
+
+          if (task.dueDate === null) {
+            expect(result).toBe(false);
+          } else {
+            const dueDate = new Date(task.dueDate);
+            dueDate.setHours(0, 0, 0, 0);
+
+            // Calculate N working days from now
+            const nowStart = new Date(ctx.now);
+            nowStart.setHours(0, 0, 0, 0);
+
+            let count = 0;
+            const targetDate = new Date(nowStart);
+            while (count < n) {
+              targetDate.setDate(targetDate.getDate() + 1);
+              const day = targetDate.getDay();
+              if (day !== 0 && day !== 6) {
+                count++;
+              }
+            }
+
+            const expectedResult = dueDate.getTime() === targetDate.getTime();
+            expect(result).toBe(expectedResult);
+          }
+        }
+      ),
+      { numRuns: 100 }
+    );
+  });
+
+  it('Feature: automations-filters-dates, Property 6: due_in_between with working_days - Validates: Requirements 2.19, 2.21', () => {
+    fc.assert(
+      fc.property(
+        arbTask,
+        arbFilterContext,
+        fc.integer({ min: 1, max: 10 }),
+        fc.integer({ min: 1, max: 15 }),
+        (task, ctx, minValue, maxValue) => {
+          if (minValue > maxValue) {
+            [minValue, maxValue] = [maxValue, minValue];
+          }
+
+          const filter: CardFilter = {
+            type: 'due_in_between',
+            minValue,
+            maxValue,
+            unit: 'working_days',
+          };
+          const result = evaluateFilter(filter, task, ctx);
+
+          if (task.dueDate === null) {
+            expect(result).toBe(false);
+          } else {
+            const dueDate = new Date(task.dueDate);
+            dueDate.setHours(0, 0, 0, 0);
+
+            const nowStart = new Date(ctx.now);
+            nowStart.setHours(0, 0, 0, 0);
+
+            // Calculate minValue working days
+            let count = 0;
+            const minDate = new Date(nowStart);
+            while (count < minValue) {
+              minDate.setDate(minDate.getDate() + 1);
+              const day = minDate.getDay();
+              if (day !== 0 && day !== 6) count++;
+            }
+
+            // Calculate maxValue working days
+            count = 0;
+            const maxDate = new Date(nowStart);
+            while (count < maxValue) {
+              maxDate.setDate(maxDate.getDate() + 1);
+              const day = maxDate.getDay();
+              if (day !== 0 && day !== 6) count++;
+            }
+
+            const expectedResult = dueDate >= minDate && dueDate <= maxDate;
+            expect(result).toBe(expectedResult);
+          }
+        }
+      ),
+      { numRuns: 100 }
+    );
+  });
 });
 
 // ============================================================================

@@ -1,7 +1,7 @@
 import type { TaskRepository, SectionRepository } from '@/lib/repositories/types';
 import type { AutomationRuleRepository } from '../repositories/types';
 import type { TaskService } from '@/features/tasks/services/taskService';
-import type { RuleAction, DomainEvent } from '../types';
+import type { RuleAction, DomainEvent, ExecutionLogEntry } from '../types';
 import { calculateRelativeDate } from './dateCalculations';
 import { TRIGGER_SECTION_SENTINEL } from './rulePreviewService';
 import { v4 as uuidv4 } from 'uuid';
@@ -65,6 +65,13 @@ export class RuleExecutor {
       // Update rule execution metadata (Requirement 5.8)
       if (events.length > 0) {
         this.updateRuleMetadata(action.ruleId);
+        // Push execution log entry (Requirements 4.3, 4.4)
+        this.pushExecutionLogEntry(
+          action.ruleId,
+          this.getTriggerDescription(action.ruleId),
+          this.getActionDescription(action.actionType, action.params),
+          action.params.cardTitle ?? 'New card'
+        );
       }
       
       return events;
@@ -109,6 +116,13 @@ export class RuleExecutor {
     // Update rule execution metadata (Requirement 5.8)
     if (events.length > 0) {
       this.updateRuleMetadata(action.ruleId);
+      // Push execution log entry (Requirements 4.3, 4.4)
+      this.pushExecutionLogEntry(
+        action.ruleId,
+        this.getTriggerDescription(action.ruleId),
+        this.getActionDescription(action.actionType, action.params),
+        task.description
+      );
     }
 
     return events;
@@ -243,6 +257,7 @@ export class RuleExecutor {
       },
       previousValues: {
         completed: task.completed,
+        completedAt: task.completedAt ?? null,
       },
       triggeredByRule: action.ruleId,
       depth: triggeringEvent.depth + 1,
@@ -271,6 +286,7 @@ export class RuleExecutor {
       },
       previousValues: {
         completed: task.completed,
+        completedAt: task.completedAt ?? null,
       },
       triggeredByRule: action.ruleId,
       depth: triggeringEvent.depth + 1,
@@ -444,4 +460,94 @@ export class RuleExecutor {
       lastExecutedAt: new Date().toISOString(),
     });
   }
+
+  /**
+   * Push an execution log entry to the rule's recentExecutions array.
+   * Trims to the 20 most recent entries if the array exceeds 20.
+   * (Requirements 4.3, 4.4)
+   */
+  private pushExecutionLogEntry(
+    ruleId: string,
+    triggerDescription: string,
+    actionDescription: string,
+    taskName: string
+  ): void {
+    const rule = this.ruleRepo.findById(ruleId);
+    if (!rule) return;
+
+    const entry: ExecutionLogEntry = {
+      timestamp: new Date().toISOString(),
+      triggerDescription,
+      actionDescription,
+      taskName,
+    };
+
+    const recentExecutions = [...(rule.recentExecutions ?? []), entry];
+    // Trim to last 20 entries
+    const trimmed = recentExecutions.length > 20
+      ? recentExecutions.slice(recentExecutions.length - 20)
+      : recentExecutions;
+
+    this.ruleRepo.update(ruleId, { recentExecutions: trimmed });
+  }
+
+  /**
+   * Generate a human-readable trigger description from the rule's trigger config.
+   */
+  private getTriggerDescription(ruleId: string): string {
+    const rule = this.ruleRepo.findById(ruleId);
+    if (!rule) return 'Unknown trigger';
+
+    const sectionName = rule.trigger.sectionId
+      ? this.sectionRepo.findById(rule.trigger.sectionId)?.name ?? 'unknown section'
+      : '';
+
+    switch (rule.trigger.type) {
+      case 'card_moved_into_section':
+        return sectionName ? `Card moved into '${sectionName}'` : 'Card moved into section';
+      case 'card_moved_out_of_section':
+        return sectionName ? `Card moved out of '${sectionName}'` : 'Card moved out of section';
+      case 'card_marked_complete':
+        return 'Card marked complete';
+      case 'card_marked_incomplete':
+        return 'Card marked incomplete';
+      case 'card_created_in_section':
+        return sectionName ? `Card created in '${sectionName}'` : 'Card created in section';
+      case 'section_created':
+        return 'Section created';
+      case 'section_renamed':
+        return 'Section renamed';
+      default:
+        return 'Unknown trigger';
+    }
+  }
+
+  /**
+   * Generate a human-readable action description from the action type.
+   */
+  private getActionDescription(actionType: string, params: RuleAction['params']): string {
+    const sectionName = params.sectionId
+      ? this.sectionRepo.findById(params.sectionId)?.name ?? 'unknown section'
+      : '';
+
+    switch (actionType) {
+      case 'move_card_to_top_of_section':
+        return sectionName ? `Moved to top of '${sectionName}'` : 'Moved to top of section';
+      case 'move_card_to_bottom_of_section':
+        return sectionName ? `Moved to bottom of '${sectionName}'` : 'Moved to bottom of section';
+      case 'mark_card_complete':
+        return 'Marked as complete';
+      case 'mark_card_incomplete':
+        return 'Marked as incomplete';
+      case 'set_due_date':
+        return 'Set due date';
+      case 'remove_due_date':
+        return 'Removed due date';
+      case 'create_card':
+        return params.cardTitle ? `Created card '${params.cardTitle}'` : 'Created card';
+      default:
+        return 'Unknown action';
+    }
+  }
+
 }

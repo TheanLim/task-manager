@@ -1,9 +1,16 @@
 'use client';
 
 import React from 'react';
-import { Circle, ChevronRight, ChevronDown, MoreVertical, Plus, GripVertical, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import { Circle, ChevronRight, ChevronDown, MoreVertical, Plus, GripVertical, ArrowUp, ArrowDown, ArrowUpDown, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,6 +36,8 @@ import { getEffectiveLastActionTime } from '@/features/tasks/services/taskServic
 import { useKeyboardNavigation } from '@/features/keyboard/hooks/useKeyboardNavigation';
 import { getDefaultShortcutMap, mergeShortcutMaps } from '@/features/keyboard/services/shortcutService';
 import { useKeyboardNavStore } from '@/features/keyboard/stores/keyboardNavStore';
+import { SectionContextMenuItem } from '@/features/automations/components/SectionContextMenuItem';
+import type { TriggerType } from '@/features/automations/types';
 
 interface TaskListProps {
   tasks: Task[];
@@ -48,6 +57,7 @@ interface TaskListProps {
   onReinsert?: (taskId: string) => void;
   onToggleSection?: (sectionId: string) => void;
   hideCompletedSubtasks?: boolean;
+  onOpenRuleDialog?: (prefill: { triggerType: TriggerType; sectionId: string }) => void;
 }
 
 interface ColumnWidths {
@@ -72,7 +82,7 @@ const COLUMN_LABELS: Record<TaskColumnId, string> = {
  * List view component for displaying tasks grouped by collapsible sections
  * with table-like task rows and draggable column headers
  */
-export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTask, onViewSubtasks, onSubtaskButtonClick, onAddSubtask, selectedTaskId, showProjectColumn = false, onProjectClick, flatMode = false, initialSortByProject = false, showReinsertButton = false, onReinsert, onToggleSection, hideCompletedSubtasks = false }: TaskListProps) {
+export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTask, onViewSubtasks, onSubtaskButtonClick, onAddSubtask, selectedTaskId, showProjectColumn = false, onProjectClick, flatMode = false, initialSortByProject = false, showReinsertButton = false, onReinsert, onToggleSection, hideCompletedSubtasks = false, onOpenRuleDialog }: TaskListProps) {
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverTaskId, setDragOverTaskId] = useState<string | null>(null);
   const [draggedSectionId, setDraggedSectionId] = useState<string | null>(null);
@@ -821,18 +831,41 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                         <Badge variant="secondary" className="flex-shrink-0">
                           {sectionTasks.length}
                         </Badge>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteSection(section.id);
-                          }}
-                          className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                          title="Delete section"
-                        >
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => e.stopPropagation()}
+                              className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                              title="Section options"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteSection(section.id);
+                              }}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete section
+                            </DropdownMenuItem>
+                            {onOpenRuleDialog && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <SectionContextMenuItem
+                                  sectionId={section.id}
+                                  projectId={section.projectId || ''}
+                                  onOpenRuleDialog={onOpenRuleDialog}
+                                />
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </td>
                     {visibleColumns.map(colId => (

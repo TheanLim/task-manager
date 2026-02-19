@@ -8,6 +8,7 @@ import type {
   ActionSchema,
   CardFilterSchema,
   CardFilterTypeSchema,
+  ExecutionLogEntrySchema,
 } from './schemas';
 import type { Task, Section } from '@/lib/schemas';
 
@@ -20,6 +21,50 @@ export type Trigger = z.infer<typeof TriggerSchema>;
 export type Action = z.infer<typeof ActionSchema>;
 export type CardFilter = z.infer<typeof CardFilterSchema>;
 export type CardFilterType = z.infer<typeof CardFilterTypeSchema>;
+export type ExecutionLogEntry = z.infer<typeof ExecutionLogEntrySchema>;
+
+/**
+ * In-memory snapshot of the previous state of an entity affected by a rule execution.
+ * Enables single-level undo within a 10-second window.
+ */
+export interface UndoSnapshot {
+  ruleId: string;
+  ruleName: string;
+  actionType: ActionType;
+  targetEntityId: string;
+  previousState: {
+    sectionId?: string;
+    order?: number;
+    completed?: boolean;
+    completedAt?: string | null;
+    dueDate?: string | null;
+  };
+  /** ID of the created card (for create_card undo — delete the created card) */
+  createdEntityId?: string;
+  /** Previous state of subtasks affected by cascade complete/incomplete */
+  subtaskSnapshots?: Array<{
+    taskId: string;
+    previousState: {
+      completed: boolean;
+      completedAt: string | null;
+    };
+  }>;
+  /** Date.now() for 10-second expiry check */
+  timestamp: number;
+}
+
+/**
+ * Collects execution results during a synchronous batch of domain events.
+ * Used to emit a single aggregated toast per rule instead of individual toasts.
+ */
+export interface BatchContext {
+  executions: Array<{
+    ruleId: string;
+    ruleName: string;
+    taskName: string;
+    actionDescription: string;
+  }>;
+}
 
 /**
  * Domain event emitted by the service layer after a mutation occurs.

@@ -13,5 +13,6 @@ inclusion: always
 3. **No hand-rolled validation** — Use Zod schemas for runtime validation. Do not write manual `typeof` / `Array.isArray` checks for domain entities. Keep ID schemas as `z.string().min(1)` (not `.uuid()`) since section IDs and seed data use non-UUID formats.
 4. **No whole-blob storage interfaces** — Use per-entity repository interfaces with granular CRUD, not `load(): AppState` / `save(state: AppState)`.
 5. **No inline entity construction in components** — Centralize `new Date().toISOString()` and `uuidv4()` calls in services, not scattered across UI code.
+6. **Trace all call sites when adding optional parameters** — When adding optional parameters to constructors or functions, grep for ALL existing call sites (`new ClassName(`, `functionName(`) and verify each one passes the new parameter where needed. Optional params that default to `undefined` cause silent degradation.
 
 

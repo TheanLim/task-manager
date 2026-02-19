@@ -368,3 +368,211 @@ describe('rulePreviewService - Property Tests', () => {
     expect(sentence).toContain('Standup Notes');
   });
 });
+
+// ============================================================================
+// isDuplicateRule Tests
+// ============================================================================
+
+import { isDuplicateRule } from './rulePreviewService';
+
+describe('isDuplicateRule - Unit Tests', () => {
+  const makeRule = (overrides: Partial<{
+    id: string;
+    enabled: boolean;
+    triggerType: string;
+    triggerSectionId: string | null;
+    actionType: string;
+    actionSectionId: string | null;
+  }> = {}) => ({
+    id: overrides.id ?? 'rule-1',
+    enabled: overrides.enabled ?? true,
+    trigger: {
+      type: overrides.triggerType ?? 'card_moved_into_section',
+      sectionId: overrides.triggerSectionId ?? 'section-1',
+    },
+    action: {
+      type: overrides.actionType ?? 'mark_card_complete',
+      sectionId: overrides.actionSectionId ?? null,
+    },
+  });
+
+  it('returns true when an existing enabled rule matches all four fields', () => {
+    const trigger: TriggerConfig = { type: 'card_moved_into_section', sectionId: 'section-1' };
+    const action: ActionConfig = { type: 'mark_card_complete', sectionId: null, dateOption: null, position: null, cardTitle: null, cardDateOption: null, specificMonth: null, specificDay: null, monthTarget: null };
+    const existing = [makeRule()];
+
+    expect(isDuplicateRule(trigger, action, existing)).toBe(true);
+  });
+
+  it('returns false when trigger type differs', () => {
+    const trigger: TriggerConfig = { type: 'card_marked_complete', sectionId: null };
+    const action: ActionConfig = { type: 'mark_card_complete', sectionId: null, dateOption: null, position: null, cardTitle: null, cardDateOption: null, specificMonth: null, specificDay: null, monthTarget: null };
+    const existing = [makeRule()];
+
+    expect(isDuplicateRule(trigger, action, existing)).toBe(false);
+  });
+
+  it('returns false when trigger sectionId differs', () => {
+    const trigger: TriggerConfig = { type: 'card_moved_into_section', sectionId: 'section-2' };
+    const action: ActionConfig = { type: 'mark_card_complete', sectionId: null, dateOption: null, position: null, cardTitle: null, cardDateOption: null, specificMonth: null, specificDay: null, monthTarget: null };
+    const existing = [makeRule()];
+
+    expect(isDuplicateRule(trigger, action, existing)).toBe(false);
+  });
+
+  it('returns false when action type differs', () => {
+    const trigger: TriggerConfig = { type: 'card_moved_into_section', sectionId: 'section-1' };
+    const action: ActionConfig = { type: 'mark_card_incomplete', sectionId: null, dateOption: null, position: null, cardTitle: null, cardDateOption: null, specificMonth: null, specificDay: null, monthTarget: null };
+    const existing = [makeRule()];
+
+    expect(isDuplicateRule(trigger, action, existing)).toBe(false);
+  });
+
+  it('returns false when action sectionId differs', () => {
+    const trigger: TriggerConfig = { type: 'card_moved_into_section', sectionId: 'section-1' };
+    const action: ActionConfig = { type: 'move_card_to_top_of_section', sectionId: 'section-3', dateOption: null, position: 'top', cardTitle: null, cardDateOption: null, specificMonth: null, specificDay: null, monthTarget: null };
+    const existing = [makeRule({ actionType: 'move_card_to_top_of_section', actionSectionId: 'section-2' })];
+
+    expect(isDuplicateRule(trigger, action, existing)).toBe(false);
+  });
+
+  it('ignores disabled rules', () => {
+    const trigger: TriggerConfig = { type: 'card_moved_into_section', sectionId: 'section-1' };
+    const action: ActionConfig = { type: 'mark_card_complete', sectionId: null, dateOption: null, position: null, cardTitle: null, cardDateOption: null, specificMonth: null, specificDay: null, monthTarget: null };
+    const existing = [makeRule({ enabled: false })];
+
+    expect(isDuplicateRule(trigger, action, existing)).toBe(false);
+  });
+
+  it('excludes the rule being edited', () => {
+    const trigger: TriggerConfig = { type: 'card_moved_into_section', sectionId: 'section-1' };
+    const action: ActionConfig = { type: 'mark_card_complete', sectionId: null, dateOption: null, position: null, cardTitle: null, cardDateOption: null, specificMonth: null, specificDay: null, monthTarget: null };
+    const existing = [makeRule({ id: 'rule-edit' })];
+
+    expect(isDuplicateRule(trigger, action, existing, 'rule-edit')).toBe(false);
+  });
+
+  it('returns false when trigger type is null', () => {
+    const trigger: TriggerConfig = { type: null, sectionId: null };
+    const action: ActionConfig = { type: 'mark_card_complete', sectionId: null, dateOption: null, position: null, cardTitle: null, cardDateOption: null, specificMonth: null, specificDay: null, monthTarget: null };
+    const existing = [makeRule()];
+
+    expect(isDuplicateRule(trigger, action, existing)).toBe(false);
+  });
+
+  it('returns false when action type is null', () => {
+    const trigger: TriggerConfig = { type: 'card_moved_into_section', sectionId: 'section-1' };
+    const action: ActionConfig = { type: null, sectionId: null, dateOption: null, position: null, cardTitle: null, cardDateOption: null, specificMonth: null, specificDay: null, monthTarget: null };
+    const existing = [makeRule()];
+
+    expect(isDuplicateRule(trigger, action, existing)).toBe(false);
+  });
+
+  it('returns false with empty existing rules', () => {
+    const trigger: TriggerConfig = { type: 'card_moved_into_section', sectionId: 'section-1' };
+    const action: ActionConfig = { type: 'mark_card_complete', sectionId: null, dateOption: null, position: null, cardTitle: null, cardDateOption: null, specificMonth: null, specificDay: null, monthTarget: null };
+
+    expect(isDuplicateRule(trigger, action, [])).toBe(false);
+  });
+});
+
+describe('isDuplicateRule - Property-Based Tests', () => {
+  const triggerTypeArb2 = fc.constantFrom<TriggerType>(
+    'card_moved_into_section',
+    'card_moved_out_of_section',
+    'card_marked_complete',
+    'card_marked_incomplete',
+    'card_created_in_section',
+  );
+
+  const actionTypeArb2 = fc.constantFrom<ActionType>(
+    'move_card_to_top_of_section',
+    'move_card_to_bottom_of_section',
+    'mark_card_complete',
+    'mark_card_incomplete',
+    'set_due_date',
+    'remove_due_date',
+  );
+
+  const sectionIdOrNullArb = fc.oneof(
+    fc.constant(null as string | null),
+    fc.string({ minLength: 1, maxLength: 20 }),
+  );
+
+  /**
+   * Property 13: Duplicate rule detection
+   * For any two rules in the same project with identical trigger type, trigger sectionId,
+   * action type, and action sectionId, the duplicate detection function SHALL return true.
+   * For rules differing in any of these four fields, it SHALL return false.
+   *
+   * **Validates: Requirements 11.1**
+   */
+  it('Property 13: detects duplicates iff all four fields match on an enabled rule', () => {
+    fc.assert(
+      fc.property(
+        triggerTypeArb2,
+        sectionIdOrNullArb,
+        actionTypeArb2,
+        sectionIdOrNullArb,
+        triggerTypeArb2,
+        sectionIdOrNullArb,
+        actionTypeArb2,
+        sectionIdOrNullArb,
+        (tType, tSec, aType, aSec, eTType, eTSec, eAType, eASec) => {
+          const trigger: TriggerConfig = { type: tType, sectionId: tSec };
+          const action: ActionConfig = {
+            type: aType, sectionId: aSec, dateOption: null, position: null,
+            cardTitle: null, cardDateOption: null, specificMonth: null,
+            specificDay: null, monthTarget: null,
+          };
+          const existingRule = {
+            id: 'existing-1',
+            enabled: true,
+            trigger: { type: eTType, sectionId: eTSec },
+            action: { type: eAType, sectionId: eASec },
+          };
+
+          const result = isDuplicateRule(trigger, action, [existingRule]);
+
+          const allMatch =
+            tType === eTType &&
+            tSec === eTSec &&
+            aType === eAType &&
+            aSec === eASec;
+
+          expect(result).toBe(allMatch);
+        }
+      ),
+      { numRuns: 200 }
+    );
+  });
+
+  it('Property 13b: disabled rules are never considered duplicates', () => {
+    fc.assert(
+      fc.property(
+        triggerTypeArb2,
+        sectionIdOrNullArb,
+        actionTypeArb2,
+        sectionIdOrNullArb,
+        (tType, tSec, aType, aSec) => {
+          const trigger: TriggerConfig = { type: tType, sectionId: tSec };
+          const action: ActionConfig = {
+            type: aType, sectionId: aSec, dateOption: null, position: null,
+            cardTitle: null, cardDateOption: null, specificMonth: null,
+            specificDay: null, monthTarget: null,
+          };
+          // Same fields but disabled
+          const existingRule = {
+            id: 'existing-1',
+            enabled: false,
+            trigger: { type: tType, sectionId: tSec },
+            action: { type: aType, sectionId: aSec },
+          };
+
+          expect(isDuplicateRule(trigger, action, [existingRule])).toBe(false);
+        }
+      ),
+      { numRuns: 100 }
+    );
+  });
+});

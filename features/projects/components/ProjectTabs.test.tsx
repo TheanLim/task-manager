@@ -61,6 +61,37 @@ describe('ProjectTabs', () => {
       expect(badges).toHaveLength(0);
     });
 
+    it('should show warning icon when totalRuleCount >= 10', () => {
+      render(
+        <ProjectTabs activeTab="automations" onTabChange={() => {}} enabledRuleCount={8} totalRuleCount={10}>
+          {mockChildren}
+        </ProjectTabs>
+      );
+
+      const warningIcon = screen.getByLabelText('High rule count warning');
+      expect(warningIcon).toBeInTheDocument();
+    });
+
+    it('should not show warning icon when totalRuleCount < 10', () => {
+      render(
+        <ProjectTabs activeTab="automations" onTabChange={() => {}} enabledRuleCount={5} totalRuleCount={9}>
+          {mockChildren}
+        </ProjectTabs>
+      );
+
+      expect(screen.queryByLabelText('High rule count warning')).not.toBeInTheDocument();
+    });
+
+    it('should not show warning icon when totalRuleCount is undefined', () => {
+      render(
+        <ProjectTabs activeTab="automations" onTabChange={() => {}} enabledRuleCount={5}>
+          {mockChildren}
+        </ProjectTabs>
+      );
+
+      expect(screen.queryByLabelText('High rule count warning')).not.toBeInTheDocument();
+    });
+
     /**
      * Property 1: Badge count equals enabled rule count
      * 

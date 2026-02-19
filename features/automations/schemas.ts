@@ -205,6 +205,13 @@ export const ActionSchema = z.object({
   monthTarget: MonthTargetSchema.nullable().default(null),
 });
 
+export const ExecutionLogEntrySchema = z.object({
+  timestamp: z.string().datetime(),
+  triggerDescription: z.string(),
+  actionDescription: z.string(),
+  taskName: z.string(),
+});
+
 export const AutomationRuleSchema = z.object({
   id: z.string().min(1),
   projectId: z.string().min(1),
@@ -216,6 +223,7 @@ export const AutomationRuleSchema = z.object({
   brokenReason: z.string().nullable().default(null),
   executionCount: z.number().default(0),
   lastExecutedAt: z.string().datetime().nullable().default(null),
+  recentExecutions: z.array(ExecutionLogEntrySchema).default([]),
   order: z.number(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
@@ -232,3 +240,4 @@ export type CardFilter = z.infer<typeof CardFilterSchema>;
 export type Trigger = z.infer<typeof TriggerSchema>;
 export type Action = z.infer<typeof ActionSchema>;
 export type AutomationRule = z.infer<typeof AutomationRuleSchema>;
+export type ExecutionLogEntry = z.infer<typeof ExecutionLogEntrySchema>;

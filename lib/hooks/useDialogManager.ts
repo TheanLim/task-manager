@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { AppState } from '@/types';
 
 // --- State types ---
@@ -35,6 +35,7 @@ export interface LoadingToastState {
   message: string;
   type: 'success' | 'error' | 'info';
   duration?: number;
+  action?: { label: string; onClick: () => void };
 }
 
 export interface DialogManagerState {
@@ -77,7 +78,7 @@ export interface DialogManagerActions {
   setIsResizingTaskPanel: (resizing: boolean) => void;
 
   // Loading toast
-  showToast: (message: string, type: 'success' | 'error' | 'info', duration?: number) => void;
+  showToast: (message: string, type: 'success' | 'error' | 'info', duration?: number, action?: { label: string; onClick: () => void }) => void;
   dismissToast: () => void;
 }
 
@@ -115,8 +116,12 @@ export function useDialogManager(): UseDialogManagerReturn {
   const [taskPanelWidth, setTaskPanelWidthRaw] = useState(DEFAULT_PANEL_WIDTH);
   const [isResizingTaskPanel, setIsResizingTaskPanelRaw] = useState(false);
 
-  // Loading toast
-  const [loadingToast, setLoadingToast] = useState<LoadingToastState | null>(null);
+  // Toast queue — supports multiple simultaneous toasts
+  const [toastQueue, setToastQueue] = useState<(LoadingToastState & { id: number })[]>([]);
+  const toastIdRef = useRef(0);
+
+  // Expose the first toast as loadingToast for backward compatibility
+  const loadingToast = toastQueue.length > 0 ? toastQueue[0] : null;
 
   // --- Project dialog actions ---
 
@@ -220,12 +225,13 @@ export function useDialogManager(): UseDialogManagerReturn {
 
   // --- Toast actions ---
 
-  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info', duration?: number) => {
-    setLoadingToast({ message, type, duration });
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info', duration?: number, action?: { label: string; onClick: () => void }) => {
+    const id = ++toastIdRef.current;
+    setToastQueue((prev) => [...prev, { id, message, type, duration, action }]);
   }, []);
 
   const dismissToast = useCallback(() => {
-    setLoadingToast(null);
+    setToastQueue((prev) => prev.slice(1));
   }, []);
 
   return {

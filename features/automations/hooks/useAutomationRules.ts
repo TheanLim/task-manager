@@ -8,7 +8,7 @@ import { v4 as uuidv4 } from 'uuid';
  * Centralizes id generation, timestamps, and order calculation.
  */
 function createRuleWithMetadata(
-  data: Omit<AutomationRule, 'id' | 'createdAt' | 'updatedAt' | 'executionCount' | 'lastExecutedAt' | 'order'>,
+  data: Omit<AutomationRule, 'id' | 'createdAt' | 'updatedAt' | 'executionCount' | 'lastExecutedAt' | 'recentExecutions' | 'order'>,
   existingRules: AutomationRule[]
 ): AutomationRule {
   const now = new Date().toISOString();
@@ -21,17 +21,20 @@ function createRuleWithMetadata(
     updatedAt: now,
     executionCount: 0,
     lastExecutedAt: null,
+    recentExecutions: [],
     order: maxOrder + 1,
   };
 }
 
 export interface UseAutomationRulesReturn {
   rules: AutomationRule[];
-  createRule: (data: Omit<AutomationRule, 'id' | 'createdAt' | 'updatedAt' | 'executionCount' | 'lastExecutedAt' | 'order'>) => void;
+  createRule: (data: Omit<AutomationRule, 'id' | 'createdAt' | 'updatedAt' | 'executionCount' | 'lastExecutedAt' | 'recentExecutions' | 'order'>) => void;
   updateRule: (id: string, updates: Partial<AutomationRule>) => void;
   deleteRule: (id: string) => void;
   duplicateRule: (id: string) => void;
   toggleRule: (id: string) => void;
+  reorderRules: (ruleId: string, newIndex: number) => void;
+  bulkSetEnabled: (enabled: boolean) => void;
 }
 
 /**
@@ -59,7 +62,7 @@ export function useAutomationRules(projectId: string): UseAutomationRulesReturn 
 
   // Create a new rule
   const createRule = useCallback(
-    (data: Omit<AutomationRule, 'id' | 'createdAt' | 'updatedAt' | 'executionCount' | 'lastExecutedAt' | 'order'>) => {
+    (data: Omit<AutomationRule, 'id' | 'createdAt' | 'updatedAt' | 'executionCount' | 'lastExecutedAt' | 'recentExecutions' | 'order'>) => {
       const allRules = automationRuleRepository.findAll();
       const newRule = createRuleWithMetadata(data, allRules);
       automationRuleRepository.create(newRule);
@@ -117,6 +120,60 @@ export function useAutomationRules(projectId: string): UseAutomationRulesReturn 
     });
   }, []);
 
+  // Reorder a rule to a new position, updating all affected order fields
+  const reorderRules = useCallback(
+    (ruleId: string, newIndex: number) => {
+      const projectRules = automationRuleRepository
+        .findByProjectId(projectId)
+        .sort((a, b) => a.order - b.order);
+
+      const currentIndex = projectRules.findIndex((r) => r.id === ruleId);
+      if (currentIndex === -1) return;
+
+      // Clamp newIndex to valid range
+      const clampedIndex = Math.max(0, Math.min(newIndex, projectRules.length - 1));
+      if (clampedIndex === currentIndex) return;
+
+      // Remove from current position and insert at new position
+      const [moved] = projectRules.splice(currentIndex, 1);
+      projectRules.splice(clampedIndex, 0, moved);
+
+      // Assign sequential order values
+      const now = new Date().toISOString();
+      for (let i = 0; i < projectRules.length; i++) {
+        if (projectRules[i].order !== i) {
+          automationRuleRepository.update(projectRules[i].id, {
+            order: i,
+            updatedAt: now,
+          });
+        }
+      }
+    },
+    [projectId]
+  );
+
+  // Bulk enable or disable all rules for the project
+  const bulkSetEnabled = useCallback(
+    (enabled: boolean) => {
+      const projectRules = automationRuleRepository.findByProjectId(projectId);
+      const now = new Date().toISOString();
+
+      for (const rule of projectRules) {
+        if (enabled) {
+          // "Enable all" skips broken rules (brokenReason !== null stays disabled)
+          if (rule.brokenReason !== null) continue;
+          if (rule.enabled) continue; // already enabled
+          automationRuleRepository.update(rule.id, { enabled: true, updatedAt: now });
+        } else {
+          // "Disable all" disables every rule
+          if (!rule.enabled) continue; // already disabled
+          automationRuleRepository.update(rule.id, { enabled: false, updatedAt: now });
+        }
+      }
+    },
+    [projectId]
+  );
+
   return {
     rules,
     createRule,
@@ -124,5 +181,7 @@ export function useAutomationRules(projectId: string): UseAutomationRulesReturn 
     deleteRule,
     duplicateRule,
     toggleRule,
+    reorderRules,
+    bulkSetEnabled,
   };
 }

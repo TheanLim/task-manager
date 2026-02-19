@@ -332,3 +332,76 @@ describe('Feature: architecture-refactor', () => {
     });
   });
 });
+
+describe('Feature: automations-polish', () => {
+  let backend: LocalStorageBackend;
+  let projectRepo: LocalStorageProjectRepository;
+  let sectionRepo: LocalStorageSectionRepository;
+  let taskRepo: LocalStorageTaskRepository;
+  let depRepo: LocalStorageDependencyRepository;
+  let automationRuleRepo: LocalStorageAutomationRuleRepository;
+  let taskService: TaskService;
+  let projectService: ProjectService;
+
+  beforeEach(() => {
+    localStorage.clear();
+    backend = new LocalStorageBackend();
+    projectRepo = new LocalStorageProjectRepository(backend);
+    sectionRepo = new LocalStorageSectionRepository(backend);
+    taskRepo = new LocalStorageTaskRepository(backend);
+    depRepo = new LocalStorageDependencyRepository(backend);
+    automationRuleRepo = new LocalStorageAutomationRuleRepository();
+    taskService = new TaskService(taskRepo, depRepo);
+    projectService = new ProjectService(projectRepo, sectionRepo, taskService, taskRepo, automationRuleRepo);
+  });
+
+  describe('Property 2: Cascade delete leaves zero orphaned rules', () => {
+    it('Feature: automations-polish, Property 2: Cascade delete leaves zero orphaned rules', () => {
+      /**
+       * **Validates: Requirements 3.1, 3.2**
+       *
+       * For any project with any number of associated automation rules,
+       * after ProjectService.cascadeDelete is called for that project,
+       * the Automation_Rule_Repository SHALL contain zero rules with
+       * that project's ID.
+       */
+      fc.assert(
+        fc.property(
+          fc.uuid(),
+          fc.array(fc.uuid(), { minLength: 0, maxLength: 10 }),
+          (projectId, ruleIds) => {
+            // Fresh state for each iteration
+            localStorage.clear();
+            const b = new LocalStorageBackend();
+            const pr = new LocalStorageProjectRepository(b);
+            const sr = new LocalStorageSectionRepository(b);
+            const tr = new LocalStorageTaskRepository(b);
+            const dr = new LocalStorageDependencyRepository(b);
+            const ar = new LocalStorageAutomationRuleRepository();
+            const ts = new TaskService(tr, dr);
+            const ps = new ProjectService(pr, sr, ts, tr, ar);
+
+            // Create the project
+            const project = makeProject(projectId);
+            pr.create(project);
+
+            // Create automation rules for this project (deduplicate IDs)
+            const uniqueRuleIds = [...new Set(ruleIds)];
+            for (let i = 0; i < uniqueRuleIds.length; i++) {
+              ar.create(makeAutomationRule(uniqueRuleIds[i], projectId, i));
+            }
+
+            // Cascade delete the project
+            ps.cascadeDelete(projectId);
+
+            // Verify: zero automation rules remain for this project
+            const rulesAfter = ar.findByProjectId(projectId);
+            expect(rulesAfter).toHaveLength(0);
+          },
+        ),
+        { numRuns: 100 },
+      );
+    });
+  });
+});
+

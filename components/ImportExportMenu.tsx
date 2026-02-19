@@ -21,7 +21,7 @@ import { LocalStorageAdapter } from '@/lib/storage';
 import { useDataStore } from '@/stores/dataStore';
 import { useAppStore } from '@/stores/appStore';
 import { useTMSStore } from '@/features/tms/stores/tmsStore';
-import { Toast } from '@/components/ui/toast';
+import { toast as sonnerToast } from 'sonner';
 import { Project, Task, Section, TaskDependency, AppState } from '@/types';
 import { ShareButton } from '@/features/sharing/components/ShareButton';
 
@@ -40,7 +40,11 @@ export function ImportExportMenu() {
     sections: Section[];
     dependencies: TaskDependency[];
   } | null>(null);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    if (type === 'success') sonnerToast.success(message);
+    else if (type === 'error') sonnerToast.error(message);
+    else sonnerToast.info(message);
+  };
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const dataStore = useDataStore();
@@ -73,10 +77,10 @@ export function ImportExportMenu() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      setToast({ message: 'Data exported successfully!', type: 'success' });
+      showToast('Data exported successfully!', 'success');
     } catch (error) {
       console.error('Export failed:', error);
-      setToast({ message: 'Failed to export data. Please try again.', type: 'error' });
+      showToast('Failed to export data. Please try again.', 'error');
     }
   };
 
@@ -135,7 +139,7 @@ export function ImportExportMenu() {
         setImportDialogOpen(false);
         setImportPreview(null);
         setImportData(null);
-        setToast({ message: 'Data imported successfully! Reloading...', type: 'success' });
+        showToast('Data imported successfully! Reloading...', 'success');
         setTimeout(() => window.location.reload(), 1000);
       } else {
         // Merge data - filter out duplicates by ID
@@ -187,27 +191,18 @@ export function ImportExportMenu() {
         setImportData(null);
         
         if (cleanedCount > 0 && skippedCount > 0) {
-          setToast({ 
-            message: `Merged ${addedCount} items (${skippedCount} duplicates skipped, ${cleanedCount} existing duplicates cleaned)`, 
-            type: 'info' 
-          });
+          showToast(`Merged ${addedCount} items (${skippedCount} duplicates skipped, ${cleanedCount} existing duplicates cleaned)`, 'info');
         } else if (cleanedCount > 0) {
-          setToast({ 
-            message: `Merged ${addedCount} items (${cleanedCount} existing duplicates cleaned)`, 
-            type: 'info' 
-          });
+          showToast(`Merged ${addedCount} items (${cleanedCount} existing duplicates cleaned)`, 'info');
         } else if (skippedCount > 0) {
-          setToast({ 
-            message: `Merged ${addedCount} items (${skippedCount} duplicates skipped)`, 
-            type: 'info' 
-          });
+          showToast(`Merged ${addedCount} items (${skippedCount} duplicates skipped)`, 'info');
         } else {
-          setToast({ message: 'Data merged successfully!', type: 'success' });
+          showToast('Data merged successfully!', 'success');
         }
       }
     } catch (error) {
       console.error('Import failed:', error);
-      setToast({ message: 'Failed to import data. Please try again.', type: 'error' });
+      showToast('Failed to import data. Please try again.', 'error');
     }
   };
 
@@ -230,7 +225,7 @@ export function ImportExportMenu() {
             Import Data
           </DropdownMenuItem>
           <ShareButton 
-            onShowToast={(message, type) => setToast({ message, type })}
+            onShowToast={(message, type) => showToast(message, type)}
           />
         </DropdownMenuContent>
       </DropdownMenu>
@@ -298,15 +293,6 @@ export function ImportExportMenu() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          duration={5000}
-          onClose={() => setToast(null)}
-        />
-      )}
     </>
   );
 }

@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { AppState } from '@/types';
 
 export interface SharedStateDialogProps {
@@ -22,7 +23,7 @@ export interface SharedStateDialogProps {
     sections: number;
     dependencies: number;
   };
-  onConfirm: (mode: 'replace' | 'merge' | 'cancel') => void;
+  onConfirm: (mode: 'replace' | 'merge' | 'cancel', options?: { includeAutomations: boolean }) => void;
 }
 
 export function SharedStateDialog({
@@ -33,6 +34,7 @@ export function SharedStateDialog({
   onConfirm,
 }: SharedStateDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [includeAutomations, setIncludeAutomations] = useState(true);
 
   const handleConfirm = (mode: 'replace' | 'merge' | 'cancel') => {
     if (mode === 'cancel') {
@@ -42,7 +44,7 @@ export function SharedStateDialog({
     }
 
     setIsLoading(true);
-    onConfirm(mode);
+    onConfirm(mode, { includeAutomations });
     // Loading state will be cleared by parent
   };
 
@@ -52,6 +54,10 @@ export function SharedStateDialog({
     sections: sharedState.sections.length,
     dependencies: sharedState.dependencies.length,
   };
+
+  const automationRuleCount = Array.isArray((sharedState as Record<string, unknown>).automationRules)
+    ? ((sharedState as Record<string, unknown>).automationRules as unknown[]).length
+    : 0;
 
   const hasCurrentData = 
     currentState.projects > 0 || 
@@ -93,8 +99,28 @@ export function SharedStateDialog({
               <li>{sharedDataCount.tasks} task(s)</li>
               <li>{sharedDataCount.sections} section(s)</li>
               <li>{sharedDataCount.dependencies} dependenc(ies)</li>
+              {automationRuleCount > 0 && (
+                <li>{automationRuleCount} automation rule(s)</li>
+              )}
             </ul>
           </div>
+
+          {/* Include automations checkbox */}
+          {automationRuleCount > 0 && (
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="include-automations"
+                checked={includeAutomations}
+                onCheckedChange={(checked) => setIncludeAutomations(checked === true)}
+              />
+              <label
+                htmlFor="include-automations"
+                className="text-sm cursor-pointer select-none"
+              >
+                Include automations
+              </label>
+            </div>
+          )}
 
           {/* Options Explanation */}
           {hasCurrentData && (

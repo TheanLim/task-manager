@@ -8,6 +8,7 @@ import { TaskList } from '@/features/tasks/components/TaskList';
 import { TaskBoard } from '@/features/tasks/components/TaskBoard';
 import { TaskCalendar } from '@/features/tasks/components/TaskCalendar';
 import { AutomationTab } from '@/features/automations/components/AutomationTab';
+import { RuleDialog, type PrefillTrigger } from '@/features/automations/components/RuleDialog';
 import { InlineEditable } from '@/components/InlineEditable';
 import { ShareButton } from '@/features/sharing/components/ShareButton';
 import { useDataStore, automationRuleRepository } from '@/stores/dataStore';
@@ -56,11 +57,32 @@ export function ProjectView({
   const projectSections = activeProject ? getSectionsByProjectId(activeProject.id) : [];
   const filteredTasks = useFilteredTasks(projectTasks);
 
+  // Section context menu → RuleDialog state
+  const [sectionRuleDialogOpen, setSectionRuleDialogOpen] = useState(false);
+  const [sectionPrefillTrigger, setSectionPrefillTrigger] = useState<PrefillTrigger | null>(null);
+
+  const handleOpenRuleDialogFromSection = (prefill: PrefillTrigger) => {
+    setSectionPrefillTrigger(prefill);
+    setSectionRuleDialogOpen(true);
+  };
+
+  const handleSectionRuleDialogClose = (open: boolean) => {
+    setSectionRuleDialogOpen(open);
+    if (!open) {
+      setSectionPrefillTrigger(null);
+    }
+  };
+
   // Compute enabled rule count for the automations tab badge (reactive to repository changes)
   const [enabledRuleCount, setEnabledRuleCount] = useState(() => {
     if (!activeProject) return 0;
     const rules = automationRuleRepository.findByProjectId(activeProject.id);
     return rules.filter(rule => rule.enabled).length;
+  });
+
+  const [totalRuleCount, setTotalRuleCount] = useState(() => {
+    if (!activeProject) return 0;
+    return automationRuleRepository.findByProjectId(activeProject.id).length;
   });
 
   useEffect(() => {
@@ -70,6 +92,7 @@ export function ProjectView({
     const updateCount = () => {
       const rules = automationRuleRepository.findByProjectId(activeProject.id);
       setEnabledRuleCount(rules.filter(rule => rule.enabled).length);
+      setTotalRuleCount(rules.length);
     };
 
     updateCount();
@@ -132,6 +155,7 @@ export function ProjectView({
           activeTab={tabFromUrl}
           onTabChange={navigateToTab}
           enabledRuleCount={enabledRuleCount}
+          totalRuleCount={totalRuleCount}
         >
           {{
             overview: (
@@ -153,6 +177,7 @@ export function ProjectView({
                 onSubtaskButtonClick={onSubtaskButtonClick}
                 onAddSubtask={(parentTaskId) => onNewTask(undefined, parentTaskId)}
                 selectedTaskId={selectedTaskId}
+                onOpenRuleDialog={handleOpenRuleDialogFromSection}
               />
             ),
             board: (
@@ -166,6 +191,7 @@ export function ProjectView({
                 }}
                 onAddTask={(sectionId) => onNewTask(sectionId)}
                 onAddSubtask={(parentTaskId) => onNewTask(undefined, parentTaskId)}
+                onOpenRuleDialog={handleOpenRuleDialogFromSection}
               />
             ),
             calendar: (
@@ -179,11 +205,21 @@ export function ProjectView({
               <AutomationTab
                 projectId={activeProject.id}
                 sections={projectSections}
+                onShowToast={onShowToast}
               />
             ),
           }}
         </ProjectTabs>
       </div>
+
+      {/* RuleDialog opened from section context menus */}
+      <RuleDialog
+        open={sectionRuleDialogOpen}
+        onOpenChange={handleSectionRuleDialogClose}
+        projectId={activeProject.id}
+        sections={projectSections}
+        prefillTrigger={sectionPrefillTrigger}
+      />
     </>
   );
 }

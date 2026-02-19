@@ -34,6 +34,9 @@ export function SectionPicker({
   const [open, setOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState('');
 
+  // Check if the current value references a deleted section
+  const isDeletedSection = value != null && !sections.some((s) => s.id === value);
+
   // Simple Select for 5 or fewer sections
   if (sections.length <= 5) {
     return (
@@ -42,6 +45,11 @@ export function SectionPicker({
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
         <SelectContent>
+          {isDeletedSection && (
+            <SelectItem value={value!} disabled className="text-destructive italic">
+              (Deleted section)
+            </SelectItem>
+          )}
           {sections.map((section) => (
             <SelectItem key={section.id} value={section.id}>
               {section.name}
@@ -72,7 +80,11 @@ export function SectionPicker({
           aria-expanded={open}
           className="w-full justify-between"
         >
-          {selectedSection ? selectedSection.name : placeholder}
+          {selectedSection
+            ? selectedSection.name
+            : isDeletedSection
+              ? <span className="text-destructive italic">(Deleted section)</span>
+              : placeholder}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>

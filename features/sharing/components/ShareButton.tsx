@@ -3,17 +3,19 @@
 import { useState } from 'react';
 import { Share, Loader2, Copy, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { ShareService } from '@/features/sharing/services/shareService';
-import { useDataStore } from '@/stores/dataStore';
+import { useDataStore, automationRuleRepository } from '@/stores/dataStore';
 import { useAppStore } from '@/stores/appStore';
 import { useTMSStore } from '@/features/tms/stores/tmsStore';
 import { TMSState, Task } from '@/types';
@@ -37,6 +39,8 @@ export function ShareButton({
 }: ShareButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [includeAutomations, setIncludeAutomations] = useState(true);
   const [shareUrl, setShareUrl] = useState('');
   const [copied, setCopied] = useState(false);
   
@@ -72,6 +76,11 @@ export function ShareButton({
   };
 
   const handleShare = async () => {
+    setShowConfirmDialog(true);
+  };
+
+  const handleConfirmShare = async () => {
+    setShowConfirmDialog(false);
     setIsLoading(true);
     
     try {
@@ -113,8 +122,8 @@ export function ShareButton({
         console.log(`[ShareButton] Sharing all data: ${dataStore.projects.length} projects, ${dataStore.tasks.length} tasks`);
       }
       
-      const shareService = new ShareService();
-      const result = await shareService.generateShareURL(currentState);
+      const shareService = new ShareService(undefined, automationRuleRepository);
+      const result = await shareService.generateShareURL(currentState, { includeAutomations });
       
       if (!result.success) {
         showToast(result.error || 'Failed to generate share URL', 'error');
@@ -196,6 +205,45 @@ export function ShareButton({
           {projectId ? 'Share Current Project' : 'Share All Projects'}
         </DropdownMenuItem>
       )}
+
+      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Share Options</DialogTitle>
+            <DialogDescription>
+              Choose what to include when sharing {projectId ? 'this project' : 'your data'}.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="export-include-automations"
+              checked={includeAutomations}
+              onCheckedChange={(checked) => setIncludeAutomations(checked === true)}
+            />
+            <label
+              htmlFor="export-include-automations"
+              className="text-sm cursor-pointer select-none"
+            >
+              Include automations
+            </label>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmShare}>
+              {isLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Share className="mr-2 h-4 w-4" />
+              )}
+              Share
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent>

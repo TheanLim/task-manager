@@ -460,6 +460,111 @@ describe('useDataStore', () => {
       expect(useDataStore.getState().sections).toHaveLength(0);
       expect(useDataStore.getState().tasks[0].sectionId).toBeNull();
     });
+
+    it('should detect and disable broken automation rules when a section is deleted', () => {
+      const section: Section = {
+        id: 'section-target',
+        projectId: 'project-1',
+        name: 'Done',
+        order: 0,
+        collapsed: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      useDataStore.getState().addSection(section);
+
+      // Create an automation rule referencing the section
+      const rule: AutomationRule = {
+        id: 'rule-1',
+        projectId: 'project-1',
+        name: 'Move to Done',
+        trigger: { type: 'card_moved_into_section', sectionId: 'section-target' },
+        filters: [],
+        action: {
+          type: 'mark_card_complete',
+          sectionId: null,
+          dateOption: null,
+          position: null,
+          cardTitle: null,
+          cardDateOption: null,
+          specificMonth: null,
+          specificDay: null,
+          monthTarget: null,
+        },
+        enabled: true,
+        brokenReason: null,
+        executionCount: 0,
+        lastExecutedAt: null,
+        recentExecutions: [],
+        order: 0,
+        createdAt: '2025-01-01T00:00:00.000Z',
+        updatedAt: '2025-01-01T00:00:00.000Z',
+      };
+
+      automationRuleRepository.create(rule);
+
+      // Verify rule is enabled before deletion
+      expect(automationRuleRepository.findById('rule-1')!.enabled).toBe(true);
+
+      useDataStore.getState().deleteSection('section-target');
+
+      // Rule should be disabled with brokenReason
+      const updatedRule = automationRuleRepository.findById('rule-1')!;
+      expect(updatedRule.enabled).toBe(false);
+      expect(updatedRule.brokenReason).toBe('section_deleted');
+    });
+
+    it('should not affect automation rules that do not reference the deleted section', () => {
+      const section: Section = {
+        id: 'section-target',
+        projectId: 'project-1',
+        name: 'Done',
+        order: 0,
+        collapsed: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      useDataStore.getState().addSection(section);
+
+      // Create a rule that does NOT reference the deleted section
+      const rule: AutomationRule = {
+        id: 'rule-safe',
+        projectId: 'project-1',
+        name: 'Unrelated Rule',
+        trigger: { type: 'card_marked_complete', sectionId: null },
+        filters: [],
+        action: {
+          type: 'mark_card_complete',
+          sectionId: null,
+          dateOption: null,
+          position: null,
+          cardTitle: null,
+          cardDateOption: null,
+          specificMonth: null,
+          specificDay: null,
+          monthTarget: null,
+        },
+        enabled: true,
+        brokenReason: null,
+        executionCount: 0,
+        lastExecutedAt: null,
+        recentExecutions: [],
+        order: 0,
+        createdAt: '2025-01-01T00:00:00.000Z',
+        updatedAt: '2025-01-01T00:00:00.000Z',
+      };
+
+      automationRuleRepository.create(rule);
+
+      useDataStore.getState().deleteSection('section-target');
+
+      // Rule should remain unchanged
+      const unchangedRule = automationRuleRepository.findById('rule-safe')!;
+      expect(unchangedRule.enabled).toBe(true);
+      expect(unchangedRule.brokenReason).toBeNull();
+    });
   });
 
   describe('Dependency Operations', () => {
@@ -1006,6 +1111,7 @@ describe('Automation Rules Integration', () => {
       brokenReason: null,
       executionCount: 0,
       lastExecutedAt: null,
+      recentExecutions: [],
       order: 0,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -1045,6 +1151,7 @@ describe('Automation Rules Integration', () => {
       brokenReason: null,
       executionCount: 0,
       lastExecutedAt: null,
+      recentExecutions: [],
       order: 0,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -1094,6 +1201,7 @@ describe('Automation Rules Integration', () => {
       brokenReason: null,
       executionCount: 0,
       lastExecutedAt: null,
+      recentExecutions: [],
       order: 0,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -1286,6 +1394,75 @@ describe('Domain Event Emission', () => {
     expect(emittedEvent.previousValues.description).toBe('Original Description');
     expect(emittedEvent.previousValues.sectionId).toBe('section-1');
     expect(emittedEvent.previousValues.completed).toBe(false);
+
+    unsubscribe();
+  });
+
+  it('should emit section.created event when adding a section', () => {
+    let eventEmitted = false;
+    let emittedEvent: any = null;
+
+    const unsubscribe = subscribeToDomainEvents((event) => {
+      if (event.type === 'section.created') {
+        eventEmitted = true;
+        emittedEvent = event;
+      }
+    });
+
+    const section: Section = {
+      id: 'section-new',
+      projectId: 'project-1',
+      name: 'New Section',
+      order: 0,
+      collapsed: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    useDataStore.getState().addSection(section);
+
+    expect(eventEmitted).toBe(true);
+    expect(emittedEvent).toBeDefined();
+    expect(emittedEvent.type).toBe('section.created');
+    expect(emittedEvent.entityId).toBe('section-new');
+    expect(emittedEvent.projectId).toBe('project-1');
+
+    unsubscribe();
+  });
+
+  it('should emit section.updated event when updating a section name', () => {
+    let eventEmitted = false;
+    let emittedEvent: any = null;
+
+    const section: Section = {
+      id: 'section-rename',
+      projectId: 'project-1',
+      name: 'Original Name',
+      order: 0,
+      collapsed: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    useDataStore.getState().addSection(section);
+
+    // Subscribe after creation to only catch update event
+    const unsubscribe = subscribeToDomainEvents((event) => {
+      if (event.type === 'section.updated') {
+        eventEmitted = true;
+        emittedEvent = event;
+      }
+    });
+
+    useDataStore.getState().updateSection('section-rename', { name: 'Renamed Section' });
+
+    expect(eventEmitted).toBe(true);
+    expect(emittedEvent).toBeDefined();
+    expect(emittedEvent.type).toBe('section.updated');
+    expect(emittedEvent.entityId).toBe('section-rename');
+    expect(emittedEvent.projectId).toBe('project-1');
+    expect(emittedEvent.changes.name).toBe('Renamed Section');
+    expect(emittedEvent.previousValues.name).toBe('Original Name');
 
     unsubscribe();
   });

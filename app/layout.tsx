@@ -4,6 +4,7 @@ import "./globals.css";
 import "./quill-custom.css";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { Toaster } from "@/components/ui/sonner";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -31,6 +32,7 @@ export default function RootLayout({
         <ErrorBoundary>
           <ThemeProvider>
             {children}
+            <Toaster position="bottom-right" richColors closeButton />
           </ThemeProvider>
         </ErrorBoundary>
       </body>

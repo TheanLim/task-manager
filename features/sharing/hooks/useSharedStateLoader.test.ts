@@ -77,11 +77,14 @@ let testTaskRepo: LocalStorageTaskRepository;
 let testSectionRepo: LocalStorageSectionRepository;
 let testDependencyRepo: LocalStorageDependencyRepository;
 
+let mockAutomationRuleRepo: { create: ReturnType<typeof vi.fn>; findAll: ReturnType<typeof vi.fn>; findByProjectId: ReturnType<typeof vi.fn> };
+
 vi.mock('@/stores/dataStore', () => ({
   get projectRepository() { return testProjectRepo; },
   get taskRepository() { return testTaskRepo; },
   get sectionRepository() { return testSectionRepo; },
   get dependencyRepository() { return testDependencyRepo; },
+  get automationRuleRepository() { return mockAutomationRuleRepo; },
 }));
 
 describe('handleLoadSharedState', () => {
@@ -94,6 +97,7 @@ describe('handleLoadSharedState', () => {
     testTaskRepo = new LocalStorageTaskRepository(testBackend);
     testSectionRepo = new LocalStorageSectionRepository(testBackend);
     testDependencyRepo = new LocalStorageDependencyRepository(testBackend);
+    mockAutomationRuleRepo = { create: vi.fn(), findAll: vi.fn(() => []), findByProjectId: vi.fn(() => []) };
     onLoadResult = vi.fn();
     // Mock window.history.replaceState used by clearUrlHash
     vi.spyOn(window.history, 'replaceState').mockImplementation(() => {});
@@ -269,6 +273,69 @@ describe('handleLoadSharedState', () => {
       handleLoadSharedState(shared, 'cancel', onLoadResult);
 
       expect(onLoadResult).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('includeAutomations option', () => {
+    it('should import automation rules by default when present in shared state', () => {
+      const rule = {
+        id: 'rule-1',
+        name: 'Test Rule',
+        projectId: 'proj-1',
+        trigger: { type: 'card_moved_into_section', sectionId: 'sec-1' },
+        action: { type: 'mark_complete' },
+        enabled: true,
+        order: 0,
+        createdAt: NOW,
+        updatedAt: NOW,
+        filters: [],
+        recentExecutions: [],
+        brokenReason: null,
+      };
+      const shared = {
+        ...makeSharedState({ sections: [{ id: 'sec-1', name: 'Done', projectId: 'proj-1', order: 0, createdAt: NOW, updatedAt: NOW }] as any }),
+        automationRules: [rule],
+      };
+
+      handleLoadSharedState(shared as any, 'replace', onLoadResult);
+
+      expect(mockAutomationRuleRepo.create).toHaveBeenCalledWith(expect.objectContaining({ id: 'rule-1' }));
+    });
+
+    it('should skip automation rules when includeAutomations is false', () => {
+      const rule = {
+        id: 'rule-1',
+        name: 'Test Rule',
+        projectId: 'proj-1',
+        trigger: { type: 'card_moved_into_section', sectionId: 'sec-1' },
+        action: { type: 'mark_complete' },
+        enabled: true,
+        order: 0,
+        createdAt: NOW,
+        updatedAt: NOW,
+        filters: [],
+        recentExecutions: [],
+        brokenReason: null,
+      };
+      const shared = {
+        ...makeSharedState(),
+        automationRules: [rule],
+      };
+
+      handleLoadSharedState(shared as any, 'replace', onLoadResult, { includeAutomations: false });
+
+      expect(mockAutomationRuleRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('should not call importAutomationRules in cancel mode', () => {
+      const shared = {
+        ...makeSharedState(),
+        automationRules: [{ id: 'rule-1' }],
+      };
+
+      handleLoadSharedState(shared as any, 'cancel', onLoadResult);
+
+      expect(mockAutomationRuleRepo.create).not.toHaveBeenCalled();
     });
   });
 });

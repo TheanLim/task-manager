@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as fc from 'fast-check';
 import { RuleExecutor } from './ruleExecutor';
 import type {
@@ -187,6 +187,13 @@ const sectionArb = fc.record({
   updatedAt: isoDateTimeArb,
 });
 
+const executionLogEntryArb = fc.record({
+  timestamp: isoDateTimeArb,
+  triggerDescription: fc.string({ minLength: 1, maxLength: 100 }),
+  actionDescription: fc.string({ minLength: 1, maxLength: 100 }),
+  taskName: fc.string({ minLength: 1, maxLength: 200 }),
+});
+
 const automationRuleArb = fc.record({
   id: idArb,
   projectId: idArb,
@@ -217,6 +224,7 @@ const automationRuleArb = fc.record({
   brokenReason: fc.oneof(fc.string({ minLength: 1 }), fc.constant(null)),
   executionCount: fc.nat(),
   lastExecutedAt: fc.oneof(isoDateTimeArb, fc.constant(null)),
+  recentExecutions: fc.array(executionLogEntryArb, { minLength: 0, maxLength: 5 }),
   order: fc.integer(),
   createdAt: isoDateTimeArb,
   updatedAt: isoDateTimeArb,
@@ -964,6 +972,624 @@ describe('Property 10: Executor updates rule metadata on success', () => {
   });
 });
 
+// Requirement 5.3: mark_card_complete calls TaskService.cascadeComplete with completed=true
+// Requirement 5.4: mark_card_incomplete calls TaskService.cascadeComplete with completed=false
+describe('Req 5.3 / 5.4: mark_card_complete and mark_card_incomplete call cascadeComplete', () => {
+  let taskRepo: MockTaskRepository;
+  let sectionRepo: MockSectionRepository;
+  let ruleRepo: MockAutomationRuleRepository;
+  let taskService: MockTaskService;
+  let executor: RuleExecutor;
+
+  beforeEach(() => {
+    taskRepo = new MockTaskRepository();
+    sectionRepo = new MockSectionRepository();
+    ruleRepo = new MockAutomationRuleRepository();
+    taskService = new MockTaskService();
+    executor = new RuleExecutor(taskRepo as any, sectionRepo as any, taskService as any, ruleRepo);
+  });
+
+  it('mark_card_complete calls cascadeComplete with (taskId, true)', () => {
+    const spy = vi.spyOn(taskService, 'cascadeComplete');
+
+    const task = {
+      id: 'task-1',
+      projectId: 'proj-1',
+      parentTaskId: null,
+      sectionId: 'section-1',
+      description: 'Test',
+      notes: '',
+      assignee: '',
+      priority: 'none' as const,
+      tags: [],
+      dueDate: null,
+      completed: false,
+      completedAt: null,
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    taskRepo.create(task as any);
+
+    const rule = {
+      id: 'rule-1',
+      projectId: 'proj-1',
+      name: 'Test',
+      trigger: { type: 'card_moved_into_section' as const, sectionId: 'section-1' },
+      action: { type: 'mark_card_complete' as const, sectionId: null, dateOption: null, position: null },
+      filters: [],
+      enabled: true,
+      brokenReason: null,
+      executionCount: 0,
+      lastExecutedAt: null,
+      recentExecutions: [],
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    } as any;
+    ruleRepo.create(rule);
+
+    const action: RuleAction = {
+      ruleId: 'rule-1',
+      actionType: 'mark_card_complete',
+      targetEntityId: 'task-1',
+      params: {},
+    };
+
+    const event: DomainEvent = {
+      type: 'task.updated',
+      entityId: 'task-1',
+      projectId: 'proj-1',
+      changes: {},
+      previousValues: {},
+      depth: 0,
+    };
+
+    executor.executeActions([action], event);
+
+    expect(spy).toHaveBeenCalledWith('task-1', true);
+    spy.mockRestore();
+  });
+
+  it('mark_card_incomplete calls cascadeComplete with (taskId, false)', () => {
+    const spy = vi.spyOn(taskService, 'cascadeComplete');
+
+    const task = {
+      id: 'task-2',
+      projectId: 'proj-1',
+      parentTaskId: null,
+      sectionId: 'section-1',
+      description: 'Test',
+      notes: '',
+      assignee: '',
+      priority: 'none' as const,
+      tags: [],
+      dueDate: null,
+      completed: true,
+      completedAt: new Date().toISOString(),
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    taskRepo.create(task as any);
+
+    const rule = {
+      id: 'rule-2',
+      projectId: 'proj-1',
+      name: 'Test',
+      trigger: { type: 'card_marked_incomplete' as const, sectionId: null },
+      action: { type: 'mark_card_incomplete' as const, sectionId: null, dateOption: null, position: null },
+      filters: [],
+      enabled: true,
+      brokenReason: null,
+      executionCount: 0,
+      lastExecutedAt: null,
+      recentExecutions: [],
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    } as any;
+    ruleRepo.create(rule);
+
+    const action: RuleAction = {
+      ruleId: 'rule-2',
+      actionType: 'mark_card_incomplete',
+      targetEntityId: 'task-2',
+      params: {},
+    };
+
+    const event: DomainEvent = {
+      type: 'task.updated',
+      entityId: 'task-2',
+      projectId: 'proj-1',
+      changes: {},
+      previousValues: {},
+      depth: 0,
+    };
+
+    executor.executeActions([action], event);
+
+    expect(spy).toHaveBeenCalledWith('task-2', false);
+    spy.mockRestore();
+  });
+});
+
+// Requirement 5.5: set_due_date calculates target date and updates task dueDate
+// Requirement 5.6: remove_due_date sets task dueDate to null
+describe('Req 5.5 / 5.6: set_due_date and remove_due_date actions', () => {
+  let taskRepo: MockTaskRepository;
+  let sectionRepo: MockSectionRepository;
+  let ruleRepo: MockAutomationRuleRepository;
+  let taskService: MockTaskService;
+  let executor: RuleExecutor;
+
+  beforeEach(() => {
+    taskRepo = new MockTaskRepository();
+    sectionRepo = new MockSectionRepository();
+    ruleRepo = new MockAutomationRuleRepository();
+    taskService = new MockTaskService();
+    executor = new RuleExecutor(taskRepo as any, sectionRepo as any, taskService as any, ruleRepo);
+  });
+
+  it('set_due_date with "today" sets dueDate to start of current day', () => {
+    const task = {
+      id: 'task-1',
+      projectId: 'proj-1',
+      parentTaskId: null,
+      sectionId: 'section-1',
+      description: 'Test',
+      notes: '',
+      assignee: '',
+      priority: 'none' as const,
+      tags: [],
+      dueDate: null,
+      completed: false,
+      completedAt: null,
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    taskRepo.create(task as any);
+
+    const rule = {
+      id: 'rule-1',
+      projectId: 'proj-1',
+      name: 'Test',
+      trigger: { type: 'card_moved_into_section' as const, sectionId: 'section-1' },
+      action: { type: 'set_due_date' as const, sectionId: null, dateOption: 'today', position: null },
+      filters: [],
+      enabled: true,
+      brokenReason: null,
+      executionCount: 0,
+      lastExecutedAt: null,
+      recentExecutions: [],
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    } as any;
+    ruleRepo.create(rule);
+
+    const action: RuleAction = {
+      ruleId: 'rule-1',
+      actionType: 'set_due_date',
+      targetEntityId: 'task-1',
+      params: { dateOption: 'today' as any },
+    };
+
+    const event: DomainEvent = {
+      type: 'task.updated',
+      entityId: 'task-1',
+      projectId: 'proj-1',
+      changes: {},
+      previousValues: {},
+      depth: 0,
+    };
+
+    executor.executeActions([action], event);
+
+    const updatedTask = taskRepo.findById('task-1');
+    expect(updatedTask).toBeDefined();
+    expect(updatedTask!.dueDate).not.toBeNull();
+
+    const dueDate = new Date(updatedTask!.dueDate!);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    expect(dueDate.toDateString()).toBe(today.toDateString());
+    expect(dueDate.getHours()).toBe(0);
+    expect(dueDate.getMinutes()).toBe(0);
+    expect(dueDate.getSeconds()).toBe(0);
+    expect(dueDate.getMilliseconds()).toBe(0);
+  });
+
+  it('set_due_date with "tomorrow" sets dueDate to start of next day', () => {
+    const task = {
+      id: 'task-1',
+      projectId: 'proj-1',
+      parentTaskId: null,
+      sectionId: 'section-1',
+      description: 'Test',
+      notes: '',
+      assignee: '',
+      priority: 'none' as const,
+      tags: [],
+      dueDate: null,
+      completed: false,
+      completedAt: null,
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    taskRepo.create(task as any);
+
+    const rule = {
+      id: 'rule-1',
+      projectId: 'proj-1',
+      name: 'Test',
+      trigger: { type: 'card_moved_into_section' as const, sectionId: 'section-1' },
+      action: { type: 'set_due_date' as const, sectionId: null, dateOption: 'tomorrow', position: null },
+      filters: [],
+      enabled: true,
+      brokenReason: null,
+      executionCount: 0,
+      lastExecutedAt: null,
+      recentExecutions: [],
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    } as any;
+    ruleRepo.create(rule);
+
+    const action: RuleAction = {
+      ruleId: 'rule-1',
+      actionType: 'set_due_date',
+      targetEntityId: 'task-1',
+      params: { dateOption: 'tomorrow' as any },
+    };
+
+    const event: DomainEvent = {
+      type: 'task.updated',
+      entityId: 'task-1',
+      projectId: 'proj-1',
+      changes: {},
+      previousValues: {},
+      depth: 0,
+    };
+
+    executor.executeActions([action], event);
+
+    const updatedTask = taskRepo.findById('task-1');
+    expect(updatedTask).toBeDefined();
+    expect(updatedTask!.dueDate).not.toBeNull();
+
+    const dueDate = new Date(updatedTask!.dueDate!);
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+    expect(dueDate.toDateString()).toBe(tomorrow.toDateString());
+  });
+
+  it('set_due_date with "next_working_day" sets dueDate to a weekday', () => {
+    const task = {
+      id: 'task-1',
+      projectId: 'proj-1',
+      parentTaskId: null,
+      sectionId: 'section-1',
+      description: 'Test',
+      notes: '',
+      assignee: '',
+      priority: 'none' as const,
+      tags: [],
+      dueDate: null,
+      completed: false,
+      completedAt: null,
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    taskRepo.create(task as any);
+
+    const rule = {
+      id: 'rule-1',
+      projectId: 'proj-1',
+      name: 'Test',
+      trigger: { type: 'card_moved_into_section' as const, sectionId: 'section-1' },
+      action: { type: 'set_due_date' as const, sectionId: null, dateOption: 'next_working_day', position: null },
+      filters: [],
+      enabled: true,
+      brokenReason: null,
+      executionCount: 0,
+      lastExecutedAt: null,
+      recentExecutions: [],
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    } as any;
+    ruleRepo.create(rule);
+
+    const action: RuleAction = {
+      ruleId: 'rule-1',
+      actionType: 'set_due_date',
+      targetEntityId: 'task-1',
+      params: { dateOption: 'next_working_day' as any },
+    };
+
+    const event: DomainEvent = {
+      type: 'task.updated',
+      entityId: 'task-1',
+      projectId: 'proj-1',
+      changes: {},
+      previousValues: {},
+      depth: 0,
+    };
+
+    executor.executeActions([action], event);
+
+    const updatedTask = taskRepo.findById('task-1');
+    expect(updatedTask).toBeDefined();
+    expect(updatedTask!.dueDate).not.toBeNull();
+
+    const dueDate = new Date(updatedTask!.dueDate!);
+    const dayOfWeek = dueDate.getDay();
+    // Must be Monday-Friday (1-5)
+    expect(dayOfWeek).toBeGreaterThanOrEqual(1);
+    expect(dayOfWeek).toBeLessThanOrEqual(5);
+  });
+
+  it('set_due_date emits a task.updated domain event with dueDate change', () => {
+    const task = {
+      id: 'task-1',
+      projectId: 'proj-1',
+      parentTaskId: null,
+      sectionId: 'section-1',
+      description: 'Test',
+      notes: '',
+      assignee: '',
+      priority: 'none' as const,
+      tags: [],
+      dueDate: null,
+      completed: false,
+      completedAt: null,
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    taskRepo.create(task as any);
+
+    const rule = {
+      id: 'rule-1',
+      projectId: 'proj-1',
+      name: 'Test',
+      trigger: { type: 'card_moved_into_section' as const, sectionId: 'section-1' },
+      action: { type: 'set_due_date' as const, sectionId: null, dateOption: 'today', position: null },
+      filters: [],
+      enabled: true,
+      brokenReason: null,
+      executionCount: 0,
+      lastExecutedAt: null,
+      recentExecutions: [],
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    } as any;
+    ruleRepo.create(rule);
+
+    const action: RuleAction = {
+      ruleId: 'rule-1',
+      actionType: 'set_due_date',
+      targetEntityId: 'task-1',
+      params: { dateOption: 'today' as any },
+    };
+
+    const triggeringEvent: DomainEvent = {
+      type: 'task.updated',
+      entityId: 'task-1',
+      projectId: 'proj-1',
+      changes: {},
+      previousValues: {},
+      depth: 0,
+    };
+
+    const events = executor.executeActions([action], triggeringEvent);
+
+    expect(events).toHaveLength(1);
+    expect(events[0].type).toBe('task.updated');
+    expect(events[0].entityId).toBe('task-1');
+    expect(events[0].changes).toHaveProperty('dueDate');
+    expect(events[0].previousValues).toHaveProperty('dueDate');
+    expect(events[0].previousValues.dueDate).toBeNull();
+    expect(events[0].depth).toBe(1);
+    expect(events[0].triggeredByRule).toBe('rule-1');
+  });
+
+  it('remove_due_date sets task dueDate to null', () => {
+    const task = {
+      id: 'task-1',
+      projectId: 'proj-1',
+      parentTaskId: null,
+      sectionId: 'section-1',
+      description: 'Test',
+      notes: '',
+      assignee: '',
+      priority: 'none' as const,
+      tags: [],
+      dueDate: '2025-06-15T00:00:00.000Z',
+      completed: false,
+      completedAt: null,
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    taskRepo.create(task as any);
+
+    const rule = {
+      id: 'rule-1',
+      projectId: 'proj-1',
+      name: 'Test',
+      trigger: { type: 'card_moved_into_section' as const, sectionId: 'section-1' },
+      action: { type: 'remove_due_date' as const, sectionId: null, dateOption: null, position: null },
+      filters: [],
+      enabled: true,
+      brokenReason: null,
+      executionCount: 0,
+      lastExecutedAt: null,
+      recentExecutions: [],
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    } as any;
+    ruleRepo.create(rule);
+
+    const action: RuleAction = {
+      ruleId: 'rule-1',
+      actionType: 'remove_due_date',
+      targetEntityId: 'task-1',
+      params: {},
+    };
+
+    const event: DomainEvent = {
+      type: 'task.updated',
+      entityId: 'task-1',
+      projectId: 'proj-1',
+      changes: {},
+      previousValues: {},
+      depth: 0,
+    };
+
+    executor.executeActions([action], event);
+
+    const updatedTask = taskRepo.findById('task-1');
+    expect(updatedTask).toBeDefined();
+    expect(updatedTask!.dueDate).toBeNull();
+  });
+
+  it('remove_due_date emits a task.updated domain event with dueDate set to null', () => {
+    const existingDueDate = '2025-06-15T00:00:00.000Z';
+    const task = {
+      id: 'task-1',
+      projectId: 'proj-1',
+      parentTaskId: null,
+      sectionId: 'section-1',
+      description: 'Test',
+      notes: '',
+      assignee: '',
+      priority: 'none' as const,
+      tags: [],
+      dueDate: existingDueDate,
+      completed: false,
+      completedAt: null,
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    taskRepo.create(task as any);
+
+    const rule = {
+      id: 'rule-1',
+      projectId: 'proj-1',
+      name: 'Test',
+      trigger: { type: 'card_moved_into_section' as const, sectionId: 'section-1' },
+      action: { type: 'remove_due_date' as const, sectionId: null, dateOption: null, position: null },
+      filters: [],
+      enabled: true,
+      brokenReason: null,
+      executionCount: 0,
+      lastExecutedAt: null,
+      recentExecutions: [],
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    } as any;
+    ruleRepo.create(rule);
+
+    const action: RuleAction = {
+      ruleId: 'rule-1',
+      actionType: 'remove_due_date',
+      targetEntityId: 'task-1',
+      params: {},
+    };
+
+    const triggeringEvent: DomainEvent = {
+      type: 'task.updated',
+      entityId: 'task-1',
+      projectId: 'proj-1',
+      changes: {},
+      previousValues: {},
+      depth: 0,
+    };
+
+    const events = executor.executeActions([action], triggeringEvent);
+
+    expect(events).toHaveLength(1);
+    expect(events[0].type).toBe('task.updated');
+    expect(events[0].entityId).toBe('task-1');
+    expect(events[0].changes.dueDate).toBeNull();
+    expect(events[0].previousValues.dueDate).toBe(existingDueDate);
+    expect(events[0].depth).toBe(1);
+    expect(events[0].triggeredByRule).toBe('rule-1');
+  });
+
+  it('remove_due_date on a task with no dueDate still works (idempotent)', () => {
+    const task = {
+      id: 'task-1',
+      projectId: 'proj-1',
+      parentTaskId: null,
+      sectionId: 'section-1',
+      description: 'Test',
+      notes: '',
+      assignee: '',
+      priority: 'none' as const,
+      tags: [],
+      dueDate: null,
+      completed: false,
+      completedAt: null,
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    taskRepo.create(task as any);
+
+    const rule = {
+      id: 'rule-1',
+      projectId: 'proj-1',
+      name: 'Test',
+      trigger: { type: 'card_moved_into_section' as const, sectionId: 'section-1' },
+      action: { type: 'remove_due_date' as const, sectionId: null, dateOption: null, position: null },
+      filters: [],
+      enabled: true,
+      brokenReason: null,
+      executionCount: 0,
+      lastExecutedAt: null,
+      recentExecutions: [],
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    } as any;
+    ruleRepo.create(rule);
+
+    const action: RuleAction = {
+      ruleId: 'rule-1',
+      actionType: 'remove_due_date',
+      targetEntityId: 'task-1',
+      params: {},
+    };
+
+    const event: DomainEvent = {
+      type: 'task.updated',
+      entityId: 'task-1',
+      projectId: 'proj-1',
+      changes: {},
+      previousValues: {},
+      depth: 0,
+    };
+
+    executor.executeActions([action], event);
+
+    const updatedTask = taskRepo.findById('task-1');
+    expect(updatedTask).toBeDefined();
+    expect(updatedTask!.dueDate).toBeNull();
+  });
+});
+
 // Feature: automations-filters-dates, Property 18: create_card action produces a task with correct fields
 // **Validates: Requirements 8.4, 8.5**
 describe('Property 18: create_card action produces a task with correct fields', () => {
@@ -1559,5 +2185,606 @@ describe('create_card with TRIGGER_SECTION_SENTINEL', () => {
 
     expect(taskRepo.findAll().length).toBe(0);
     expect(events.length).toBe(0);
+  });
+});
+
+
+// Feature: automations-polish, Task 4.1: Execution log push and trim
+// **Validates: Requirements 4.3, 4.4**
+describe('Execution log push and trim', () => {
+  let taskRepo: MockTaskRepository;
+  let sectionRepo: MockSectionRepository;
+  let ruleRepo: MockAutomationRuleRepository;
+  let taskService: MockTaskService;
+  let executor: RuleExecutor;
+
+  beforeEach(() => {
+    taskRepo = new MockTaskRepository();
+    sectionRepo = new MockSectionRepository();
+    ruleRepo = new MockAutomationRuleRepository();
+    taskService = new MockTaskService();
+    executor = new RuleExecutor(taskRepo as any, sectionRepo as any, taskService as any, ruleRepo);
+  });
+
+  function createTestSection(id = 'section-1', name = 'Done'): Section {
+    return {
+      id,
+      projectId: 'proj-1',
+      name,
+      order: 0,
+      collapsed: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  function createTestTask(id = 'task-1', description = 'My Task'): Task {
+    return {
+      id,
+      projectId: 'proj-1',
+      parentTaskId: null,
+      sectionId: 'section-1',
+      description,
+      notes: '',
+      assignee: '',
+      priority: 'none',
+      tags: [],
+      dueDate: null,
+      completed: false,
+      completedAt: null,
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      lastActionAt: null,
+    };
+  }
+
+  function createTestRule(overrides: Partial<AutomationRule> = {}): AutomationRule {
+    return {
+      id: 'rule-1',
+      projectId: 'proj-1',
+      name: 'Test Rule',
+      trigger: { type: 'card_moved_into_section', sectionId: 'section-1' },
+      filters: [],
+      action: {
+        type: 'mark_card_complete',
+        sectionId: null,
+        dateOption: null,
+        position: null,
+        cardTitle: null,
+        cardDateOption: null,
+        specificMonth: null,
+        specificDay: null,
+        monthTarget: null,
+      },
+      enabled: true,
+      brokenReason: null,
+      executionCount: 0,
+      lastExecutedAt: null,
+      recentExecutions: [],
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      ...overrides,
+    };
+  }
+
+  function createTriggeringEvent(taskId = 'task-1'): DomainEvent {
+    return {
+      type: 'task.updated',
+      entityId: taskId,
+      projectId: 'proj-1',
+      changes: {},
+      previousValues: {},
+      depth: 0,
+    };
+  }
+
+  it('pushes an execution log entry after a successful mark_card_complete action', () => {
+    const section = createTestSection();
+    const task = createTestTask();
+    const rule = createTestRule();
+
+    sectionRepo.create(section);
+    taskRepo.create(task as any);
+    ruleRepo.create(rule);
+
+    const action: RuleAction = {
+      ruleId: rule.id,
+      actionType: 'mark_card_complete',
+      targetEntityId: task.id,
+      params: {},
+    };
+
+    executor.executeActions([action], createTriggeringEvent());
+
+    const updatedRule = ruleRepo.findById(rule.id)!;
+    expect(updatedRule.recentExecutions).toHaveLength(1);
+    expect(updatedRule.recentExecutions[0].taskName).toBe('My Task');
+    expect(updatedRule.recentExecutions[0].actionDescription).toBe('Marked as complete');
+    expect(updatedRule.recentExecutions[0].triggerDescription).toBe("Card moved into 'Done'");
+    expect(updatedRule.recentExecutions[0].timestamp).toBeTruthy();
+  });
+
+  it('pushes an execution log entry after a successful move action', () => {
+    const section = createTestSection('target-section', 'In Progress');
+    const task = createTestTask();
+    const rule = createTestRule({
+      trigger: { type: 'card_marked_complete', sectionId: null },
+      action: {
+        type: 'move_card_to_top_of_section',
+        sectionId: 'target-section',
+        dateOption: null,
+        position: null,
+        cardTitle: null,
+        cardDateOption: null,
+        specificMonth: null,
+        specificDay: null,
+        monthTarget: null,
+      },
+    });
+
+    sectionRepo.create(section);
+    taskRepo.create(task as any);
+    ruleRepo.create(rule);
+
+    const action: RuleAction = {
+      ruleId: rule.id,
+      actionType: 'move_card_to_top_of_section',
+      targetEntityId: task.id,
+      params: { sectionId: 'target-section' },
+    };
+
+    executor.executeActions([action], createTriggeringEvent());
+
+    const updatedRule = ruleRepo.findById(rule.id)!;
+    expect(updatedRule.recentExecutions).toHaveLength(1);
+    expect(updatedRule.recentExecutions[0].actionDescription).toBe("Moved to top of 'In Progress'");
+    expect(updatedRule.recentExecutions[0].triggerDescription).toBe('Card marked complete');
+    expect(updatedRule.recentExecutions[0].taskName).toBe('My Task');
+  });
+
+  it('pushes an execution log entry after a successful create_card action', () => {
+    const section = createTestSection();
+    const rule = createTestRule({
+      trigger: { type: 'section_created', sectionId: null },
+      action: {
+        type: 'create_card',
+        sectionId: 'section-1',
+        dateOption: null,
+        position: null,
+        cardTitle: 'Standup Notes',
+        cardDateOption: null,
+        specificMonth: null,
+        specificDay: null,
+        monthTarget: null,
+      },
+    });
+
+    sectionRepo.create(section);
+    ruleRepo.create(rule);
+
+    const action: RuleAction = {
+      ruleId: rule.id,
+      actionType: 'create_card',
+      targetEntityId: 'trigger-entity',
+      params: { sectionId: section.id, cardTitle: 'Standup Notes' },
+    };
+
+    const event: DomainEvent = {
+      type: 'section.created',
+      entityId: section.id,
+      projectId: 'proj-1',
+      changes: {},
+      previousValues: {},
+      depth: 0,
+    };
+
+    executor.executeActions([action], event);
+
+    const updatedRule = ruleRepo.findById(rule.id)!;
+    expect(updatedRule.recentExecutions).toHaveLength(1);
+    expect(updatedRule.recentExecutions[0].taskName).toBe('Standup Notes');
+    expect(updatedRule.recentExecutions[0].actionDescription).toBe("Created card 'Standup Notes'");
+    expect(updatedRule.recentExecutions[0].triggerDescription).toBe('Section created');
+  });
+
+  it('does NOT push a log entry when the action fails (missing task)', () => {
+    const rule = createTestRule();
+    ruleRepo.create(rule);
+
+    const action: RuleAction = {
+      ruleId: rule.id,
+      actionType: 'mark_card_complete',
+      targetEntityId: 'non-existent-task',
+      params: {},
+    };
+
+    executor.executeActions([action], createTriggeringEvent('non-existent-task'));
+
+    const updatedRule = ruleRepo.findById(rule.id)!;
+    expect(updatedRule.recentExecutions).toHaveLength(0);
+  });
+
+  it('trims recentExecutions to 20 entries when exceeding the cap', () => {
+    // Pre-populate rule with 20 existing entries
+    const existingEntries = Array.from({ length: 20 }, (_, i) => ({
+      timestamp: new Date(2025, 0, i + 1).toISOString(),
+      triggerDescription: `Trigger ${i}`,
+      actionDescription: `Action ${i}`,
+      taskName: `Task ${i}`,
+    }));
+
+    const section = createTestSection();
+    const task = createTestTask();
+    const rule = createTestRule({ recentExecutions: existingEntries });
+
+    sectionRepo.create(section);
+    taskRepo.create(task as any);
+    ruleRepo.create(rule);
+
+    const action: RuleAction = {
+      ruleId: rule.id,
+      actionType: 'mark_card_complete',
+      targetEntityId: task.id,
+      params: {},
+    };
+
+    executor.executeActions([action], createTriggeringEvent());
+
+    const updatedRule = ruleRepo.findById(rule.id)!;
+    expect(updatedRule.recentExecutions).toHaveLength(20);
+    // The oldest entry (Trigger 0) should be gone, newest should be the new one
+    expect(updatedRule.recentExecutions[0].triggerDescription).toBe('Trigger 1');
+    expect(updatedRule.recentExecutions[19].taskName).toBe('My Task');
+  });
+
+  it('accumulates entries up to 20 without trimming', () => {
+    const section = createTestSection();
+    const task = createTestTask();
+    const rule = createTestRule();
+
+    sectionRepo.create(section);
+    taskRepo.create(task as any);
+    ruleRepo.create(rule);
+
+    const action: RuleAction = {
+      ruleId: rule.id,
+      actionType: 'mark_card_complete',
+      targetEntityId: task.id,
+      params: {},
+    };
+
+    // Execute 5 times
+    for (let i = 0; i < 5; i++) {
+      executor.executeActions([action], createTriggeringEvent());
+    }
+
+    const updatedRule = ruleRepo.findById(rule.id)!;
+    expect(updatedRule.recentExecutions).toHaveLength(5);
+  });
+
+  it('generates correct descriptions for all action types', () => {
+    const section = createTestSection('target-sec', 'Archive');
+    const task = createTestTask();
+    const rule = createTestRule({
+      trigger: { type: 'card_marked_incomplete', sectionId: null },
+    });
+
+    sectionRepo.create(section);
+    taskRepo.create(task as any);
+    ruleRepo.create(rule);
+
+    const actionTypes: Array<{ type: ActionType; params: RuleAction['params']; expected: string }> = [
+      { type: 'mark_card_complete', params: {}, expected: 'Marked as complete' },
+      { type: 'mark_card_incomplete', params: {}, expected: 'Marked as incomplete' },
+      { type: 'move_card_to_top_of_section', params: { sectionId: 'target-sec' }, expected: "Moved to top of 'Archive'" },
+      { type: 'move_card_to_bottom_of_section', params: { sectionId: 'target-sec' }, expected: "Moved to bottom of 'Archive'" },
+      { type: 'set_due_date', params: { dateOption: 'today' as any }, expected: 'Set due date' },
+      { type: 'remove_due_date', params: {}, expected: 'Removed due date' },
+    ];
+
+    for (const { type, params, expected } of actionTypes) {
+      // Reset rule's recentExecutions
+      ruleRepo.update(rule.id, { recentExecutions: [], executionCount: 0 });
+
+      const action: RuleAction = {
+        ruleId: rule.id,
+        actionType: type,
+        targetEntityId: task.id,
+        params,
+      };
+
+      executor.executeActions([action], createTriggeringEvent());
+
+      const updatedRule = ruleRepo.findById(rule.id)!;
+      const lastEntry = updatedRule.recentExecutions[updatedRule.recentExecutions.length - 1];
+      expect(lastEntry?.actionDescription).toBe(expected);
+    }
+  });
+
+  it('generates correct trigger descriptions for all trigger types', () => {
+    const section = createTestSection('trigger-sec', 'Backlog');
+    const task = createTestTask();
+
+    sectionRepo.create(section);
+    taskRepo.create(task as any);
+
+    const triggerTypes: Array<{ type: AutomationRule['trigger']['type']; sectionId: string | null; expected: string }> = [
+      { type: 'card_moved_into_section', sectionId: 'trigger-sec', expected: "Card moved into 'Backlog'" },
+      { type: 'card_moved_out_of_section', sectionId: 'trigger-sec', expected: "Card moved out of 'Backlog'" },
+      { type: 'card_marked_complete', sectionId: null, expected: 'Card marked complete' },
+      { type: 'card_marked_incomplete', sectionId: null, expected: 'Card marked incomplete' },
+      { type: 'card_created_in_section', sectionId: 'trigger-sec', expected: "Card created in 'Backlog'" },
+      { type: 'section_created', sectionId: null, expected: 'Section created' },
+      { type: 'section_renamed', sectionId: null, expected: 'Section renamed' },
+    ];
+
+    for (const { type, sectionId, expected } of triggerTypes) {
+      const rule = createTestRule({
+        id: `rule-${type}`,
+        trigger: { type, sectionId },
+      });
+      ruleRepo.create(rule);
+
+      const action: RuleAction = {
+        ruleId: rule.id,
+        actionType: 'mark_card_complete',
+        targetEntityId: task.id,
+        params: {},
+      };
+
+      executor.executeActions([action], createTriggeringEvent());
+
+      const updatedRule = ruleRepo.findById(rule.id)!;
+      expect(updatedRule.recentExecutions[0]?.triggerDescription).toBe(expected);
+    }
+  });
+});
+
+// Feature: automations-polish, Property 4: Execution log push and cap invariant
+// **Validates: Requirements 4.3, 4.4**
+describe('Property 4: Execution log push and cap invariant', () => {
+  let taskRepo: MockTaskRepository;
+  let sectionRepo: MockSectionRepository;
+  let ruleRepo: MockAutomationRuleRepository;
+  let taskService: MockTaskService;
+  let executor: RuleExecutor;
+
+  beforeEach(() => {
+    taskRepo = new MockTaskRepository();
+    sectionRepo = new MockSectionRepository();
+    ruleRepo = new MockAutomationRuleRepository();
+    taskService = new MockTaskService();
+    executor = new RuleExecutor(taskRepo as any, sectionRepo as any, taskService as any, ruleRepo);
+  });
+
+  it('after a successful execution, recentExecutions has length <= 20 and contains the new entry', () => {
+    fc.assert(
+      fc.property(
+        // Generate 0-100 existing execution log entries
+        fc.array(executionLogEntryArb, { minLength: 0, maxLength: 100 }),
+        (existingEntries) => {
+          // Clear repositories
+          taskRepo.clear();
+          sectionRepo.clear();
+          ruleRepo.clear();
+
+          // Create section and task for a successful action
+          const section: Section = {
+            id: 'test-section',
+            projectId: 'proj-1',
+            name: 'Done',
+            order: 0,
+            collapsed: false,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          sectionRepo.create(section);
+
+          const task: Task = {
+            id: 'test-task',
+            projectId: 'proj-1',
+            parentTaskId: null,
+            sectionId: 'test-section',
+            description: 'Test Task',
+            notes: '',
+            assignee: '',
+            priority: 'none',
+            tags: [],
+            dueDate: null,
+            completed: false,
+            completedAt: null,
+            order: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            lastActionAt: null,
+          };
+          taskRepo.create(task as any);
+
+          // Create rule with the generated existing entries
+          const rule: AutomationRule = {
+            id: 'rule-1',
+            projectId: 'proj-1',
+            name: 'Test Rule',
+            trigger: { type: 'card_moved_into_section', sectionId: 'test-section' },
+            filters: [],
+            action: {
+              type: 'mark_card_complete',
+              sectionId: null,
+              dateOption: null,
+              position: null,
+              cardTitle: null,
+              cardDateOption: null,
+              specificMonth: null,
+              specificDay: null,
+              monthTarget: null,
+            },
+            enabled: true,
+            brokenReason: null,
+            executionCount: 0,
+            lastExecutedAt: null,
+            recentExecutions: existingEntries,
+            order: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          ruleRepo.create(rule);
+
+          // Execute a successful action
+          const action: RuleAction = {
+            ruleId: rule.id,
+            actionType: 'mark_card_complete',
+            targetEntityId: task.id,
+            params: {},
+          };
+
+          const event: DomainEvent = {
+            type: 'task.updated',
+            entityId: task.id,
+            projectId: 'proj-1',
+            changes: {},
+            previousValues: {},
+            depth: 0,
+          };
+
+          executor.executeActions([action], event);
+
+          const updatedRule = ruleRepo.findById(rule.id)!;
+
+          // Invariant 1: length is at most 20
+          expect(updatedRule.recentExecutions.length).toBeLessThanOrEqual(20);
+
+          // Invariant 2: the new entry is present (task name matches)
+          const hasNewEntry = updatedRule.recentExecutions.some(
+            (e) => e.taskName === 'Test Task' && e.actionDescription === 'Marked as complete'
+          );
+          expect(hasNewEntry).toBe(true);
+
+          // Invariant 3: length is min(existingEntries.length + 1, 20)
+          const expectedLength = Math.min(existingEntries.length + 1, 20);
+          expect(updatedRule.recentExecutions.length).toBe(expectedLength);
+        },
+      ),
+      { numRuns: 200 },
+    );
+  });
+
+  it('the most recent 20 entries by insertion order are retained after trimming', () => {
+    fc.assert(
+      fc.property(
+        // Generate 20-100 existing entries with sequential timestamps for ordering
+        fc.integer({ min: 20, max: 100 }),
+        (entryCount) => {
+          // Clear repositories
+          taskRepo.clear();
+          sectionRepo.clear();
+          ruleRepo.clear();
+
+          // Create entries with sequential timestamps so we can verify ordering
+          const existingEntries = Array.from({ length: entryCount }, (_, i) => ({
+            timestamp: new Date(2025, 0, 1, 0, 0, i).toISOString(),
+            triggerDescription: `Trigger ${i}`,
+            actionDescription: `Action ${i}`,
+            taskName: `Task ${i}`,
+          }));
+
+          // Create section and task
+          const section: Section = {
+            id: 'test-section',
+            projectId: 'proj-1',
+            name: 'Done',
+            order: 0,
+            collapsed: false,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          sectionRepo.create(section);
+
+          const task: Task = {
+            id: 'test-task',
+            projectId: 'proj-1',
+            parentTaskId: null,
+            sectionId: 'test-section',
+            description: 'New Execution Task',
+            notes: '',
+            assignee: '',
+            priority: 'none',
+            tags: [],
+            dueDate: null,
+            completed: false,
+            completedAt: null,
+            order: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            lastActionAt: null,
+          };
+          taskRepo.create(task as any);
+
+          const rule: AutomationRule = {
+            id: 'rule-1',
+            projectId: 'proj-1',
+            name: 'Test Rule',
+            trigger: { type: 'card_moved_into_section', sectionId: 'test-section' },
+            filters: [],
+            action: {
+              type: 'mark_card_complete',
+              sectionId: null,
+              dateOption: null,
+              position: null,
+              cardTitle: null,
+              cardDateOption: null,
+              specificMonth: null,
+              specificDay: null,
+              monthTarget: null,
+            },
+            enabled: true,
+            brokenReason: null,
+            executionCount: 0,
+            lastExecutedAt: null,
+            recentExecutions: existingEntries,
+            order: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          ruleRepo.create(rule);
+
+          // Execute action
+          const action: RuleAction = {
+            ruleId: rule.id,
+            actionType: 'mark_card_complete',
+            targetEntityId: task.id,
+            params: {},
+          };
+
+          const event: DomainEvent = {
+            type: 'task.updated',
+            entityId: task.id,
+            projectId: 'proj-1',
+            changes: {},
+            previousValues: {},
+            depth: 0,
+          };
+
+          executor.executeActions([action], event);
+
+          const updatedRule = ruleRepo.findById(rule.id)!;
+
+          // After trimming, exactly 20 entries remain
+          expect(updatedRule.recentExecutions).toHaveLength(20);
+
+          // The new entry is the last one
+          const lastEntry = updatedRule.recentExecutions[19];
+          expect(lastEntry.taskName).toBe('New Execution Task');
+
+          // The 19 entries before the new one are the last 19 from the original array
+          for (let i = 0; i < 19; i++) {
+            const expectedOriginalIndex = entryCount - 19 + i;
+            expect(updatedRule.recentExecutions[i].taskName).toBe(`Task ${expectedOriginalIndex}`);
+          }
+        },
+      ),
+      { numRuns: 200 },
+    );
   });
 });

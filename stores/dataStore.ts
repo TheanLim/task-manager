@@ -19,6 +19,7 @@ import { ProjectService } from '@/features/projects/services/projectService';
 import { DependencyService } from '@/features/tasks/services/dependencyService';
 import { DependencyResolverImpl } from '@/features/tasks/dependencyResolver';
 import { emitDomainEvent, subscribeToDomainEvents } from '@/features/automations/events';
+import { detectBrokenRules } from '@/features/automations/services/brokenRuleDetector';
 import { LocalStorageAutomationRuleRepository } from '@/features/automations/repositories/localStorageAutomationRuleRepository';
 import { RuleExecutor } from '@/features/automations/services/ruleExecutor';
 import { AutomationService } from '@/features/automations/services/automationService';
@@ -125,7 +126,8 @@ export const useDataStore = create<DataStore>()(
       // Task Actions
       addTask: (task) => {
         taskRepository.create(task);
-        // Emit task.created domain event
+        // Emit task.created domain event (wrapped in batch for aggregated toasts)
+        automationService.beginBatch();
         emitDomainEvent({
           type: 'task.created',
           entityId: task.id,
@@ -134,6 +136,7 @@ export const useDataStore = create<DataStore>()(
           previousValues: {},
           depth: 0,
         });
+        automationService.endBatch();
       },
       
       updateTask: (id, updates) => {
@@ -144,7 +147,8 @@ export const useDataStore = create<DataStore>()(
         const updatedTask = { ...updates, updatedAt: new Date().toISOString() };
         taskRepository.update(id, updatedTask);
         
-        // Emit task.updated domain event with changes and previous values
+        // Emit task.updated domain event (wrapped in batch for aggregated toasts)
+        automationService.beginBatch();
         emitDomainEvent({
           type: 'task.updated',
           entityId: id,
@@ -153,6 +157,7 @@ export const useDataStore = create<DataStore>()(
           previousValues: previousTask,
           depth: 0,
         });
+        automationService.endBatch();
       },
       
       deleteTask: (id) => {
@@ -162,8 +167,9 @@ export const useDataStore = create<DataStore>()(
         
         taskService.cascadeDelete(id);
         
-        // Emit task.deleted domain event
+        // Emit task.deleted domain event (wrapped in batch for aggregated toasts)
         // Note: taskService.cascadeDelete also emits events, but only if emitEvent callback is wired (task 10.1)
+        automationService.beginBatch();
         emitDomainEvent({
           type: 'task.deleted',
           entityId: id,
@@ -172,12 +178,14 @@ export const useDataStore = create<DataStore>()(
           previousValues: { ...taskToDelete },
           depth: 0,
         });
+        automationService.endBatch();
       },
       
       // Section Actions
       addSection: (section) => {
         sectionRepository.create(section);
-        // Emit section.created domain event
+        // Emit section.created domain event (wrapped in batch for aggregated toasts)
+        automationService.beginBatch();
         emitDomainEvent({
           type: 'section.created',
           entityId: section.id,
@@ -186,6 +194,7 @@ export const useDataStore = create<DataStore>()(
           previousValues: {},
           depth: 0,
         });
+        automationService.endBatch();
       },
       
       updateSection: (id, updates) => {
@@ -196,7 +205,8 @@ export const useDataStore = create<DataStore>()(
         const updatedSection = { ...updates, updatedAt: new Date().toISOString() };
         sectionRepository.update(id, updatedSection);
         
-        // Emit section.updated domain event with changes and previous values
+        // Emit section.updated domain event (wrapped in batch for aggregated toasts)
+        automationService.beginBatch();
         emitDomainEvent({
           type: 'section.updated',
           entityId: id,
@@ -205,6 +215,7 @@ export const useDataStore = create<DataStore>()(
           previousValues: previousSection,
           depth: 0,
         });
+        automationService.endBatch();
       },
       
       deleteSection: (id) => {
@@ -224,6 +235,9 @@ export const useDataStore = create<DataStore>()(
         }
         
         sectionRepository.delete(id);
+
+        // Detect and disable automation rules referencing the deleted section (Req 2.1, 2.2)
+        detectBrokenRules(id, sectionToDelete.projectId || '', automationRuleRepository);
       },
       
       toggleSectionCollapsed: (id) => {

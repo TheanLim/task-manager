@@ -2,12 +2,13 @@
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Zap } from 'lucide-react';
+import { Zap, AlertTriangle } from 'lucide-react';
 
 interface ProjectTabsProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
   enabledRuleCount?: number;
+  totalRuleCount?: number;
   children: {
     overview: React.ReactNode;
     list: React.ReactNode;
@@ -17,7 +18,7 @@ interface ProjectTabsProps {
   };
 }
 
-export function ProjectTabs({ activeTab, onTabChange, enabledRuleCount, children }: ProjectTabsProps) {
+export function ProjectTabs({ activeTab, onTabChange, enabledRuleCount, totalRuleCount, children }: ProjectTabsProps) {
   return (
     <Tabs value={activeTab} onValueChange={onTabChange} className="w-full h-full flex flex-col">
       <TabsList className="w-full justify-start flex-shrink-0 sticky top-0 bg-background z-10">
@@ -32,6 +33,9 @@ export function ProjectTabs({ activeTab, onTabChange, enabledRuleCount, children
             <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5 text-xs">
               {enabledRuleCount}
             </Badge>
+          )}
+          {totalRuleCount !== undefined && totalRuleCount >= 10 && (
+            <AlertTriangle className="ml-1 h-3.5 w-3.5 text-amber-500" aria-label="High rule count warning" />
           )}
         </TabsTrigger>
       </TabsList>

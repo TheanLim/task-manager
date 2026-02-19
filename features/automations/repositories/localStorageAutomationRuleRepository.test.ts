@@ -71,6 +71,13 @@ const actionArb = fc.record({
   monthTarget: fc.oneof(fc.constantFrom('this_month' as const, 'next_month' as const), fc.constant(null)),
 });
 
+const executionLogEntryArb = fc.record({
+  timestamp: isoDateTimeArb,
+  triggerDescription: fc.string({ minLength: 1, maxLength: 200 }),
+  actionDescription: fc.string({ minLength: 1, maxLength: 200 }),
+  taskName: fc.string({ minLength: 1, maxLength: 200 }),
+});
+
 const automationRuleArb = fc.record({
   id: idArb,
   projectId: idArb,
@@ -82,6 +89,7 @@ const automationRuleArb = fc.record({
   brokenReason: fc.oneof(fc.string({ minLength: 1, maxLength: 100 }), fc.constant(null)),
   executionCount: fc.nat(),
   lastExecutedAt: fc.oneof(isoDateTimeArb, fc.constant(null)),
+  recentExecutions: fc.array(executionLogEntryArb, { minLength: 0, maxLength: 5 }),
   order: fc.integer(),
   createdAt: isoDateTimeArb,
   updatedAt: isoDateTimeArb,
@@ -234,6 +242,94 @@ describe('LocalStorageAutomationRuleRepository', () => {
       expect(rules[0].updatedAt).toBe('2024-01-10T00:00:00.000Z');
     });
 
+    it('should add empty recentExecutions array to Phase 3 rules missing the field', () => {
+      // Create a Phase 3 rule without recentExecutions field
+      const phase3Rule = {
+        id: 'rule-1',
+        projectId: 'project-1',
+        name: 'Test Rule',
+        trigger: {
+          type: 'card_moved_into_section',
+          sectionId: 'section-1',
+        },
+        filters: [],
+        action: {
+          type: 'mark_card_complete',
+          sectionId: null,
+          dateOption: null,
+          position: null,
+          cardTitle: null,
+          cardDateOption: null,
+          specificMonth: null,
+          specificDay: null,
+          monthTarget: null,
+        },
+        enabled: true,
+        brokenReason: null,
+        executionCount: 0,
+        lastExecutedAt: null,
+        order: 0,
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
+        // Missing: recentExecutions
+      };
+
+      localStorageMock.setItem('task-management-automations', JSON.stringify([phase3Rule]));
+
+      const repo = new LocalStorageAutomationRuleRepository();
+      const rules = repo.findAll();
+      expect(rules.length).toBe(1);
+      expect(rules[0].recentExecutions).toEqual([]);
+    });
+
+    it('should preserve existing recentExecutions when already present', () => {
+      const existingEntries = [
+        {
+          timestamp: '2024-06-01T10:00:00.000Z',
+          triggerDescription: 'Card moved into Done',
+          actionDescription: 'Marked as complete',
+          taskName: 'My Task',
+        },
+      ];
+
+      const ruleWithExecutions = {
+        id: 'rule-1',
+        projectId: 'project-1',
+        name: 'Test Rule',
+        trigger: {
+          type: 'card_moved_into_section',
+          sectionId: 'section-1',
+        },
+        filters: [],
+        action: {
+          type: 'mark_card_complete',
+          sectionId: null,
+          dateOption: null,
+          position: null,
+          cardTitle: null,
+          cardDateOption: null,
+          specificMonth: null,
+          specificDay: null,
+          monthTarget: null,
+        },
+        enabled: true,
+        brokenReason: null,
+        executionCount: 1,
+        lastExecutedAt: '2024-06-01T10:00:00.000Z',
+        recentExecutions: existingEntries,
+        order: 0,
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
+      };
+
+      localStorageMock.setItem('task-management-automations', JSON.stringify([ruleWithExecutions]));
+
+      const repo = new LocalStorageAutomationRuleRepository();
+      const rules = repo.findAll();
+      expect(rules.length).toBe(1);
+      expect(rules[0].recentExecutions).toEqual(existingEntries);
+    });
+
     it('should not modify Phase 3 rules that already have all fields', () => {
       // Create a Phase 3 rule with all fields
       const phase3Rule = {
@@ -279,7 +375,7 @@ describe('LocalStorageAutomationRuleRepository', () => {
       expect(rules.length).toBe(1);
       
       // Verify all fields are preserved exactly
-      expect(rules[0]).toEqual(phase3Rule);
+      expect(rules[0]).toEqual({ ...phase3Rule, recentExecutions: [] });
     });
 
     it('should handle multiple rules with mixed Phase 1/2 and Phase 3 schemas', () => {
@@ -341,7 +437,7 @@ describe('LocalStorageAutomationRuleRepository', () => {
 
       // Phase 3 rule should be unchanged
       const unchangedPhase3 = rules.find(r => r.id === 'rule-2');
-      expect(unchangedPhase3).toEqual(phase3Rule);
+      expect(unchangedPhase3).toEqual({ ...phase3Rule, recentExecutions: [] });
     });
   });
 

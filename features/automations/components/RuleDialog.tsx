@@ -33,8 +33,13 @@ import {
   type TriggerConfig,
   type ActionConfig,
 } from '../services/rulePreviewService';
-import type { AutomationRule, CardFilter } from '../types';
+import type { AutomationRule, CardFilter, TriggerType } from '../types';
 import type { Section } from '@/lib/schemas';
+
+export interface PrefillTrigger {
+  triggerType: TriggerType;
+  sectionId: string;
+}
 
 interface RuleDialogProps {
   open: boolean;
@@ -42,6 +47,7 @@ interface RuleDialogProps {
   projectId: string;
   sections: Section[];
   editingRule?: AutomationRule | null;
+  prefillTrigger?: PrefillTrigger | null;
 }
 
 type WizardStep = 0 | 1 | 2 | 3; // 0 = Trigger, 1 = Filters, 2 = Action, 3 = Review
@@ -52,8 +58,9 @@ export function RuleDialog({
   projectId,
   sections,
   editingRule,
+  prefillTrigger,
 }: RuleDialogProps) {
-  const { createRule, updateRule } = useAutomationRules(projectId);
+  const { rules, createRule, updateRule } = useAutomationRules(projectId);
 
   // Wizard state
   const [currentStep, setCurrentStep] = useState<WizardStep>(0);
@@ -112,8 +119,11 @@ export function RuleDialog({
       setRuleName(editingRule.name);
       setIsDirty(false);
     } else if (open && !editingRule) {
-      // Reset form for new rule
-      setTrigger({ type: null, sectionId: null });
+      // Reset form for new rule, applying prefill if provided
+      setTrigger({
+        type: prefillTrigger?.triggerType ?? null,
+        sectionId: prefillTrigger?.sectionId ?? null,
+      });
       setFilters([]);
       setAction({
         type: null,
@@ -130,7 +140,7 @@ export function RuleDialog({
       setIsDirty(false);
       setCurrentStep(0);
     }
-  }, [open, editingRule]);
+  }, [open, editingRule, prefillTrigger]);
 
   // Mark form as dirty when user makes changes
   const handleTriggerChange = useCallback((newTrigger: TriggerConfig) => {
@@ -286,14 +296,27 @@ export function RuleDialog({
       ruleName.trim() ||
       buildPreviewString(buildPreviewParts(trigger, action, sectionLookup));
 
+    // Check if all section references are now valid (for clearing brokenReason)
+    const sectionIds = new Set(sections.map((s) => s.id));
+    const allSectionsValid = [
+      trigger.sectionId,
+      action.sectionId,
+      ...filters
+        .filter((f): f is CardFilter & { sectionId: string } => 'sectionId' in f)
+        .map((f) => f.sectionId),
+    ]
+      .filter(Boolean)
+      .every((id) => sectionIds.has(id!));
+
     if (editingRule) {
-      // Update existing rule
-      updateRule(editingRule.id, {
+      // Update existing rule — clear brokenReason if all sections are valid
+      const updates: Partial<AutomationRule> = {
         name: finalName,
         trigger: {
           type: trigger.type!,
           sectionId: trigger.sectionId,
         },
+        filters: filters,
         action: {
           type: action.type!,
           sectionId: action.sectionId,
@@ -305,7 +328,14 @@ export function RuleDialog({
           specificDay: action.specificDay,
           monthTarget: action.monthTarget,
         },
-      });
+      };
+
+      if (editingRule.brokenReason && allSectionsValid) {
+        updates.brokenReason = null;
+        updates.enabled = true;
+      }
+
+      updateRule(editingRule.id, updates);
     } else {
       // Create new rule
       createRule({
@@ -507,6 +537,8 @@ export function RuleDialog({
                   onNavigateToStep={handleNavigateToStep}
                   onSave={handleSave}
                   isSaveDisabled={isSaveDisabled}
+                  existingRules={rules}
+                  editingRuleId={editingRule?.id}
                 />
               )}
 

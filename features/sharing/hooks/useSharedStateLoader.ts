@@ -5,6 +5,7 @@ import {
   taskRepository,
   sectionRepository,
   dependencyRepository,
+  automationRuleRepository,
 } from '@/stores/dataStore';
 import { AppState } from '@/types';
 
@@ -80,7 +81,8 @@ export function useSharedStateLoader({ onSharedStateLoaded, onLoadResult }: UseS
 export function handleLoadSharedState(
   sharedState: AppState,
   mode: 'replace' | 'merge' | 'cancel',
-  onLoadResult: (result: { message: string; type: 'success' | 'error' | 'info' }) => void
+  onLoadResult: (result: { message: string; type: 'success' | 'error' | 'info' }) => void,
+  options?: { includeAutomations?: boolean }
 ): void {
   if (mode === 'cancel') {
     clearUrlHash();
@@ -98,6 +100,13 @@ export function handleLoadSharedState(
     onLoadResult({ message: 'Shared data loaded successfully!', type: 'success' });
   } else {
     mergeSharedState(sharedState, onLoadResult);
+  }
+
+  // Import automation rules if included
+  const includeAutomations = options?.includeAutomations ?? true;
+  if (includeAutomations) {
+    const shareService = new ShareService(undefined, automationRuleRepository);
+    shareService.importAutomationRules(sharedState as unknown as Record<string, unknown>, { includeAutomations });
   }
 
   clearUrlHash();

@@ -81,6 +81,11 @@ export class LocalStorageAutomationRuleRepository implements AutomationRuleRepos
       obj.filters = [];
     }
 
+    // Add empty recentExecutions array if missing (Phase 4 migration)
+    if (!Array.isArray(obj.recentExecutions)) {
+      obj.recentExecutions = [];
+    }
+
     // Migrate action fields if action object exists
     if (obj.action && typeof obj.action === 'object') {
       const action = obj.action as Record<string, unknown>;

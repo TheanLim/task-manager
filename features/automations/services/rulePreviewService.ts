@@ -377,3 +377,45 @@ function formatDateOption(option: RelativeDateOption): string {
       return option.replace(/_/g, ' ');
   }
 }
+
+// ============================================================================
+// Duplicate Rule Detection
+// ============================================================================
+
+/**
+ * Checks whether a rule configuration duplicates an existing enabled rule.
+ * Two rules are considered duplicates when they share the same trigger type,
+ * trigger sectionId, action type, and action sectionId.
+ *
+ * @param trigger - The trigger configuration being created/edited
+ * @param action - The action configuration being created/edited
+ * @param existingRules - All existing rules in the same project
+ * @param excludeRuleId - Optional rule ID to exclude (for edit mode)
+ * @returns true if a duplicate enabled rule exists
+ *
+ * Validates: Requirements 11.1
+ */
+export function isDuplicateRule(
+  trigger: TriggerConfig,
+  action: ActionConfig,
+  existingRules: Array<{
+    id: string;
+    enabled: boolean;
+    trigger: { type: string; sectionId: string | null };
+    action: { type: string; sectionId: string | null };
+  }>,
+  excludeRuleId?: string
+): boolean {
+  if (!trigger.type || !action.type) return false;
+
+  return existingRules.some(
+    (rule) =>
+      rule.enabled &&
+      rule.id !== excludeRuleId &&
+      rule.trigger.type === trigger.type &&
+      rule.trigger.sectionId === trigger.sectionId &&
+      rule.action.type === action.type &&
+      rule.action.sectionId === action.sectionId
+  );
+}
+

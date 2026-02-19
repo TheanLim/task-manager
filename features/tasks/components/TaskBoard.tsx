@@ -8,8 +8,15 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
-import { Calendar, GripVertical, Plus, ListTree, ChevronDown } from 'lucide-react';
+import { Calendar, GripVertical, Plus, ListTree, ChevronDown, MoreVertical, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   DndContext,
   DragEndEvent,
@@ -36,6 +43,8 @@ import { InlineEditable } from '@/components/InlineEditable';
 import { validateTaskDescription, validateSectionName } from '@/lib/validation';
 import { useDataStore } from '@/stores/dataStore';
 import { v4 as uuidv4 } from 'uuid';
+import { SectionContextMenuItem } from '@/features/automations/components/SectionContextMenuItem';
+import type { TriggerType } from '@/features/automations/types';
 
 interface TaskBoardProps {
   tasks: Task[];
@@ -45,6 +54,7 @@ interface TaskBoardProps {
   onTaskMove: (taskId: string, sectionId: string) => void;
   onAddTask: (sectionId: string) => void;
   onAddSubtask?: (parentTaskId: string) => void;
+  onOpenRuleDialog?: (prefill: { triggerType: TriggerType; sectionId: string }) => void;
 }
 
 // Droppable section component
@@ -113,7 +123,7 @@ function DraggableTaskCard({ task, children }: { task: Task; children: React.Rea
   );
 }
 
-export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTaskMove, onAddTask, onAddSubtask }: TaskBoardProps) {
+export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTaskMove, onAddTask, onAddSubtask, onOpenRuleDialog }: TaskBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeType, setActiveType] = useState<'task' | 'section' | null>(null);
   const [isAddingSection, setIsAddingSection] = useState(false);
@@ -529,7 +539,35 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
                           displayClassName="font-semibold"
                           inputClassName="font-semibold"
                         />
-                        <Badge variant="secondary">{sectionTasks.length}</Badge>
+                        <div className="flex items-center gap-1">
+                          <Badge variant="secondary">{sectionTasks.length}</Badge>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0 flex-shrink-0">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => deleteSection(section.id)}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete section
+                              </DropdownMenuItem>
+                              {onOpenRuleDialog && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <SectionContextMenuItem
+                                    sectionId={section.id}
+                                    projectId={section.projectId || ''}
+                                    onOpenRuleDialog={onOpenRuleDialog}
+                                  />
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </div>
                     </div>
                     
