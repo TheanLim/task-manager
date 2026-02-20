@@ -344,7 +344,7 @@ export function useKeyboardNavigation(
         moveTo(direction);
       }
     },
-    [isDragging, activeCell, moveTo, showHighlight, updateActiveCell, tableRef],
+    [isDragging, activeCell, moveTo, showHighlight, updateActiveCell, tableRef, shortcutMap],
   );
 
   return {

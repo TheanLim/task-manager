@@ -88,7 +88,7 @@ export function useGlobalShortcuts({
       const table = document.querySelector('table[role="grid"]') as HTMLElement;
       table?.focus();
     }
-  }, { enableOnFormTags: true, enableOnContentEditable: true, preventDefault: true, enabled }, []);
+  }, { enableOnFormTags: true, enableOnContentEditable: true, preventDefault: true, enabled }, [shortcutMap]);
 
   // Cancel edit — blur the active element and refocus the table
   useHotkeys(toHotkeyFormat(shortcutMap['task.cancelEdit'].key), () => {
@@ -98,7 +98,7 @@ export function useGlobalShortcuts({
       const table = document.querySelector('table[role="grid"]') as HTMLElement;
       table?.focus();
     }
-  }, { enableOnFormTags: true, preventDefault: false, enabled }, []);
+  }, { enableOnFormTags: true, preventDefault: false, enabled }, [shortcutMap]);
 
   // Vim navigation keys as global fallback — if table exists but doesn't have focus,
   // focus it so the table's onTableKeyDown can handle the next keypress.
