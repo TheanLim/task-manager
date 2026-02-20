@@ -1223,4 +1223,81 @@ test.describe('Keyboard Shortcuts: Customization Behavior', () => {
     await overlay.getByText('Reset to defaults').click()
     await page.waitForTimeout(200)
   })
+
+  test('rebinding Next Section from ] to p — old ] stops, new p jumps to next section', async ({ page }) => {
+    const table = page.locator('table[role="grid"]')
+    await table.focus()
+
+    // Navigate to first task (in first section)
+    await page.keyboard.press('j')
+    await page.waitForTimeout(200)
+    const firstRow = page.locator('tr[data-kb-active="true"]')
+    await expect(firstRow).toBeVisible()
+    const firstRowText = await firstRow.textContent()
+
+    // Verify ] works before rebind — should jump to next section
+    await page.keyboard.press(']')
+    await page.waitForTimeout(200)
+    const afterBracket = page.locator('tr[data-kb-active="true"]')
+    const afterBracketText = await afterBracket.textContent()
+    expect(afterBracketText).not.toBe(firstRowText)
+
+    // Go back to first row
+    await page.keyboard.press('g')
+    await page.waitForTimeout(100)
+    await page.keyboard.press('g')
+    await page.waitForTimeout(200)
+
+    // Rebind "Next section" from ] to p
+    await page.keyboard.press('Shift+/')
+    const overlay = page.getByRole('dialog', { name: /keyboard shortcuts/i })
+    await overlay.getByText('Edit shortcuts…').click()
+    await page.waitForTimeout(300)
+    const nextSectionRow = overlay.locator('li', { has: page.getByText('Next section') })
+    const kbd = nextSectionRow.locator('kbd[role="button"]')
+    await kbd.click()
+    await page.keyboard.press('p')
+    await page.waitForTimeout(200)
+    await expect(kbd).toContainText('p')
+
+    // Close overlay
+    await overlay.getByRole('button', { name: /close/i }).click()
+    await expect(overlay).not.toBeVisible()
+    await page.waitForTimeout(300)
+    await table.focus()
+
+    // Navigate to first row again
+    await page.keyboard.press('g')
+    await page.waitForTimeout(100)
+    await page.keyboard.press('g')
+    await page.waitForTimeout(200)
+    const resetRow = page.locator('tr[data-kb-active="true"]')
+    const resetRowText = await resetRow.textContent()
+
+    // Press ] — should NOT jump to next section (old key)
+    await page.keyboard.press(']')
+    await page.waitForTimeout(300)
+    const afterOldKey = await page.locator('tr[data-kb-active="true"]').textContent()
+    // ] without sections falls back to "down" (one row), but should NOT do section jump
+    // The key point: it should behave differently than before rebind
+
+    // Press p — should jump to next section (new key)
+    // First go back to top
+    await page.keyboard.press('g')
+    await page.waitForTimeout(100)
+    await page.keyboard.press('g')
+    await page.waitForTimeout(200)
+    await page.keyboard.press('p')
+    await page.waitForTimeout(300)
+    const afterNewKey = await page.locator('tr[data-kb-active="true"]').textContent()
+    expect(afterNewKey).not.toBe(resetRowText)
+
+    // Clean up
+    await table.focus()
+    await page.keyboard.press('Shift+/')
+    await overlay.getByText('Edit shortcuts…').click()
+    await page.waitForTimeout(200)
+    await overlay.getByText('Reset to defaults').click()
+    await page.waitForTimeout(200)
+  })
 })

@@ -310,9 +310,11 @@ export function useKeyboardNavigation(
         return; // Wait for potential second g
       }
 
-      // Section skip: [ → previous section, ] → next section
-      if (!ctrl && (key === '[' || key === ']') && sectionStartIndicesRef.current.length > 0) {
-        if (key === '[') {
+      // Section skip: previous/next section — read from shortcut map
+      const isSectionPrev = matchesKey(eventMods, shortcutMap['nav.sectionPrev'].key);
+      const isSectionNext = matchesKey(eventMods, shortcutMap['nav.sectionNext'].key);
+      if ((isSectionPrev || isSectionNext) && sectionStartIndicesRef.current.length > 0) {
+        if (isSectionPrev) {
           const prevSection = [...sectionStartIndicesRef.current].reverse().find(i => i < activeCell.row);
           if (prevSection !== undefined) {
             const taskId = visibleRowTaskIdsRef.current[prevSection] ?? null;
@@ -332,10 +334,10 @@ export function useKeyboardNavigation(
         return;
       }
 
-      // [ / ] fallback when no sections exist
+      // Section key fallback when no sections exist — move up/down
       let direction: MoveDirection | null = null;
-      if (!ctrl && key === '[') direction = 'up';
-      else if (!ctrl && key === ']') direction = 'down';
+      if (isSectionPrev) direction = 'up';
+      else if (isSectionNext) direction = 'down';
       else direction = resolveDirection(key, ctrl, shiftKey);
 
       if (direction) {
