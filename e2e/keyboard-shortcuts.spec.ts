@@ -784,6 +784,28 @@ test.describe('Keyboard Shortcuts: Cross-Feature Interactions', () => {
     await expect(activeRow).toBeVisible()
   })
 
+  test('Ctrl+u half-page up navigates upward', async ({ page }) => {
+    const table = page.locator('table[role="grid"]')
+    await table.focus()
+    // Navigate down several rows first
+    for (let i = 0; i < 4; i++) {
+      await page.keyboard.press('j')
+      await page.waitForTimeout(150)
+    }
+    // Ctrl+d to go further down
+    await page.keyboard.press('Control+d')
+    await page.waitForTimeout(200)
+    const textAfterDown = await page.locator('tr[data-kb-active="true"]').textContent()
+
+    // Ctrl+u should jump back up
+    await page.keyboard.press('Control+u')
+    await page.waitForTimeout(200)
+    const activeAfterUp = page.locator('tr[data-kb-active="true"]')
+    await expect(activeAfterUp).toBeVisible()
+    const textAfterUp = await activeAfterUp.textContent()
+    expect(textAfterUp).not.toBe(textAfterDown)
+  })
+
   test('switching between project and All Tasks preserves keyboard nav', async ({ page }) => {
     const table = page.locator('table[role="grid"]')
     await table.focus()
@@ -858,5 +880,185 @@ test.describe('Keyboard Shortcuts: Empty Project', () => {
     await expect(page.locator('main').getByRole('tab', { name: /list/i })).toBeVisible({ timeout: 10000 })
     // Should show the hint
     await expect(page.getByText(/press n/).first()).toBeVisible()
+  })
+})
+
+test.describe('Keyboard Shortcuts: Customization Behavior', () => {
+  test.beforeEach(async ({ page }) => {
+    await seedDatabase(page)
+    await page.goto(`/?project=${PROJECT_ID}&tab=list`)
+    await expect(page.locator('main').getByText('Set up CI pipeline')).toBeVisible({ timeout: 10000 })
+  })
+
+  test('rebound key fires the action (rebind n→m, press m opens new task dialog)', async ({ page }) => {
+    const table = page.locator('table[role="grid"]')
+    await table.focus()
+
+    // Open help overlay → settings
+    await page.keyboard.press('Shift+/')
+    const overlay = page.getByRole('dialog', { name: /keyboard shortcuts/i })
+    await overlay.getByText('Edit shortcuts…').click()
+    await page.waitForTimeout(300)
+
+    // Rebind "New task" from n to m
+    const newTaskRow = overlay.locator('li', { has: page.getByText('New task') })
+    const kbd = newTaskRow.locator('kbd[role="button"]')
+    await kbd.click()
+    await page.keyboard.press('m')
+    await page.waitForTimeout(200)
+    await expect(kbd).toContainText('m')
+
+    // Close overlay
+    await overlay.getByRole('button', { name: /close/i }).click()
+    await expect(overlay).not.toBeVisible()
+    await page.waitForTimeout(200)
+
+    // Press m — should open new task dialog
+    await table.focus()
+    await page.keyboard.press('m')
+    await expect(page.getByRole('dialog', { name: /new task|add task/i })).toBeVisible({ timeout: 3000 })
+
+    // Clean up: close dialog, reset shortcuts
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(200)
+    await table.focus()
+    await page.keyboard.press('Shift+/')
+    await overlay.getByText('Edit shortcuts…').click()
+    await page.waitForTimeout(200)
+    await overlay.getByText('Reset to defaults').click()
+    await page.waitForTimeout(200)
+  })
+
+  test('old key stops working after rebind (n no longer opens dialog after rebinding to m)', async ({ page }) => {
+    const table = page.locator('table[role="grid"]')
+    await table.focus()
+
+    // Rebind n → m
+    await page.keyboard.press('Shift+/')
+    const overlay = page.getByRole('dialog', { name: /keyboard shortcuts/i })
+    await overlay.getByText('Edit shortcuts…').click()
+    await page.waitForTimeout(300)
+    const newTaskRow = overlay.locator('li', { has: page.getByText('New task') })
+    await newTaskRow.locator('kbd[role="button"]').click()
+    await page.keyboard.press('m')
+    await page.waitForTimeout(200)
+
+    // Close overlay
+    await overlay.getByRole('button', { name: /close/i }).click()
+    await expect(overlay).not.toBeVisible()
+    await page.waitForTimeout(200)
+
+    // Press n — should NOT open new task dialog
+    await table.focus()
+    await page.keyboard.press('n')
+    await page.waitForTimeout(500)
+    await expect(page.getByRole('dialog', { name: /new task|add task/i })).not.toBeVisible()
+
+    // Clean up
+    await table.focus()
+    await page.keyboard.press('Shift+/')
+    await overlay.getByText('Edit shortcuts…').click()
+    await page.waitForTimeout(200)
+    await overlay.getByText('Reset to defaults').click()
+    await page.waitForTimeout(200)
+  })
+
+  test('conflict badge appears when two actions share the same key', async ({ page }) => {
+    const table = page.locator('table[role="grid"]')
+    await table.focus()
+
+    // Open settings
+    await page.keyboard.press('Shift+/')
+    const overlay = page.getByRole('dialog', { name: /keyboard shortcuts/i })
+    await overlay.getByText('Edit shortcuts…').click()
+    await page.waitForTimeout(300)
+
+    // Rebind "Search" (default /) to 'n' — conflicts with "New task" (default n)
+    const searchRow = overlay.locator('li', { has: page.getByText('Search') })
+    await searchRow.locator('kbd[role="button"]').click()
+    await page.keyboard.press('n')
+    await page.waitForTimeout(300)
+
+    // Should show at least one "conflict" badge
+    await expect(overlay.getByText('conflict').first()).toBeVisible({ timeout: 3000 })
+
+    // Clean up
+    await overlay.getByText('Reset to defaults').click()
+    await page.waitForTimeout(200)
+  })
+
+  test('customization persists across full page reload', async ({ page }) => {
+    const table = page.locator('table[role="grid"]')
+    await table.focus()
+
+    // Rebind n → m
+    await page.keyboard.press('Shift+/')
+    const overlay = page.getByRole('dialog', { name: /keyboard shortcuts/i })
+    await overlay.getByText('Edit shortcuts…').click()
+    await page.waitForTimeout(300)
+    const newTaskRow = overlay.locator('li', { has: page.getByText('New task') })
+    await newTaskRow.locator('kbd[role="button"]').click()
+    await page.keyboard.press('m')
+    await page.waitForTimeout(200)
+    await expect(newTaskRow.locator('kbd[role="button"]')).toContainText('m')
+
+    // Close overlay and reload
+    await overlay.getByRole('button', { name: /close/i }).click()
+    await page.waitForTimeout(200)
+    await page.reload()
+    await expect(page.locator('main').getByText('Set up CI pipeline')).toBeVisible({ timeout: 10000 })
+
+    // Reopen settings and verify m is still bound
+    await page.locator('table[role="grid"]').focus()
+    await page.keyboard.press('Shift+/')
+    const overlay2 = page.getByRole('dialog', { name: /keyboard shortcuts/i })
+    await overlay2.getByText('Edit shortcuts…').click()
+    await page.waitForTimeout(300)
+    const newTaskRow2 = overlay2.locator('li', { has: page.getByText('New task') })
+    await expect(newTaskRow2.locator('kbd[role="button"]')).toContainText('m')
+
+    // Verify the rebound key works after reload
+    await overlay2.getByRole('button', { name: /close/i }).click()
+    await page.waitForTimeout(200)
+    await page.locator('table[role="grid"]').focus()
+    await page.keyboard.press('m')
+    await expect(page.getByRole('dialog', { name: /new task|add task/i })).toBeVisible({ timeout: 3000 })
+
+    // Clean up
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(200)
+    await page.locator('table[role="grid"]').focus()
+    await page.keyboard.press('Shift+/')
+    await overlay2.getByText('Edit shortcuts…').click()
+    await page.waitForTimeout(200)
+    await overlay2.getByText('Reset to defaults').click()
+    await page.waitForTimeout(200)
+  })
+
+  test('reset to defaults restores functional behavior (n works again after reset)', async ({ page }) => {
+    const table = page.locator('table[role="grid"]')
+    await table.focus()
+
+    // Rebind n → m
+    await page.keyboard.press('Shift+/')
+    const overlay = page.getByRole('dialog', { name: /keyboard shortcuts/i })
+    await overlay.getByText('Edit shortcuts…').click()
+    await page.waitForTimeout(300)
+    const newTaskRow = overlay.locator('li', { has: page.getByText('New task') })
+    await newTaskRow.locator('kbd[role="button"]').click()
+    await page.keyboard.press('m')
+    await page.waitForTimeout(200)
+
+    // Reset to defaults
+    await overlay.getByText('Reset to defaults').click()
+    await page.waitForTimeout(300)
+    await expect(newTaskRow.locator('kbd[role="button"]')).toContainText('n')
+
+    // Close overlay and verify n works
+    await overlay.getByRole('button', { name: /close/i }).click()
+    await page.waitForTimeout(200)
+    await table.focus()
+    await page.keyboard.press('n')
+    await expect(page.getByRole('dialog', { name: /new task|add task/i })).toBeVisible({ timeout: 3000 })
   })
 })
