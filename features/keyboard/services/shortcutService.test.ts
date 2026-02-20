@@ -79,6 +79,16 @@ describe('mergeShortcutMaps', () => {
     // key: '' fails min(1) validation, so default should be kept
     expect(merged['global.newTask'].key).toBe('n');
   });
+
+  it('ignores persisted overrides for non-customizable actions', () => {
+    const defaults = getDefaultShortcutMap();
+    const override = {
+      'nav.up': { key: 'w', label: 'Move up', category: 'Navigation' as const, description: 'Move to the row above' },
+    };
+    const merged = mergeShortcutMaps(defaults, override);
+    // nav.up is non-customizable, so default ArrowUp should be kept
+    expect(merged['nav.up'].key).toBe('ArrowUp');
+  });
 });
 
 describe('detectConflicts', () => {
@@ -266,11 +276,11 @@ describe('Property 7: Shortcut map merge preserves overrides and fills defaults'
         expect(Object.keys(merged)).toHaveLength(24);
 
         for (const action of ALL_ACTIONS) {
-          if (action in partial) {
-            // Persisted value wins
+          if (action in partial && defaults[action].customizable !== false) {
+            // Persisted value wins for customizable actions
             expect(merged[action].key).toBe(partial[action]!.key);
           } else {
-            // Default fills the gap
+            // Default fills the gap (or non-customizable action is blocked)
             expect(merged[action].key).toBe(defaults[action].key);
           }
         }

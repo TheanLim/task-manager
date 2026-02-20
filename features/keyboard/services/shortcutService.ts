@@ -4,18 +4,18 @@ import { ShortcutBindingSchema } from '../schemas';
 /** Returns the full default shortcut map with all 24 actions. */
 export function getDefaultShortcutMap(): ShortcutMap {
   return {
-    // Navigation
-    'nav.up': { key: 'ArrowUp', label: 'Move up', category: 'Navigation', description: 'Move to the row above' },
-    'nav.down': { key: 'ArrowDown', label: 'Move down', category: 'Navigation', description: 'Move to the row below' },
-    'nav.left': { key: 'ArrowLeft', label: 'Move left', category: 'Navigation', description: 'Move to the previous column' },
-    'nav.right': { key: 'ArrowRight', label: 'Move right', category: 'Navigation', description: 'Move to the next column' },
-    'nav.home': { key: 'Home', label: 'First column', category: 'Navigation', description: 'Move to the first column in the current row' },
-    'nav.end': { key: 'End', label: 'Last column', category: 'Navigation', description: 'Move to the last column in the current row' },
-    'nav.gridHome': { key: 'Ctrl+Home', label: 'First cell', category: 'Navigation', description: 'Move to the first cell of the first row' },
-    'nav.gridEnd': { key: 'Ctrl+End', label: 'Last cell', category: 'Navigation', description: 'Move to the last cell of the last row' },
+    // Navigation — arrow keys and Home/End are non-customizable (OS-level conventions)
+    'nav.up': { key: 'ArrowUp', label: 'Move up', category: 'Navigation', description: 'Move to the row above', customizable: false },
+    'nav.down': { key: 'ArrowDown', label: 'Move down', category: 'Navigation', description: 'Move to the row below', customizable: false },
+    'nav.left': { key: 'ArrowLeft', label: 'Move left', category: 'Navigation', description: 'Move to the previous column', customizable: false },
+    'nav.right': { key: 'ArrowRight', label: 'Move right', category: 'Navigation', description: 'Move to the next column', customizable: false },
+    'nav.home': { key: 'Home', label: 'First column', category: 'Navigation', description: 'Move to the first column in the current row', customizable: false },
+    'nav.end': { key: 'End', label: 'Last column', category: 'Navigation', description: 'Move to the last column in the current row', customizable: false },
+    'nav.gridHome': { key: 'Ctrl+Home', label: 'First cell', category: 'Navigation', description: 'Move to the first cell of the first row', customizable: false },
+    'nav.gridEnd': { key: 'Ctrl+End', label: 'Last cell', category: 'Navigation', description: 'Move to the last cell of the last row', customizable: false },
     'nav.sectionPrev': { key: '[', label: 'Previous section', category: 'Navigation', description: 'Jump to the previous section header' },
     'nav.sectionNext': { key: ']', label: 'Next section', category: 'Navigation', description: 'Jump to the next section header' },
-    'nav.gg': { key: 'gg', label: 'First row (chord)', category: 'Navigation', description: 'Jump to the first visible row' },
+    'nav.gg': { key: 'gg', label: 'First row (chord)', category: 'Navigation', description: 'Jump to the first visible row', customizable: false },
     'nav.G': { key: 'G', label: 'Last row', category: 'Navigation', description: 'Jump to the last visible row' },
     'nav.halfPageDown': { key: 'Ctrl+d', label: 'Half page down', category: 'Navigation', description: 'Move down by half the visible page height' },
     'nav.halfPageUp': { key: 'Ctrl+u', label: 'Half page up', category: 'Navigation', description: 'Move up by half the visible page height' },
@@ -47,6 +47,8 @@ export function mergeShortcutMaps(
 
   for (const [action, binding] of Object.entries(persisted)) {
     if (action in defaults) {
+      // Skip non-customizable actions
+      if (defaults[action as ShortcutAction].customizable === false) continue;
       const result = ShortcutBindingSchema.safeParse(binding);
       if (result.success) {
         merged[action as ShortcutAction] = result.data as ShortcutBinding;

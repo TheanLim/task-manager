@@ -96,31 +96,35 @@ export function ShortcutSettings({ className }: ShortcutSettingsProps) {
               {entries.map(([action, binding]) => {
                 const conflict = conflictsByAction.get(action);
                 const isRecording = recordingAction === action;
+                const isCustomizable = binding.customizable !== false;
 
                 return (
                   <li key={action} className="flex items-center justify-between py-1.5">
-                    <span className="text-sm text-foreground">{binding.label}</span>
+                    <span className={`text-sm ${isCustomizable ? 'text-foreground' : 'text-muted-foreground'}`}>{binding.label}</span>
                     <div className="flex items-center gap-2">
-                      {conflict && !isRecording && (
+                      {conflict && !isRecording && isCustomizable && (
                         <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400">
                           conflict
                         </span>
                       )}
                       <kbd
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => setRecordingAction(isRecording ? null : action)}
+                        role={isCustomizable ? 'button' : undefined}
+                        tabIndex={isCustomizable ? 0 : undefined}
+                        onClick={() => isCustomizable && setRecordingAction(isRecording ? null : action)}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
+                          if (isCustomizable && (e.key === 'Enter' || e.key === ' ')) {
                             e.preventDefault();
                             setRecordingAction(isRecording ? null : action);
                           }
                         }}
-                        className={`px-2 py-0.5 rounded text-xs font-mono border cursor-pointer transition-colors ${
-                          isRecording
-                            ? 'bg-primary/10 border-primary text-primary'
-                            : 'bg-muted border-border hover:border-foreground/30'
+                        className={`px-2 py-0.5 rounded text-xs font-mono border transition-colors ${
+                          !isCustomizable
+                            ? 'bg-muted border-border text-muted-foreground cursor-default'
+                            : isRecording
+                            ? 'bg-primary/10 border-primary text-primary cursor-pointer'
+                            : 'bg-muted border-border hover:border-foreground/30 cursor-pointer'
                         }`}
+                        title={isCustomizable ? undefined : 'This shortcut cannot be customized'}
                       >
                         {isRecording ? 'Press a key…' : binding.key}
                       </kbd>

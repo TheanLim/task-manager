@@ -17,38 +17,34 @@ export const ARROW_KEY_MAP: Record<string, MoveDirection> = {
 };
 
 /**
- * Resolves a keyboard event to a MoveDirection based on key, ctrl, and shift state.
- * Returns null if the key doesn't map to a direction.
+ * Resolves a keyboard event to a MoveDirection for non-customizable keys only.
+ * Arrow keys, Home/End, Ctrl+Home/End, and vim h/j/k/l are hardcoded here
+ * because they are OS-level conventions that should not be rebindable.
  *
- * Does NOT handle: gg chord (stateful), section skip [ ] (needs row context).
- * Those are handled by the hook.
+ * Customizable navigation (G, Ctrl+d, Ctrl+u, [, ]) is handled via matchesKey
+ * in onTableKeyDown before this function is called.
  */
 export function resolveDirection(
   key: string,
   ctrl: boolean,
   shiftKey: boolean,
 ): MoveDirection | null {
-  // Ctrl/Cmd+key combos
+  // Ctrl/Cmd+key combos (non-customizable)
   if (ctrl) {
     if (key === 'Home' || key === 'ArrowUp') return 'gridHome';
     if (key === 'End' || key === 'ArrowDown') return 'gridEnd';
-    if (key === 'd') return 'halfPageDown';
-    if (key === 'u') return 'halfPageUp';
     return null;
   }
 
-  // Arrow keys
+  // Arrow keys (non-customizable)
   const arrowDir = ARROW_KEY_MAP[key];
   if (arrowDir) return arrowDir;
 
-  // Home/End
+  // Home/End (non-customizable)
   if (key === 'Home') return 'home';
   if (key === 'End') return 'end';
 
-  // Vim keys (no ctrl, no shift except G)
-  if (key === 'G' && shiftKey) return 'lastRow';
-
-  // h/j/k/l
+  // Vim h/j/k/l (non-customizable — secondary bindings for arrow equivalents)
   if (key in VIM_KEY_MAP) return VIM_KEY_MAP[key];
 
   return null;

@@ -5,6 +5,7 @@ export const ShortcutBindingSchema = z.object({
   label: z.string().min(1),
   category: z.enum(['Navigation', 'Global', 'Task Actions']),
   description: z.string(),
+  customizable: z.boolean().optional(),
 });
 
 export const ShortcutMapSchema = z.record(z.string(), ShortcutBindingSchema);

@@ -19,12 +19,12 @@ describe('resolveDirection', () => {
     expect(resolveDirection('ArrowDown', true, false)).toBe('gridEnd');
   });
 
-  it('Ctrl+d → halfPageDown', () => {
-    expect(resolveDirection('d', true, false)).toBe('halfPageDown');
+  it('Ctrl+d → null (handled by shortcut map)', () => {
+    expect(resolveDirection('d', true, false)).toBeNull();
   });
 
-  it('Ctrl+u → halfPageUp', () => {
-    expect(resolveDirection('u', true, false)).toBe('halfPageUp');
+  it('Ctrl+u → null (handled by shortcut map)', () => {
+    expect(resolveDirection('u', true, false)).toBeNull();
   });
 
   it('Ctrl+unknown → null', () => {
@@ -58,8 +58,8 @@ describe('resolveDirection', () => {
   });
 
   // Vim keys
-  it('G (shift) → lastRow', () => {
-    expect(resolveDirection('G', false, true)).toBe('lastRow');
+  it('G (shift) → null (handled by shortcut map)', () => {
+    expect(resolveDirection('G', false, true)).toBeNull();
   });
 
   it('h → left', () => {

@@ -338,6 +338,11 @@ export function useKeyboardNavigation(
       let direction: MoveDirection | null = null;
       if (isSectionPrev) direction = 'up';
       else if (isSectionNext) direction = 'down';
+      // Customizable navigation shortcuts — check map before hardcoded resolveDirection
+      else if (matchesKey(eventMods, shortcutMap['nav.G'].key)) direction = 'lastRow';
+      else if (matchesKey(eventMods, shortcutMap['nav.halfPageDown'].key)) direction = 'halfPageDown';
+      else if (matchesKey(eventMods, shortcutMap['nav.halfPageUp'].key)) direction = 'halfPageUp';
+      // Non-customizable keys: arrows, Home/End, Ctrl+Home/End, vim h/j/k/l
       else direction = resolveDirection(key, ctrl, shiftKey);
 
       if (direction) {

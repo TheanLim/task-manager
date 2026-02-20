@@ -18,6 +18,7 @@ export interface ShortcutBinding {
   label: string;         // Human-readable label (e.g., 'New task')
   category: 'Navigation' | 'Global' | 'Task Actions';
   description: string;   // Tooltip/help text
+  customizable?: boolean; // Whether the user can rebind this shortcut (default: true)
 }
 
 /** The full shortcut map: action → binding */
