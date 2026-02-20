@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
 import { RulePreview } from './RulePreview';
-import type { TriggerConfig, ActionConfig } from '../services/preview/rulePreviewService';
+import type { TriggerConfig, ActionConfig } from '../services/configTypes';
 import type { Section } from '@/lib/schemas';
 
 const mockSections: Section[] = [

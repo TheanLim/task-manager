@@ -16,7 +16,8 @@ import { Label } from '@/components/ui/label';
 import { SectionPicker } from '../SectionPicker';
 import { DateOptionSelect } from '../DateOptionSelect';
 import { ACTION_META } from '../../services/preview/ruleMetadata';
-import { TRIGGER_SECTION_SENTINEL, type ActionConfig } from '../../services/preview/rulePreviewService';
+import { TRIGGER_SECTION_SENTINEL } from '../../services/preview/rulePreviewService';
+import type { ActionConfig } from '../../services/configTypes';
 import type { Section } from '@/lib/schemas';
 
 interface RuleDialogStepActionProps {

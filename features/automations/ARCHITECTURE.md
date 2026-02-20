@@ -16,7 +16,12 @@ The automations feature follows a strict layered architecture. Each layer depend
 │  │              │ │              │ │ DueDateRelativeConfig│ │
 │  │              │ │              │ │ HistoryView, DryRun  │ │
 │  └──────────────┘ └──────────────┘ └──────────────────────┘ │
-│  hooks/ — useAutomationRules, useUndoAutomation             │
+│  hooks/                                                     │
+│  ├── useAutomationRules  — CRUD operations                  │
+│  ├── useWizardState      — wizard state machine             │
+│  ├── useRuleActions      — dry-run, run-now, bulk ops       │
+│  ├── useUndoAutomation   — undo integration                 │
+│  └── useSchedulerInit    — scheduler lifecycle              │
 │  Depends on: Layer 4, Layer 3, types/schemas                │
 ├─────────────────────────────────────────────────────────────┤
 │  Layer 4: Preview & Metadata (services/preview/)            │
@@ -62,7 +67,7 @@ The automations feature follows a strict layered architecture. Each layer depend
 
 ### `services/evaluation/` — Pure Rule Matching
 
-All functions are pure (no side effects, no repository writes).
+All functions are pure (no side effects, no repository writes). Barrel: `index.ts`.
 
 | File | Responsibility |
 |------|---------------|
@@ -72,19 +77,19 @@ All functions are pure (no side effects, no repository writes).
 
 ### `services/execution/` — Action Execution & Undo
 
-Applies actions to entities via repositories. Manages undo snapshots.
+Applies actions to entities via repositories. Manages undo snapshots. Barrel: `index.ts`.
 
 | File | Responsibility |
 |------|---------------|
 | `actionHandlers.ts` | Strategy pattern: one handler per action type (execute, describe, undo). `ACTION_HANDLER_REGISTRY` |
 | `ruleExecutor.ts` | Iterates `RuleAction[]`, delegates to handlers, updates execution metadata |
 | `undoService.ts` | In-memory undo stack (10s expiry). Push/pop/clear snapshots. Per-rule undo |
-| `createCardDedup.ts` | Heuristic dedup for `create_card` in scheduled rules (prevents duplicates on catch-up) |
+| `createCardDedup.ts` | Heuristic dedup for `create_card` in scheduled rules |
 | `titleTemplateEngine.ts` | `{{date}}`, `{{weekday}}`, `{{month}}` interpolation for card titles |
 
 ### `services/scheduler/` — Scheduled Trigger Subsystem
 
-Manages the timer-based evaluation loop for scheduled rules.
+Manages the timer-based evaluation loop for scheduled rules. Barrel: `index.ts`.
 
 | File | Responsibility |
 |------|---------------|
@@ -97,11 +102,11 @@ Manages the timer-based evaluation loop for scheduled rules.
 
 ### `services/preview/` — Human-Readable Descriptions
 
-Generates text for UI display. No side effects. Each module is independently importable — consumers should import from the canonical module, not through `rulePreviewService.ts`.
+Generates text for UI display. No side effects. Barrel: `index.ts`. Each module is independently importable — import from the canonical module, not through re-exports.
 
 | File | Responsibility |
 |------|---------------|
-| `rulePreviewService.ts` | Builds "WHEN X IF Y THEN Z" preview sentences. Duplicate detection. Config types |
+| `rulePreviewService.ts` | Builds "WHEN X IF Y THEN Z" preview sentences. Duplicate detection. Config types (`TriggerConfig`, `ActionConfig`) |
 | `ruleMetadata.ts` | `TRIGGER_META`, `ACTION_META`, `FILTER_META` constants with labels, categories, capability flags |
 | `scheduleDescriptions.ts` | `describeSchedule`, `computeNextRunDescription` — human-readable schedule text |
 | `formatters.ts` | `formatRelativeTime`, `formatDateOption`, `formatFilterDescription` — general formatting |
@@ -109,7 +114,7 @@ Generates text for UI display. No side effects. Each module is independently imp
 
 ### `services/rules/` — Rule Lifecycle Management
 
-Operations on rules as entities (not execution).
+Operations on rules as entities (not execution). Barrel: `index.ts`.
 
 | File | Responsibility |
 |------|---------------|
@@ -118,17 +123,25 @@ Operations on rules as entities (not execution).
 | `ruleImportExport.ts` | Validates imported rules against available sections. Resets scheduled state |
 | `ruleDuplicator.ts` | Cross-project rule duplication with section name remapping |
 | `ruleFactory.ts` | Entity creation factory — generates id, timestamps, order |
-| `ruleSaveService.ts` | Builds rule data from wizard state (trigger/action objects, name resolution, section validation) |
+| `ruleSaveService.ts` | Builds rule data from wizard state |
 | `ruleValidation.ts` | Validates one-time rule re-enable (fireAt must be future) |
 | `dryRunService.ts` | Previews what a scheduled rule would do without executing |
 
-### `components/wizard/` — Rule Creation Wizard
-
-Multi-step dialog for creating and editing automation rules.
+### `hooks/` — React Hooks
 
 | File | Responsibility |
 |------|---------------|
-| `RuleDialog.tsx` | Wizard container — step navigation, save/cancel, validation. Delegates entity construction to `ruleSaveService` |
+| `useAutomationRules.ts` | CRUD operations for automation rules. Subscribes to repository changes |
+| `useWizardState.ts` | Wizard state machine — step navigation, validation, dirty tracking, form state |
+| `useRuleActions.ts` | Dry-run preview, run-now, bulk schedule operations, scheduled/event counts |
+| `useUndoAutomation.ts` | Undo integration — connects undo snapshots to toast actions |
+| `useSchedulerInit.ts` | Scheduler lifecycle — starts/stops scheduler on mount/unmount |
+
+### `components/wizard/` — Rule Creation Wizard
+
+| File | Responsibility |
+|------|---------------|
+| `RuleDialog.tsx` | Dialog chrome — renders steps, focus management, save orchestration. Delegates state to `useWizardState` |
 | `RuleDialogStepTrigger.tsx` | Step 0: trigger type + section selection |
 | `RuleDialogStepFilters.tsx` | Step 1: optional filter conditions |
 | `RuleDialogStepAction.tsx` | Step 2: action type + parameters |
@@ -136,15 +149,13 @@ Multi-step dialog for creating and editing automation rules.
 
 ### `components/schedule/` — Schedule UI
 
-Components specific to scheduled trigger configuration and monitoring. Each schedule type has its own config component.
-
 | File | Responsibility |
 |------|---------------|
-| `ScheduleConfigPanel.tsx` | Coordinator — routes to the correct config component, renders catch-up toggle |
-| `IntervalConfig.tsx` | Interval schedule: value + unit (minutes/hours/days) |
-| `CronConfig.tsx` | Cron schedule: picker mode (daily/weekly/monthly tabs) or expression mode |
+| `ScheduleConfigPanel.tsx` | Coordinator — routes to the correct config component |
+| `IntervalConfig.tsx` | Interval schedule: value + unit |
+| `CronConfig.tsx` | Cron schedule: picker mode or expression mode |
 | `OneTimeConfig.tsx` | One-time schedule: date picker + time selectors |
-| `DueDateRelativeConfig.tsx` | Due-date-relative: offset value + unit + direction (before/after) |
+| `DueDateRelativeConfig.tsx` | Due-date-relative: offset value + unit + direction |
 | `ScheduleHistoryView.tsx` | Execution history for scheduled rules |
 | `DryRunDialog.tsx` | Dry-run preview dialog |
 
@@ -154,22 +165,20 @@ Components specific to scheduled trigger configuration and monitoring. Each sche
 2. Sub-modules import `../../types` and `../../schemas` for domain types
 3. Sub-modules import `../../repositories/types` for repository interfaces
 4. No sub-module imports from `automationService.ts` (the orchestrator imports from them, not vice versa)
-5. `preview/` has no dependencies on `execution/` or `scheduler/` — it only reads types and metadata
-6. `evaluation/` has no dependencies on `execution/`, `scheduler/`, or `rules/` — it's pure
-7. `wizard/` components import shared components from `../` (parent) and services from `../../services/`
-8. `schedule/` sub-components import `ScheduleConfig` type from `ScheduleConfigPanel.tsx`
-9. Import from canonical modules: `ruleMetadata.ts` for metadata, `formatters.ts` for formatting, `scheduleDescriptions.ts` for schedule text — not through `rulePreviewService.ts` re-exports
+5. `preview/` has no dependencies on `execution/` or `scheduler/`
+6. `evaluation/` has no dependencies on `execution/`, `scheduler/`, or `rules/`
+7. `wizard/` components import shared components from `../` and services from `../../services/`
+8. Import from canonical modules: `ruleMetadata.ts` for metadata, `formatters.ts` for formatting, `scheduleDescriptions.ts` for schedule text — not through re-exports
 
 ## Import Guidelines for `services/preview/`
 
-Each module in `preview/` is independently importable. Use the canonical source:
-
 | Symbol | Import from |
 |--------|------------|
+| `TriggerConfig`, `ActionConfig` | `services/configTypes.ts` (canonical) or `rulePreviewService.ts` (re-export) |
 | `TRIGGER_META`, `ACTION_META`, `FILTER_META`, `TriggerMeta`, `ActionMeta` | `ruleMetadata.ts` |
 | `formatRelativeTime`, `formatDateOption`, `formatFilterDescription` | `formatters.ts` |
 | `describeSchedule`, `computeNextRunDescription`, `formatShortDate`, `formatFireAt` | `scheduleDescriptions.ts` |
-| `buildPreviewParts`, `buildPreviewString`, `TriggerConfig`, `ActionConfig`, `TRIGGER_SECTION_SENTINEL`, `isDuplicateRule` | `rulePreviewService.ts` |
+| `buildPreviewParts`, `buildPreviewString`, `TRIGGER_SECTION_SENTINEL`, `isDuplicateRule`, `PreviewPart` | `rulePreviewService.ts` |
 
 ## Integration Points Outside This Feature
 

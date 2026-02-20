@@ -10,8 +10,9 @@ Step-by-step guides for common extension scenarios. All paths are relative to `f
 4. **Domain Events**: Ensure the relevant event is emitted from `stores/dataStore.ts`
 5. **UI — Trigger Step** (`components/wizard/RuleDialogStepTrigger.tsx`): Add the trigger option
 6. **Preview** (`services/preview/rulePreviewService.ts`): Update `buildTriggerParts()`
-7. **Section references**: If the trigger carries a `sectionId`, verify `services/rules/sectionReferenceCollector.ts` handles it
-8. **Tests**: Property test in `ruleEngine.test.ts`, schema tests, preview tests
+7. **Wizard validation**: If the trigger needs a section, `useWizardState.ts` validation handles it automatically via `TRIGGER_META.needsSection`. If it's a section-level trigger that should skip filters, add it to the `sectionLevelTriggers` array in `useWizardState.ts`
+8. **Section references**: If the trigger carries a `sectionId`, verify `services/rules/sectionReferenceCollector.ts` handles it
+9. **Tests**: Property test in `ruleEngine.test.ts`, schema tests, preview tests
 
 ## Adding a New Action Type
 
@@ -47,7 +48,7 @@ Step-by-step guides for common extension scenarios. All paths are relative to `f
 3. **Evaluator** (`services/scheduler/scheduleEvaluator.ts`): Add a pure `evaluate*Schedule()` function and a case in `evaluateScheduledRules()`
 4. **Metadata** (`services/preview/ruleMetadata.ts`): Add to `TRIGGER_META` with `category: 'scheduled'`, `needsSchedule: true`
 5. **Rule Engine** (`services/evaluation/ruleEngine.ts`): The `schedule.fired` branch dispatches by `triggerType` — new types are matched automatically
-6. **UI — Config Component**: Create a new `components/schedule/MyNewConfig.tsx` component (follow `IntervalConfig.tsx` as a template). Import `ScheduleConfig` from `./ScheduleConfigPanel`. Then add a routing branch in `ScheduleConfigPanel.tsx`
+6. **UI — Config Component**: Create a new `components/schedule/MyNewConfig.tsx` component (follow `IntervalConfig.tsx` as a template). Then add a routing branch in `ScheduleConfigPanel.tsx`
 7. **Preview** (`services/preview/scheduleDescriptions.ts`): Update `describeSchedule()` and `computeNextRunDescription()`
 8. **Tests**: Property tests for evaluator, schema round-trip tests, component tests
 

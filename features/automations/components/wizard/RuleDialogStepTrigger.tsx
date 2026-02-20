@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SectionPicker } from '../SectionPicker';
 import { ScheduleConfigPanel } from '../schedule/ScheduleConfigPanel';
 import { TRIGGER_META } from '../../services/preview/ruleMetadata';
-import type { TriggerConfig } from '../../services/preview/rulePreviewService';
+import type { TriggerConfig } from '../../services/configTypes';
 import type { Section } from '@/lib/schemas';
 import { Info } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';

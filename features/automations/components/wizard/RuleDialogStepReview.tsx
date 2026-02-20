@@ -13,9 +13,8 @@ import {
   buildPreviewParts,
   buildPreviewString,
   isDuplicateRule,
-  type TriggerConfig,
-  type ActionConfig,
 } from '../../services/preview/rulePreviewService';
+import type { TriggerConfig, ActionConfig } from '../../services/configTypes';
 import type { Section } from '@/lib/schemas';
 import type { AutomationRule, CardFilter } from '../../types';
 

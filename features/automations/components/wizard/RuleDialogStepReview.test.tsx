@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RuleDialogStepReview } from './RuleDialogStepReview';
-import type { TriggerConfig, ActionConfig } from '../../services/preview/rulePreviewService';
+import type { TriggerConfig, ActionConfig } from '../../services/configTypes';
 import type { Section } from '@/lib/schemas';
 
 describe('RuleDialogStepReview', () => {

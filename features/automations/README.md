@@ -34,7 +34,9 @@ Rule-based automation engine that executes actions when domain events occur. Use
 | One-time rule validation | `services/rules/ruleValidation.ts` |
 | Dry-run preview | `services/rules/dryRunService.ts` |
 | Repository (localStorage) | `repositories/localStorageAutomationRuleRepository.ts` |
-| React hook | `hooks/useAutomationRules.ts` |
+| CRUD hook | `hooks/useAutomationRules.ts` |
+| Wizard state machine | `hooks/useWizardState.ts` |
+| Rule actions (dry-run, bulk) | `hooks/useRuleActions.ts` |
 | Rule creation wizard | `components/wizard/RuleDialog.tsx` |
 | Rule list UI | `components/AutomationTab.tsx`, `components/RuleCard.tsx` |
 | Schedule UI | `components/schedule/` |
@@ -46,16 +48,19 @@ features/automations/
 ├── services/
 │   ├── automationService.ts          # Orchestrator (top-level)
 │   ├── evaluation/                   # Pure rule matching & filtering
+│   │   ├── index.ts                  # Barrel export
 │   │   ├── ruleEngine.ts
 │   │   ├── filterPredicates.ts
 │   │   └── dateCalculations.ts
 │   ├── execution/                    # Action execution & undo
+│   │   ├── index.ts                  # Barrel export
 │   │   ├── actionHandlers.ts         # Strategy pattern registry
 │   │   ├── ruleExecutor.ts
 │   │   ├── undoService.ts
 │   │   ├── createCardDedup.ts
 │   │   └── titleTemplateEngine.ts
 │   ├── scheduler/                    # Scheduled trigger subsystem
+│   │   ├── index.ts                  # Barrel export
 │   │   ├── schedulerService.ts       # Tick loop
 │   │   ├── scheduleEvaluator.ts      # Pure evaluation
 │   │   ├── schedulerLeaderElection.ts
@@ -63,18 +68,20 @@ features/automations/
 │   │   ├── bulkScheduleService.ts
 │   │   └── clock.ts
 │   ├── preview/                      # Human-readable descriptions
+│   │   ├── index.ts                  # Barrel export
 │   │   ├── rulePreviewService.ts     # Preview sentence builder
 │   │   ├── ruleMetadata.ts           # Trigger/action/filter metadata
 │   │   ├── scheduleDescriptions.ts   # Schedule description formatters
 │   │   ├── formatters.ts             # General formatting utilities
 │   │   └── toastMessageFormatter.ts
 │   └── rules/                        # Rule lifecycle management
+│       ├── index.ts                  # Barrel export
 │       ├── brokenRuleDetector.ts
 │       ├── sectionReferenceCollector.ts
 │       ├── ruleImportExport.ts
 │       ├── ruleDuplicator.ts
-│       ├── ruleFactory.ts            # Entity creation factory
-│       ├── ruleSaveService.ts        # Wizard → rule data builder
+│       ├── ruleFactory.ts
+│       ├── ruleSaveService.ts
 │       ├── ruleValidation.ts
 │       └── dryRunService.ts
 ├── components/                       # React UI components
@@ -88,20 +95,25 @@ features/automations/
 │   ├── FilterRow.tsx                 # Filter condition row
 │   ├── ProjectPickerDialog.tsx       # Cross-project picker
 │   ├── wizard/                       # Rule creation/edit wizard
-│   │   ├── RuleDialog.tsx            # Multi-step dialog
+│   │   ├── RuleDialog.tsx            # Multi-step dialog (UI chrome)
 │   │   ├── RuleDialogStepTrigger.tsx
 │   │   ├── RuleDialogStepFilters.tsx
 │   │   ├── RuleDialogStepAction.tsx
 │   │   └── RuleDialogStepReview.tsx
 │   └── schedule/                     # Schedule-specific UI
-│       ├── ScheduleConfigPanel.tsx   # Coordinator + catch-up toggle
-│       ├── IntervalConfig.tsx        # Interval schedule config
-│       ├── CronConfig.tsx            # Cron picker/expression config
-│       ├── OneTimeConfig.tsx         # One-time date/time config
-│       ├── DueDateRelativeConfig.tsx # Due-date-relative config
+│       ├── ScheduleConfigPanel.tsx
+│       ├── IntervalConfig.tsx
+│       ├── CronConfig.tsx
+│       ├── OneTimeConfig.tsx
+│       ├── DueDateRelativeConfig.tsx
 │       ├── ScheduleHistoryView.tsx
 │       └── DryRunDialog.tsx
 ├── hooks/                            # React hooks
+│   ├── useAutomationRules.ts         # CRUD operations
+│   ├── useWizardState.ts             # Wizard state machine
+│   ├── useRuleActions.ts             # Dry-run, run-now, bulk ops
+│   ├── useUndoAutomation.ts          # Undo integration
+│   └── useSchedulerInit.ts           # Scheduler lifecycle
 ├── repositories/                     # Storage layer
 ├── schemas.ts                        # Zod schemas (source of truth)
 ├── types.ts                          # TypeScript types (inferred from schemas)
@@ -173,7 +185,7 @@ AutomationService.handleEvent()
 
 ## Filter System
 
-Filters are optional AND-logic conditions evaluated after trigger matching. Categories: section membership, date presence, relative date ranges and negations, comparison operators (less than / more than / exactly / between N days/working_days), age-based (created/completed/updated more than N ago), section duration, and overdue status.
+Filters are optional AND-logic conditions evaluated after trigger matching. Categories: section membership, date presence, relative date ranges and negations, comparison operators, age-based, section duration, and overdue status.
 
 ## Loop Protection
 

@@ -13,6 +13,10 @@ export { RuleCardExecutionLog } from './components/RuleCardExecutionLog';
 // Hooks
 export { useAutomationRules } from './hooks/useAutomationRules';
 export { useUndoAutomation } from './hooks/useUndoAutomation';
+export { useWizardState } from './hooks/useWizardState';
+export type { WizardStep, PrefillTrigger, UseWizardStateReturn } from './hooks/useWizardState';
+export { useRuleActions } from './hooks/useRuleActions';
+export type { UseRuleActionsReturn } from './hooks/useRuleActions';
 
 // Services
 export { AutomationService } from './services/automationService';
@@ -46,3 +50,6 @@ export type {
   RuleAction,
   EvaluationContext,
 } from './types';
+
+// Config types (shared wizard/rule configuration state)
+export type { TriggerConfig, ActionConfig } from './services/configTypes';

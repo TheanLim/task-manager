@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as fc from 'fast-check';
 import { TRIGGER_META, FILTER_META, formatFilterLabel } from './ruleMetadata';
-import { formatFilterDescription } from './rulePreviewService';
+import { formatFilterDescription } from './formatters';
 import type { CardFilter } from '../../types';
 import { isScheduledTrigger } from '../../types';
 import { TriggerSchema } from '../../schemas';

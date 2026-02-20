@@ -3,13 +3,11 @@ import * as fc from 'fast-check';
 import {
   buildPreviewParts,
   buildPreviewString,
-  TRIGGER_META,
-  ACTION_META,
   TRIGGER_SECTION_SENTINEL,
-  type TriggerConfig,
-  type ActionConfig,
   type PreviewPart,
 } from './rulePreviewService';
+import type { TriggerConfig, ActionConfig } from '../configTypes';
+import { TRIGGER_META, ACTION_META } from './ruleMetadata';
 import type { TriggerType, ActionType, RelativeDateOption, CardFilter } from '../../types';
 
 // ============================================================================
@@ -583,7 +581,7 @@ describe('isDuplicateRule - Property-Based Tests', () => {
 
 // ─── Scheduled Trigger Preview Tests ────────────────────────────────────
 
-import { describeSchedule, computeNextRunDescription } from './rulePreviewService';
+import { describeSchedule, computeNextRunDescription } from './scheduleDescriptions';
 
 describe('describeSchedule', () => {
   it('interval: formats minutes', () => {

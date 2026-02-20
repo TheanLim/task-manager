@@ -5,11 +5,10 @@
  */
 
 import type { AutomationRule, CardFilter, Trigger, Action } from '../../types';
+import type { TriggerConfig, ActionConfig } from '../configTypes';
 import {
   buildPreviewParts,
   buildPreviewString,
-  type TriggerConfig,
-  type ActionConfig,
 } from '../preview/rulePreviewService';
 import type { Section } from '@/lib/schemas';
 

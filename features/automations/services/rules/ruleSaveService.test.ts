@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { buildRuleUpdates, buildNewRuleData } from './ruleSaveService';
 import type { AutomationRule } from '../../types';
 import type { Section } from '@/lib/schemas';
-import type { TriggerConfig, ActionConfig } from '../preview/rulePreviewService';
+import type { TriggerConfig, ActionConfig } from '../../services/configTypes';
 
 const sections: Section[] = [
   { id: 's1', projectId: 'p1', name: 'To Do', order: 0, collapsed: false, createdAt: '2025-01-01T00:00:00.000Z', updatedAt: '2025-01-01T00:00:00.000Z' },

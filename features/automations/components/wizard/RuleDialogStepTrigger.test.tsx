@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { RuleDialogStepTrigger } from './RuleDialogStepTrigger';
-import type { TriggerConfig } from '../../services/preview/rulePreviewService';
+import type { TriggerConfig } from '../../services/configTypes';
 import type { Section } from '@/lib/schemas';
 
 describe('RuleDialogStepTrigger', () => {

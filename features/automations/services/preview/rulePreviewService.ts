@@ -4,11 +4,10 @@
  */
 
 import type { TriggerType, ActionType, CardFilter } from '../../types';
+import type { TriggerConfig, ActionConfig } from '../configTypes';
 
-// Re-exports consumed by co-located test files (cannot be removed without modifying tests)
-export { TRIGGER_META, ACTION_META } from './ruleMetadata';
-export { formatFilterDescription } from './formatters';
-export { describeSchedule, computeNextRunDescription } from './scheduleDescriptions';
+// Re-export config types for backward compatibility — new code should import from configTypes
+export type { TriggerConfig, ActionConfig } from '../configTypes';
 
 import { TRIGGER_META, ACTION_META } from './ruleMetadata';
 import type { TriggerMeta } from './ruleMetadata';
@@ -30,26 +29,6 @@ export const TRIGGER_SECTION_SENTINEL = '__trigger_section__';
 export interface PreviewPart {
   type: 'text' | 'value';
   content: string;
-}
-
-export interface TriggerConfig {
-  type: TriggerType | null;
-  sectionId: string | null;
-  schedule?: Record<string, unknown>;
-  lastEvaluatedAt?: string | null;
-  catchUpPolicy?: 'catch_up_latest' | 'skip_missed';
-}
-
-export interface ActionConfig {
-  type: ActionType | null;
-  sectionId: string | null;
-  dateOption: import('../../types').RelativeDateOption | null;
-  position: 'top' | 'bottom' | null;
-  cardTitle: string | null;
-  cardDateOption: import('../../types').RelativeDateOption | null;
-  specificMonth: number | null;
-  specificDay: number | null;
-  monthTarget: 'this_month' | 'next_month' | null;
 }
 
 // ============================================================================
