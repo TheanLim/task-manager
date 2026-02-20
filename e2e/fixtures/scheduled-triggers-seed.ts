@@ -63,6 +63,23 @@ const FIVE_MIN_AGO = new Date(_now - 300_000).toISOString()
 const TWO_HOURS_AGO = new Date(_now - 7_200_000).toISOString()
 const ONE_HOUR_FROM_NOW = new Date(_now + 3_600_000).toISOString()
 
+// Due-date-relative timestamps — ensure trigger times always fall within the catch-up window.
+// For "1 day before due → In Progress": triggerTime = dueDate - 1440min.
+// We need triggerTime to be in (lastEvaluatedAt, now], so dueDate must be ~1 day from now
+// plus a small buffer so triggerTime lands about 1 hour ago (within TWO_HOURS_AGO window).
+const TOMORROW_10AM = new Date(_now + 23 * 60 * 60 * 1000).toISOString()  // ~23h from now → trigger = ~1h ago
+// For "due today" tasks — due in a few hours (not overdue, so interval-overdue rule won't match)
+const TODAY_LATER = new Date(_now + 5 * 60 * 60 * 1000).toISOString()
+const TODAY_LATER_2 = new Date(_now + 3 * 60 * 60 * 1000).toISOString()
+// For overdue tasks — due 3 days ago (well past the 1-day-after trigger window)
+// triggerTime for "1 day after due" = dueDate + 1440min = 2 days ago → within TWO_DAYS_AGO window
+const THREE_DAYS_AGO_DUE = new Date(_now - 3 * 24 * 60 * 60 * 1000).toISOString()
+const FOUR_DAYS_AGO_DUE = new Date(_now - 4 * 24 * 60 * 60 * 1000).toISOString()
+// For tasks due in the future (not overdue, not triggering any relative rules)
+const TWO_DAYS_FROM_NOW = new Date(_now + 2 * 24 * 60 * 60 * 1000).toISOString()
+// For secondary project task — due yesterday (overdue)
+const YESTERDAY_AFTERNOON = new Date(_now - 9 * 60 * 60 * 1000).toISOString()
+
 // ── Shared Helpers ──────────────────────────────────────────────────────
 
 let taskCounter = 0
@@ -141,15 +158,15 @@ const phase5aSections = [
 const phase5aTasks = [
   makeTask({ id: 'task-5a-backlog-1', sectionId: PHASE5A_SECTIONS.backlog, description: 'Old spike: evaluate caching', priority: 'low', createdAt: TWO_DAYS_AGO }),
   makeTask({ id: 'task-5a-backlog-2', sectionId: PHASE5A_SECTIONS.backlog, description: 'Research logging framework', priority: 'none', createdAt: TWO_DAYS_AGO }),
-  makeTask({ id: 'task-5a-due-today-1', sectionId: PHASE5A_SECTIONS.todo, description: 'Submit expense report', dueDate: '2026-02-19T17:00:00.000Z', priority: 'high' }),
-  makeTask({ id: 'task-5a-due-today-2', sectionId: PHASE5A_SECTIONS.todo, description: 'Review PR #42', dueDate: '2026-02-19T12:00:00.000Z', priority: 'medium' }),
-  makeTask({ id: 'task-5a-due-tomorrow', sectionId: PHASE5A_SECTIONS.todo, description: 'Prepare sprint demo', dueDate: '2026-02-20T10:00:00.000Z' }),
-  makeTask({ id: 'task-5a-overdue-1', sectionId: PHASE5A_SECTIONS.todo, description: 'Fix flaky test (overdue)', dueDate: '2026-02-17T10:00:00.000Z', priority: 'high' }),
-  makeTask({ id: 'task-5a-overdue-2', sectionId: PHASE5A_SECTIONS.todo, description: 'Update API docs (overdue)', dueDate: '2026-02-16T10:00:00.000Z' }),
+  makeTask({ id: 'task-5a-due-today-1', sectionId: PHASE5A_SECTIONS.todo, description: 'Submit expense report', dueDate: TODAY_LATER, priority: 'high' }),
+  makeTask({ id: 'task-5a-due-today-2', sectionId: PHASE5A_SECTIONS.todo, description: 'Review PR #42', dueDate: TODAY_LATER_2, priority: 'medium' }),
+  makeTask({ id: 'task-5a-due-tomorrow', sectionId: PHASE5A_SECTIONS.todo, description: 'Prepare sprint demo', dueDate: TOMORROW_10AM }),
+  makeTask({ id: 'task-5a-overdue-1', sectionId: PHASE5A_SECTIONS.todo, description: 'Fix flaky test (overdue)', dueDate: THREE_DAYS_AGO_DUE, priority: 'high' }),
+  makeTask({ id: 'task-5a-overdue-2', sectionId: PHASE5A_SECTIONS.todo, description: 'Update API docs (overdue)', dueDate: FOUR_DAYS_AGO_DUE }),
   makeTask({ id: 'task-5a-no-due', sectionId: PHASE5A_SECTIONS.todo, description: 'Refactor auth module (no due date)' }),
-  makeTask({ id: 'task-5a-ip-1', sectionId: PHASE5A_SECTIONS.inProgress, description: 'Implement scheduler UI', priority: 'high', dueDate: '2026-02-21T10:00:00.000Z' }),
+  makeTask({ id: 'task-5a-ip-1', sectionId: PHASE5A_SECTIONS.inProgress, description: 'Implement scheduler UI', priority: 'high', dueDate: TWO_DAYS_FROM_NOW }),
   makeTask({ id: 'task-5a-ip-2', sectionId: PHASE5A_SECTIONS.inProgress, description: 'Write integration tests', priority: 'medium' }),
-  makeTask({ id: 'task-5a-ip-3', sectionId: PHASE5A_SECTIONS.inProgress, description: 'Design cron config panel', dueDate: '2026-02-19T18:00:00.000Z' }),
+  makeTask({ id: 'task-5a-ip-3', sectionId: PHASE5A_SECTIONS.inProgress, description: 'Design cron config panel', dueDate: YESTERDAY }),
   makeTask({ id: 'task-5a-review-1', sectionId: PHASE5A_SECTIONS.review, description: 'Code review: scheduler service', priority: 'medium' }),
   makeTask({ id: 'task-5a-review-2', sectionId: PHASE5A_SECTIONS.review, description: 'QA sign-off: leader election', priority: 'low' }),
   makeTask({ id: 'task-5a-done-1', sectionId: PHASE5A_SECTIONS.done, description: 'Set up CI pipeline', completed: true, completedAt: ONE_HOUR_AGO }),
@@ -159,7 +176,7 @@ const phase5aTasks = [
   makeTask({ id: 'task-5a-sub-1', sectionId: PHASE5A_SECTIONS.inProgress, description: 'Subtask: Clock abstraction', parentTaskId: 'task-5a-parent' }),
   makeTask({ id: 'task-5a-sub-2', sectionId: PHASE5A_SECTIONS.inProgress, description: 'Subtask: Schedule evaluator', parentTaskId: 'task-5a-parent' }),
   makeTask({ id: 'task-5a-sub-3', sectionId: PHASE5A_SECTIONS.inProgress, description: 'Subtask: Leader election', parentTaskId: 'task-5a-parent', completed: true, completedAt: ONE_HOUR_AGO }),
-  makeTask({ id: 'task-5a-p2-1', projectId: PHASE5A_PROJECT_2_ID, sectionId: PHASE5A_SECTIONS_2.todo, description: 'Beta: setup monitoring', dueDate: '2026-02-19T15:00:00.000Z' }),
+  makeTask({ id: 'task-5a-p2-1', projectId: PHASE5A_PROJECT_2_ID, sectionId: PHASE5A_SECTIONS_2.todo, description: 'Beta: setup monitoring', dueDate: YESTERDAY_AFTERNOON }),
   makeTask({ id: 'task-5a-p2-2', projectId: PHASE5A_PROJECT_2_ID, sectionId: PHASE5A_SECTIONS_2.doing, description: 'Beta: deploy staging', priority: 'high' }),
   makeTask({ id: 'task-5a-p2-3', projectId: PHASE5A_PROJECT_2_ID, sectionId: PHASE5A_SECTIONS_2.done, description: 'Beta: write runbook', completed: true, completedAt: YESTERDAY }),
 ]
@@ -221,7 +238,7 @@ const phase5aRules = [
   }),
   makeRule({
     id: 'rule-5a-duerel-1day-after', name: '⏰ 1 day after due → mark complete',
-    trigger: { type: 'scheduled_due_date_relative', sectionId: null, schedule: { kind: 'due_date_relative', offsetMinutes: 1440, displayUnit: 'days' }, lastEvaluatedAt: TWO_DAYS_AGO, catchUpPolicy: 'catch_up_latest' },
+    trigger: { type: 'scheduled_due_date_relative', sectionId: null, schedule: { kind: 'due_date_relative', offsetMinutes: 1440, displayUnit: 'days' }, lastEvaluatedAt: THREE_DAYS_AGO, catchUpPolicy: 'catch_up_latest' },
     filters: [{ type: 'is_incomplete' }, { type: 'is_overdue' }],
     action: { type: 'mark_card_complete', sectionId: null, dateOption: null, position: null, cardTitle: null, cardDateOption: null, specificMonth: null, specificDay: null, monthTarget: null },
     order: 7,
@@ -291,7 +308,7 @@ const phase5bTasks = [
   makeTask({ id: 'task-5b-overdue-short', projectId: PHASE5B_PROJECT_ID, sectionId: PHASE5B_SECTIONS.todo, description: 'Overdue by 1 day', dueDate: YESTERDAY }),
   makeTask({ id: 'task-5b-stuck-1', projectId: PHASE5B_PROJECT_ID, sectionId: PHASE5B_SECTIONS.inProgress, description: 'Stuck in progress (1 week)', movedToSectionAt: ONE_WEEK_AGO, createdAt: TWO_WEEKS_AGO }),
   makeTask({ id: 'task-5b-stuck-2', projectId: PHASE5B_PROJECT_ID, sectionId: PHASE5B_SECTIONS.inProgress, description: 'Just moved to progress', movedToSectionAt: NOW_ISO, createdAt: THREE_DAYS_AGO }),
-  makeTask({ id: 'task-5b-ip-1', projectId: PHASE5B_PROJECT_ID, sectionId: PHASE5B_SECTIONS.inProgress, description: 'Regular in-progress task', dueDate: '2026-02-21T10:00:00.000Z' }),
+  makeTask({ id: 'task-5b-ip-1', projectId: PHASE5B_PROJECT_ID, sectionId: PHASE5B_SECTIONS.inProgress, description: 'Regular in-progress task', dueDate: TWO_DAYS_FROM_NOW }),
 ]
 
 const phase5bRules = [
