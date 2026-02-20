@@ -7,9 +7,12 @@ export { ShortcutSettings } from './components/ShortcutSettings';
 // Hooks
 export { useKeyboardNavigation } from './hooks/useKeyboardNavigation';
 export { useGlobalShortcuts } from './hooks/useGlobalShortcuts';
+export { useRowHighlight } from './hooks/useRowHighlight';
 
 // Services
 export { getDefaultShortcutMap, mergeShortcutMaps, resolveShortcut } from './services/shortcutService';
+export { isInputContext } from './services/inputContext';
+export { resolveDirection } from './services/keyMappings';
 
 // Stores
 export { useKeyboardNavStore } from './stores/keyboardNavStore';
@@ -22,5 +25,4 @@ export type {
   ShortcutConflict,
   GridCoord,
   MoveDirection,
-  VisibleRow,
 } from './types';

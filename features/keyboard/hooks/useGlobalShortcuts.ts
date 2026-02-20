@@ -2,7 +2,7 @@
 
 import { useHotkeys } from 'react-hotkeys-hook';
 import type { ShortcutMap } from '../types';
-import { isInputContext } from '../services/shortcutService';
+import { isInputContext } from '../services/inputContext';
 import { useKeyboardNavStore } from '../stores/keyboardNavStore';
 
 interface UseGlobalShortcutsOptions {

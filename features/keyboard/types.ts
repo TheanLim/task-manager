@@ -45,10 +45,4 @@ export type MoveDirection =
   | 'firstRow' | 'lastRow'
   | 'halfPageDown' | 'halfPageUp';
 
-/** Descriptor for a visible row in the flattened task grid */
-export type VisibleRow = {
-  type: 'task' | 'subtask' | 'sectionHeader';
-  taskId: string | null;  // null for section headers
-  sectionId: string | null;
-  parentTaskId: string | null; // non-null for subtasks
-};
+

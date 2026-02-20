@@ -10,8 +10,12 @@ Grid-based keyboard navigation and customizable shortcuts for the task list.
 | `schemas.ts` | Zod schemas for shortcut bindings (used in merge validation) |
 | `services/shortcutService.ts` | Default bindings (24 actions), merge logic, conflict detection, key resolution |
 | `services/gridNavigationService.ts` | Pure `moveActiveCell()` + `computeVisibleRows()` for flattened task tree |
+| `services/inputContext.ts` | `isInputContext()` — DOM utility for detecting input/textarea/contenteditable |
+| `services/keyMappings.ts` | Pure key-to-direction mapping (vim, arrow, Home/End, Ctrl combos) |
+| `services/index.ts` | Barrel re-exports for all services |
 | `stores/keyboardNavStore.ts` | Zustand store — `focusedTaskId` + `activeCell` (no business logic) |
-| `hooks/useKeyboardNavigation.ts` | Grid-level keydown handler, cell props, focus restoration, row highlighting |
+| `hooks/useKeyboardNavigation.ts` | Grid-level keydown handler, cell props, focus restoration, row click |
+| `hooks/useRowHighlight.ts` | `data-kb-active` highlight lifecycle (show, fade, blur/focus) |
 | `hooks/useGlobalShortcuts.ts` | App-level shortcuts via `react-hotkeys-hook` (new task, search, help, task actions) |
 | `components/ShortcutHelpOverlay.tsx` | `?` overlay showing all bindings |
 | `components/ShortcutSettings.tsx` | UI for customizing shortcut bindings |
@@ -25,7 +29,6 @@ Grid-based keyboard navigation and customizable shortcuts for the task list.
 │  • mergeShortcutMaps(defaults, persisted)           │
 │  • detectConflicts(map) → ShortcutConflict[]        │
 │  • resolveShortcut(key, map, context)               │
-│  • isInputContext(el) — suppresses in inputs         │
 └──────────────┬──────────────────────────────────────┘
                │ ShortcutMap
        ┌───────┴───────┐
@@ -39,10 +42,16 @@ Grid-based keyboard navigation and customizable shortcuts for the task list.
 │ ? → help     │ │ • Enter → open       │
 │ e → edit     │ │ • getCellProps()     │
 │ x → delete   │ │ • focus restoration  │
-│ a → subtask  │ │ • row highlighting   │
-│ Ctrl+Enter   │ └──────────┬───────────┘
-│ Escape       │            │
-└──────────────┘            ▼
+│ a → subtask  │ └──────────┬───────────┘
+│ Ctrl+Enter   │            │
+│ Escape       │    ┌───────┴───────┐
+└──────────────┘    ▼               ▼
+          ┌──────────────┐ ┌──────────────────┐
+          │ keyMappings  │ │ useRowHighlight   │
+          │ • resolve    │ │ • data-kb-active  │
+          │   Direction()│ │ • fade timer      │
+          └──────────────┘ │ • blur/focus      │
+                           └──────────────────┘
                   ┌──────────────────────┐
                   │ gridNavigationService │
                   │ • moveActiveCell()    │
@@ -55,6 +64,8 @@ Grid-based keyboard navigation and customizable shortcuts for the task list.
                   │ • focusedTaskId       │
                   │ • activeCell          │
                   └──────────────────────┘
+
+  inputContext.ts ← shared DOM utility (used by both hooks)
 ```
 
 ## Shortcut Categories
@@ -81,7 +92,8 @@ Shortcuts are scoped by category to avoid conflicts:
 
 - `computeVisibleRows()` flattens the task tree respecting section collapse and subtask expansion (`expandedTaskIds`)
 - `moveActiveCell()` is a pure function — clamps row/column to grid bounds, supports 12 directions including half-page scroll
+- `resolveDirection()` maps keyboard events to `MoveDirection` (vim, arrow, Home/End, Ctrl combos) — stateless
 - Focus restoration: when a task is deleted/filtered, the hook recovers to the nearest visible row by index
-- Row highlighting: `data-kb-active` attribute applied to the focused `<tr>`, auto-fades after 2 seconds
-- Vim chord: `gg` uses a 300ms timeout between keypresses
+- Row highlighting: `data-kb-active` attribute applied to the focused `<tr>`, auto-fades after 2 seconds (managed by `useRowHighlight`)
+- Vim chord: `gg` uses a 300ms timeout between keypresses (stays in hook — stateful)
 - Section skip: `[`/`]` jump to previous/next section start index; fall back to up/down if no sections exist

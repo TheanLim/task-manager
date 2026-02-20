@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import type { GridCoord, ShortcutMap, MoveDirection } from '../types';
 import { moveActiveCell } from '../services/gridNavigationService';
-import { isInputContext } from '../services/shortcutService';
+import { isInputContext } from '../services/inputContext';
+import { resolveDirection } from '../services/keyMappings';
 import { useKeyboardNavStore } from '../stores/keyboardNavStore';
+import { useRowHighlight } from './useRowHighlight';
 
 interface CellProps {
   tabIndex: 0 | -1;
@@ -38,22 +40,6 @@ export interface UseKeyboardNavigationReturn {
   onTableKeyDown: (e: React.KeyboardEvent) => void;
   savedCell: React.MutableRefObject<GridCoord | null>;
 }
-
-/** Vim key → MoveDirection mapping */
-const VIM_KEY_MAP: Record<string, MoveDirection> = {
-  h: 'left',
-  j: 'down',
-  k: 'up',
-  l: 'right',
-};
-
-/** Arrow key → MoveDirection mapping */
-const ARROW_KEY_MAP: Record<string, MoveDirection> = {
-  ArrowUp: 'up',
-  ArrowDown: 'down',
-  ArrowLeft: 'left',
-  ArrowRight: 'right',
-};
 
 // ── Pure helper functions (exported for testing) ──
 
@@ -135,7 +121,6 @@ export function useKeyboardNavigation(
   const savedCell = useRef<GridCoord | null>(null);
   const cellRefs = useRef<Map<string, HTMLElement>>(new Map());
   const lastGPressTime = useRef<number>(0);
-  const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onSpacePressRef = useRef(onSpacePress);
   const onEnterPressRef = useRef(onEnterPress);
   onSpacePressRef.current = onSpacePress;
@@ -147,37 +132,13 @@ export function useKeyboardNavigation(
   visibleRowCountRef.current = visibleRowCount;
   const sectionStartIndicesRef = useRef(sectionStartIndices);
   sectionStartIndicesRef.current = sectionStartIndices;
-  const FADE_DELAY = 2000; // ms before highlight fades
 
-  /** Show the highlight on the active row and reset the fade timer */
-  const showHighlight = useCallback(() => {
-    if (!tableRef.current || !activeCell) return;
-    
-    // Clear any pending fade
-    if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
-    
-    // Remove previous highlight
-    tableRef.current.querySelectorAll('tr[data-kb-active]').forEach(el => {
-      el.removeAttribute('data-kb-active');
-    });
-    
-    // Apply highlight
-    const taskId = activeCell.taskId ?? visibleRowTaskIds[activeCell.row];
-    if (taskId) {
-      const row = tableRef.current.querySelector(`tr[data-task-id="${taskId}"]`) as HTMLElement;
-      if (row) {
-        row.setAttribute('data-kb-active', 'true');
-        row.scrollIntoView?.({ block: 'nearest' });
-      }
-    }
-    
-    // Start fade timer
-    fadeTimerRef.current = setTimeout(() => {
-      tableRef.current?.querySelectorAll('tr[data-kb-active]').forEach(el => {
-        el.removeAttribute('data-kb-active');
-      });
-    }, FADE_DELAY);
-  }, [activeCell, tableRef, visibleRowTaskIds]);
+  // Row highlight management (show, fade, blur/focus)
+  const { showHighlight, fadeTimerRef, FADE_DELAY } = useRowHighlight({
+    activeCell,
+    tableRef,
+    visibleRowTaskIds,
+  });
 
 
   // Recover activeCell when grid changes (tasks added/deleted, sections collapsed)
@@ -199,14 +160,6 @@ export function useKeyboardNavigation(
     }
   }, [visibleRowCount, visibleRowTaskIds]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Show highlight when activeCell changes (keyboard nav or click)
-  useEffect(() => {
-    showHighlight();
-    return () => {
-      if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
-    };
-  }, [showHighlight]);
-
   // Click on a row sets it as active
   useEffect(() => {
     if (!tableRef.current) return;
@@ -225,41 +178,6 @@ export function useKeyboardNavigation(
     tableRef.current.addEventListener('click', handleClick);
     return () => tableRef.current?.removeEventListener('click', handleClick);
   }, [tableRef, visibleRowTaskIds]);
-
-  // Clear highlight when table loses focus
-  useEffect(() => {
-    if (!tableRef.current) return;
-    
-    const handleFocusOut = (e: FocusEvent) => {
-      // Check if focus moved outside the table
-      if (!tableRef.current?.contains(e.relatedTarget as Node)) {
-        // Small delay to let the browser settle focus — if focus ends up on body,
-        // it means an inline edit finished (Enter) and we should refocus the table.
-        // If focus went to a real element outside the table, clear the highlight.
-        setTimeout(() => {
-          if (document.activeElement === document.body && tableRef.current) {
-            tableRef.current.focus();
-          } else if (!tableRef.current?.contains(document.activeElement)) {
-            tableRef.current?.querySelectorAll('tr[data-kb-active]').forEach(el => {
-              el.removeAttribute('data-kb-active');
-            });
-          }
-        }, 50);
-      }
-    };
-    
-    // Re-apply highlight when table regains focus
-    const handleFocusIn = () => {
-      showHighlight();
-    };
-    
-    tableRef.current.addEventListener('focusout', handleFocusOut);
-    tableRef.current.addEventListener('focusin', handleFocusIn);
-    return () => {
-      tableRef.current?.removeEventListener('focusout', handleFocusOut);
-      tableRef.current?.removeEventListener('focusin', handleFocusIn);
-    };
-  }, [tableRef, activeCell, visibleRowTaskIds]);
 
   // Notify parent and global store of active cell changes — synchronously
   const setFocusedTask = useKeyboardNavStore(s => s.setFocusedTask);
@@ -374,79 +292,49 @@ export function useKeyboardNavigation(
         return;
       }
 
-      let direction: MoveDirection | null = null;
-
-      // Ctrl/Cmd+key combos (Cmd on Mac)
-      if (ctrl) {
-        if (key === 'Home' || key === 'ArrowUp') direction = 'gridHome';
-        else if (key === 'End' || key === 'ArrowDown') direction = 'gridEnd';
-        else if (key === 'd') direction = 'halfPageDown';
-        else if (key === 'u') direction = 'halfPageUp';
+      // gg chord — must be checked before resolveDirection (stateful, needs early return)
+      if (!ctrl && key === 'g' && !shiftKey) {
+        const now = Date.now();
+        if (now - lastGPressTime.current < 300) {
+          lastGPressTime.current = 0;
+          e.preventDefault();
+          e.stopPropagation();
+          moveTo('firstRow');
+          return;
+        }
+        lastGPressTime.current = now;
+        e.preventDefault();
+        e.stopPropagation();
+        return; // Wait for potential second g
       }
 
-      // Arrow keys (no ctrl)
-      if (!direction && !ctrl) {
-        direction = ARROW_KEY_MAP[key] ?? null;
-      }
-
-      // Home/End (no ctrl)
-      if (!direction && !ctrl) {
-        if (key === 'Home') direction = 'home';
-        else if (key === 'End') direction = 'end';
-      }
-
-      // Vim keys (no ctrl, no shift except G)
-      if (!direction && !ctrl) {
-        // G (Shift+g) → lastRow
-        if (key === 'G' && shiftKey) {
-          direction = 'lastRow';
-        }
-        // gg chord
-        else if (key === 'g' && !shiftKey) {
-          const now = Date.now();
-          if (now - lastGPressTime.current < 300) {
-            direction = 'firstRow';
-            lastGPressTime.current = 0;
-          } else {
-            lastGPressTime.current = now;
-            e.preventDefault();
-            e.stopPropagation();
-            return; // Wait for potential second g
-          }
-        }
-        // h/j/k/l
-        else if (key in VIM_KEY_MAP) {
-          direction = VIM_KEY_MAP[key];
-        }
-        // Section skip: [ → previous section, ] → next section
-        else if (key === '[' && sectionStartIndicesRef.current.length > 0) {
-          // Find the previous section start before current row
+      // Section skip: [ → previous section, ] → next section
+      if (!ctrl && (key === '[' || key === ']') && sectionStartIndicesRef.current.length > 0) {
+        if (key === '[') {
           const prevSection = [...sectionStartIndicesRef.current].reverse().find(i => i < activeCell.row);
           if (prevSection !== undefined) {
             const taskId = visibleRowTaskIdsRef.current[prevSection] ?? null;
             updateActiveCell({ row: prevSection, column: activeCell.column, taskId });
             showHighlight();
           }
-          e.preventDefault();
-          e.stopPropagation();
-          return;
-        } else if (key === ']' && sectionStartIndicesRef.current.length > 0) {
-          // Find the next section start after current row
+        } else {
           const nextSection = sectionStartIndicesRef.current.find(i => i > activeCell.row);
           if (nextSection !== undefined) {
             const taskId = visibleRowTaskIdsRef.current[nextSection] ?? null;
             updateActiveCell({ row: nextSection, column: activeCell.column, taskId });
             showHighlight();
           }
-          e.preventDefault();
-          e.stopPropagation();
-          return;
-        } else if (key === '[') {
-          direction = 'up';
-        } else if (key === ']') {
-          direction = 'down';
         }
+        e.preventDefault();
+        e.stopPropagation();
+        return;
       }
+
+      // [ / ] fallback when no sections exist
+      let direction: MoveDirection | null = null;
+      if (!ctrl && key === '[') direction = 'up';
+      else if (!ctrl && key === ']') direction = 'down';
+      else direction = resolveDirection(key, ctrl, shiftKey);
 
       if (direction) {
         e.preventDefault();
