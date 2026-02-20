@@ -150,7 +150,7 @@ export function ProjectView({
       </div>
 
       {/* Scrollable Content Area */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 min-h-0 overflow-auto">
         <ProjectTabs
           activeTab={tabFromUrl}
           onTabChange={navigateToTab}
