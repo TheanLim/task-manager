@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { Zap, AlertTriangle } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { Zap, AlertTriangle, ChevronDown } from 'lucide-react';
+import { toast as sonnerToast } from 'sonner';
 import {
   DndContext,
   closestCenter,
@@ -18,6 +19,12 @@ import {
 } from '@dnd-kit/sortable';
 import { Button } from '@/components/ui/button';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -29,8 +36,14 @@ import {
 } from '@/components/ui/alert-dialog';
 import { EmptyState } from '@/components/EmptyState';
 import { RuleCard } from './RuleCard';
-import { RuleDialog } from './RuleDialog';
+import { RuleDialog } from './wizard/RuleDialog';
+import { DryRunDialog } from './schedule/DryRunDialog';
 import { useAutomationRules } from '../hooks/useAutomationRules';
+import { dryRunScheduledRule, type DryRunResult } from '../services/rules/dryRunService';
+import { evaluateRules } from '../services/evaluation/ruleEngine';
+import { isScheduledTrigger } from '../types';
+import { useDataStore } from '@/stores/dataStore';
+import { schedulerService, bulkScheduleService } from '@/lib/serviceContainer';
 import type { Section } from '@/lib/schemas';
 
 const MAX_RULES_WARNING_THRESHOLD = 10;
@@ -77,6 +90,7 @@ export function AutomationTab({ projectId, sections, onShowToast }: AutomationTa
   // Dialog state
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [isRescheduling, setIsRescheduling] = useState(false);
 
   // Track rule count before dialog opens to detect new rule creation
   const ruleCountBeforeDialog = useRef(rules.length);
@@ -103,24 +117,91 @@ export function AutomationTab({ projectId, sections, onShowToast }: AutomationTa
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [ruleToDelete, setRuleToDelete] = useState<string | null>(null);
 
-  // Get the rule being edited
-  const editingRule = editingRuleId ? rules.find((r) => r.id === editingRuleId) : null;
+  // Get the rule being edited (clear fireAt when rescheduling a one-time rule)
+  const editingRule = editingRuleId
+    ? (() => {
+        const rule = rules.find((r) => r.id === editingRuleId);
+        if (!rule) return null;
+        if (isRescheduling && rule.trigger.type === 'scheduled_one_time') {
+          return {
+            ...rule,
+            enabled: true,
+            trigger: {
+              ...rule.trigger,
+              schedule: { ...((rule.trigger as any).schedule), fireAt: '' },
+              lastEvaluatedAt: null,
+            },
+          } as typeof rule;
+        }
+        return rule;
+      })()
+    : null;
 
   // Determine bulk toggle label: if any rules are enabled, show "Disable all"
   const hasEnabledRules = rules.some((r) => r.enabled);
+
+  // Compute scheduled vs event-driven rule counts for bulk schedule dropdown
+  const { scheduledCount, eventDrivenCount } = useMemo(() => {
+    let scheduled = 0;
+    let eventDriven = 0;
+    for (const rule of rules) {
+      if (isScheduledTrigger(rule.trigger)) {
+        scheduled++;
+      } else {
+        eventDriven++;
+      }
+    }
+    return { scheduledCount: scheduled, eventDrivenCount: eventDriven };
+  }, [rules]);
 
   const handleBulkToggle = () => {
     bulkSetEnabled(!hasEnabledRules);
   };
 
+  const handleBulkPauseScheduled = useCallback(() => {
+    const result = bulkScheduleService.pauseAllScheduled(projectId);
+    if (result.pausedCount > 0) {
+      sonnerToast.success(`⏸️ Paused ${result.pausedCount} scheduled rules`, {
+        action: {
+          label: 'Undo',
+          onClick: () => {
+            bulkScheduleService.resumeAllScheduled(projectId);
+          },
+        },
+      });
+    }
+  }, [projectId]);
+
+  const handleBulkResumeScheduled = useCallback(() => {
+    const result = bulkScheduleService.resumeAllScheduled(projectId);
+    if (result.resumedCount > 0) {
+      sonnerToast.success(`▶️ Resumed ${result.resumedCount} scheduled rules`, {
+        action: {
+          label: 'Undo',
+          onClick: () => {
+            bulkScheduleService.pauseAllScheduled(projectId);
+          },
+        },
+      });
+    }
+  }, [projectId]);
+
   // Handlers
   const handleCreateNew = () => {
     setEditingRuleId(null);
+    setIsRescheduling(false);
     setIsDialogOpen(true);
   };
 
   const handleEdit = (ruleId: string) => {
     setEditingRuleId(ruleId);
+    setIsRescheduling(false);
+    setIsDialogOpen(true);
+  };
+
+  const handleReschedule = (ruleId: string) => {
+    setEditingRuleId(ruleId);
+    setIsRescheduling(true);
     setIsDialogOpen(true);
   };
 
@@ -154,10 +235,39 @@ export function AutomationTab({ projectId, sections, onShowToast }: AutomationTa
     toggleRule(ruleId);
   };
 
+  // Dry-run preview state
+  const [dryRunResult, setDryRunResult] = useState<DryRunResult | null>(null);
+  const [dryRunOpen, setDryRunOpen] = useState(false);
+
+  const handlePreview = useCallback((ruleId: string) => {
+    const rule = rules.find((r) => r.id === ruleId);
+    if (!rule || !isScheduledTrigger(rule.trigger)) return;
+
+    const tasks = useDataStore.getState().tasks;
+    const result = dryRunScheduledRule(
+      rule,
+      Date.now(),
+      tasks,
+      sections,
+      (event, context) => evaluateRules(event, [rule], context),
+    );
+    setDryRunResult(result);
+    setDryRunOpen(true);
+  }, [rules, sections]);
+
+  const handleRunNow = useCallback((ruleId: string) => {
+    const rule = rules.find((r) => r.id === ruleId);
+    if (!rule || !isScheduledTrigger(rule.trigger)) return;
+
+    schedulerService.evaluateSingleRule(rule);
+    onShowToast?.(`Rule "${rule.name}" executed manually.`, 'success');
+  }, [rules, onShowToast]);
+
   const handleDialogClose = (open: boolean) => {
     setIsDialogOpen(open);
     if (!open) {
       setEditingRuleId(null);
+      setIsRescheduling(false);
     }
   };
 
@@ -202,6 +312,36 @@ export function AutomationTab({ projectId, sections, onShowToast }: AutomationTa
           )}
         </div>
         <div className="flex items-center gap-2">
+          {scheduledCount > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" aria-label="Schedule actions">
+                  Schedule actions
+                  <ChevronDown className="ml-1 h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => bulkSetEnabled(false)}>
+                  All rules ({rules.length}) — Disable
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => bulkSetEnabled(true)}>
+                  All rules ({rules.length}) — Enable
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleBulkPauseScheduled}>
+                  Scheduled only ({scheduledCount}) — Pause
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleBulkResumeScheduled}>
+                  Scheduled only ({scheduledCount}) — Resume
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => bulkSetEnabled(false)}>
+                  Event-driven only ({eventDrivenCount}) — Disable
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => bulkSetEnabled(true)}>
+                  Event-driven only ({eventDrivenCount}) — Enable
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           <Button
             onClick={handleBulkToggle}
             variant="outline"
@@ -241,6 +381,9 @@ export function AutomationTab({ projectId, sections, onShowToast }: AutomationTa
                 onDuplicateToProject={handleDuplicateToProject}
                 onDelete={handleDeleteClick}
                 onToggle={handleToggle}
+                onPreview={handlePreview}
+                onRunNow={handleRunNow}
+                onReschedule={handleReschedule}
               />
             ))}
           </div>
@@ -255,6 +398,15 @@ export function AutomationTab({ projectId, sections, onShowToast }: AutomationTa
         sections={sections}
         editingRule={editingRule}
       />
+
+      {/* Dry Run Preview Dialog */}
+      {dryRunResult && (
+        <DryRunDialog
+          open={dryRunOpen}
+          onOpenChange={setDryRunOpen}
+          result={dryRunResult}
+        />
+      )}
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>

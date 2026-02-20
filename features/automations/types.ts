@@ -15,6 +15,7 @@ import type {
   IntervalScheduleSchema,
   CronScheduleSchema,
   DueDateRelativeScheduleSchema,
+  OneTimeScheduleSchema,
 } from './schemas';
 import type { Task, Section } from '@/lib/schemas';
 
@@ -39,6 +40,7 @@ export type ScheduleConfig = z.infer<typeof ScheduleConfigSchema>;
 export type IntervalSchedule = z.infer<typeof IntervalScheduleSchema>;
 export type CronSchedule = z.infer<typeof CronScheduleSchema>;
 export type DueDateRelativeSchedule = z.infer<typeof DueDateRelativeScheduleSchema>;
+export type OneTimeSchedule = z.infer<typeof OneTimeScheduleSchema>;
 
 // ─── Type Guards ────────────────────────────────────────────────────────
 
@@ -46,6 +48,7 @@ const SCHEDULED_TRIGGER_TYPES: Set<string> = new Set([
   'scheduled_interval',
   'scheduled_cron',
   'scheduled_due_date_relative',
+  'scheduled_one_time',
 ]);
 
 /** Type guard: returns true for scheduled triggers (interval, cron, due-date-relative) */

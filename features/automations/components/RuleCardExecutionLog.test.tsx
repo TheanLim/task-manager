@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RuleCardExecutionLog } from './RuleCardExecutionLog';
@@ -74,5 +74,40 @@ describe('RuleCardExecutionLog', () => {
 
     await user.click(toggle);
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  });
+});
+
+
+describe('RuleCardExecutionLog — relative time auto-refresh', () => {
+  it('updates relative timestamps after 30 seconds without collapse/expand', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+    try {
+      const tenSecondsAgo = new Date(Date.now() - 10_000).toISOString();
+      const entries: ExecutionLogEntry[] = [
+        {
+          timestamp: tenSecondsAgo,
+          triggerDescription: "Card moved into 'Done'",
+          actionDescription: 'Marked as complete',
+          taskName: 'Test task',
+        },
+      ];
+
+      render(<RuleCardExecutionLog entries={entries} />);
+      await user.click(screen.getByRole('button', { name: /recent activity/i }));
+
+      // Initially "Just now" (10s < 60s)
+      expect(screen.getByText('Just now')).toBeInTheDocument();
+
+      // Advance 60s — entry is now 70s old → "1m ago"
+      vi.advanceTimersByTime(60_000);
+
+      await vi.waitFor(() => {
+        expect(screen.getByText('1m ago')).toBeInTheDocument();
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

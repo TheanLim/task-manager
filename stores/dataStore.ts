@@ -7,7 +7,7 @@ import type {
   Section,
   TaskDependency,
 } from '@/types';
-import { emitDomainEvent, subscribeToDomainEvents } from '@/lib/events';
+import { emitDomainEvent, subscribeToDomainEvents, unsubscribeAll } from '@/lib/events';
 import type { AutomationRule } from '@/features/automations/types';
 import {
   projectRepository,
@@ -118,7 +118,13 @@ export const useDataStore = create<DataStore>()(
         const previousTask = taskRepository.findById(id);
         if (!previousTask) return;
         
-        const updatedTask = { ...updates, updatedAt: new Date().toISOString() };
+        const updatedTask: Partial<Task> = { ...updates, updatedAt: new Date().toISOString() };
+        
+        // Track movedToSectionAt: update iff sectionId actually changes
+        if ('sectionId' in updates && updates.sectionId !== previousTask.sectionId) {
+          updatedTask.movedToSectionAt = new Date().toISOString();
+        }
+        
         taskRepository.update(id, updatedTask);
         
         // Emit task.updated domain event (wrapped in batch for aggregated toasts)
@@ -239,6 +245,23 @@ export const useDataStore = create<DataStore>()(
   )
 );
 
+// --- Backfill migration: movedToSectionAt ---
+// On app load, set movedToSectionAt = task.updatedAt for tasks missing the field.
+// Does not overwrite existing values. Persists via taskRepository.update().
+export function backfillMovedToSectionAt(): void {
+  const tasks = taskRepository.findAll();
+  for (const task of tasks) {
+    if (task.movedToSectionAt === undefined || task.movedToSectionAt === null) {
+      taskRepository.update(task.id, {
+        movedToSectionAt: task.updatedAt ?? task.createdAt,
+      });
+    }
+  }
+}
+
+// Run backfill on module load (app startup)
+backfillMovedToSectionAt();
+
 // --- Subscribe to repositories and sync cached state ---
 projectRepository.subscribe((projects) => {
   useDataStore.setState({ projects });
@@ -262,6 +285,8 @@ automationRuleRepository.subscribe((automationRules) => {
 });
 
 // Subscribe automationService to domain events (Requirement 8.2)
+// Guard: clear previous listeners first to prevent HMR accumulation in dev
+unsubscribeAll();
 subscribeToDomainEvents((event) => {
   automationService.handleEvent(event);
 });

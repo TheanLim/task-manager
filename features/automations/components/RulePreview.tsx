@@ -1,5 +1,5 @@
 import { Badge } from '@/components/ui/badge';
-import { buildPreviewParts, type TriggerConfig, type ActionConfig } from '../services/rulePreviewService';
+import { buildPreviewParts, type TriggerConfig, type ActionConfig } from '../services/preview/rulePreviewService';
 import type { Section } from '@/lib/schemas';
 import type { CardFilter } from '../types';
 

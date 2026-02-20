@@ -13,6 +13,7 @@ import { GlobalTasksContainer } from '@/features/tasks/components/GlobalTasksCon
 import { Button } from '@/components/ui/button';
 import { Plus, X } from 'lucide-react';
 import { useDataStore, automationService } from '@/stores/dataStore';
+import { useSchedulerInit } from '@/features/automations/hooks/useSchedulerInit';
 import { useAppStore } from '@/stores/appStore';
 import { useTMSStore } from '@/features/tms/stores/tmsStore';
 import { getTMSHandler } from '@/features/tms/handlers';
@@ -36,8 +37,8 @@ import { useGlobalShortcuts } from '@/features/keyboard/hooks/useGlobalShortcuts
 import { getDefaultShortcutMap, mergeShortcutMaps } from '@/features/keyboard/services/shortcutService';
 import { ShortcutHelpOverlay } from '@/features/keyboard/components/ShortcutHelpOverlay';
 import { useKeyboardNavStore } from '@/features/keyboard/stores/keyboardNavStore';
-import { formatAutomationToastMessage } from '@/features/automations/services/toastMessageFormatter';
-import { getUndoSnapshots, performUndoById } from '@/features/automations/services/undoService';
+import { formatAutomationToastMessage } from '@/features/automations/services/preview/toastMessageFormatter';
+import { getUndoSnapshots, performUndoById } from '@/features/automations/services/execution/undoService';
 import { taskRepository } from '@/stores/dataStore';
 import {
   AlertDialog,
@@ -53,6 +54,9 @@ import {
 function HomeContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+
+  // Start the scheduler (leader election ensures only one tab runs it)
+  useSchedulerInit();
 
   // Sonner-based toast helper — maps old showToast(message, type, duration?, action?) to sonner API
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'info', duration?: number, action?: { label: string; onClick: () => void }) => {

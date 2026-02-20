@@ -8,7 +8,7 @@ import { TaskList } from '@/features/tasks/components/TaskList';
 import { TaskBoard } from '@/features/tasks/components/TaskBoard';
 import { TaskCalendar } from '@/features/tasks/components/TaskCalendar';
 import { AutomationTab } from '@/features/automations/components/AutomationTab';
-import { RuleDialog, type PrefillTrigger } from '@/features/automations/components/RuleDialog';
+import { RuleDialog, type PrefillTrigger } from '@/features/automations/components/wizard/RuleDialog';
 import { InlineEditable } from '@/components/InlineEditable';
 import { ShareButton } from '@/features/sharing/components/ShareButton';
 import { useDataStore, automationRuleRepository } from '@/stores/dataStore';

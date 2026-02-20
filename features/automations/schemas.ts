@@ -16,6 +16,7 @@ export const ScheduledTriggerTypeSchema = z.enum([
   'scheduled_interval',
   'scheduled_cron',
   'scheduled_due_date_relative',
+  'scheduled_one_time',
 ]);
 
 /** Combined trigger type (superset) */
@@ -45,10 +46,15 @@ export const DueDateRelativeScheduleSchema = z.object({
   displayUnit: z.enum(['minutes', 'hours', 'days']).default('days'),
 });
 
+export const OneTimeScheduleSchema = z.object({
+  fireAt: z.string().datetime(),
+});
+
 export const ScheduleConfigSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('interval'), ...IntervalScheduleSchema.shape }),
   z.object({ kind: z.literal('cron'), ...CronScheduleSchema.shape }),
   z.object({ kind: z.literal('due_date_relative'), ...DueDateRelativeScheduleSchema.shape }),
+  z.object({ kind: z.literal('one_time'), ...OneTimeScheduleSchema.shape }),
 ]);
 
 export const ActionTypeSchema = z.enum([
@@ -181,6 +187,12 @@ export const CardFilterTypeSchema = z.enum([
   'due_in_more_than',
   'due_in_exactly',
   'due_in_between',
+  'created_more_than',
+  'completed_more_than',
+  'last_updated_more_than',
+  'not_modified_in',
+  'overdue_by_more_than',
+  'in_section_for_more_than',
 ]);
 
 export const FilterUnitSchema = z.enum(['days', 'working_days']);
@@ -231,6 +243,38 @@ export const CardFilterSchema = z.discriminatedUnion('type', [
     (data) => data.minValue <= data.maxValue,
     { message: 'minValue must be less than or equal to maxValue' }
   ),
+  // Age-based filters (Phase 5b)
+  z.object({
+    type: z.literal('created_more_than'),
+    value: z.number().int().positive(),
+    unit: FilterUnitSchema,
+  }),
+  z.object({
+    type: z.literal('completed_more_than'),
+    value: z.number().int().positive(),
+    unit: FilterUnitSchema,
+  }),
+  z.object({
+    type: z.literal('last_updated_more_than'),
+    value: z.number().int().positive(),
+    unit: FilterUnitSchema,
+  }),
+  z.object({
+    type: z.literal('not_modified_in'),
+    value: z.number().int().positive(),
+    unit: FilterUnitSchema,
+  }),
+  z.object({
+    type: z.literal('overdue_by_more_than'),
+    value: z.number().int().positive(),
+    unit: FilterUnitSchema,
+  }),
+  // Section duration filter (Phase 5b)
+  z.object({
+    type: z.literal('in_section_for_more_than'),
+    value: z.number().int().positive(),
+    unit: FilterUnitSchema,
+  }),
 ]);
 
 export const TriggerSchema = z.discriminatedUnion('type', [
@@ -272,6 +316,7 @@ export const TriggerSchema = z.discriminatedUnion('type', [
       intervalMinutes: z.number().int().min(5).max(10080),
     }),
     lastEvaluatedAt: z.string().datetime().nullable().default(null),
+    catchUpPolicy: z.enum(['catch_up_latest', 'skip_missed']).default('catch_up_latest'),
   }),
   z.object({
     type: z.literal('scheduled_cron'),
@@ -284,6 +329,7 @@ export const TriggerSchema = z.discriminatedUnion('type', [
       daysOfMonth: z.array(z.number().int().min(1).max(31)).default([]),
     }),
     lastEvaluatedAt: z.string().datetime().nullable().default(null),
+    catchUpPolicy: z.enum(['catch_up_latest', 'skip_missed']).default('catch_up_latest'),
   }),
   z.object({
     type: z.literal('scheduled_due_date_relative'),
@@ -292,6 +338,16 @@ export const TriggerSchema = z.discriminatedUnion('type', [
       kind: z.literal('due_date_relative'),
       offsetMinutes: z.number().int(),
       displayUnit: z.enum(['minutes', 'hours', 'days']).default('days'),
+    }),
+    lastEvaluatedAt: z.string().datetime().nullable().default(null),
+    catchUpPolicy: z.enum(['catch_up_latest', 'skip_missed']).default('catch_up_latest'),
+  }),
+  z.object({
+    type: z.literal('scheduled_one_time'),
+    sectionId: z.null().default(null),
+    schedule: z.object({
+      kind: z.literal('one_time'),
+      fireAt: z.string().datetime(),
     }),
     lastEvaluatedAt: z.string().datetime().nullable().default(null),
   }),
@@ -317,7 +373,7 @@ export const ExecutionLogEntrySchema = z.object({
   // Aggregated entries for scheduled rules
   matchCount: z.number().int().optional(),
   details: z.array(z.string()).optional(),
-  executionType: z.enum(['event', 'scheduled', 'catch-up', 'manual']).optional(),
+  executionType: z.enum(['event', 'scheduled', 'catch-up', 'manual', 'skipped']).optional(),
 });
 
 export const AutomationRuleSchema = z.object({
@@ -335,6 +391,7 @@ export const AutomationRuleSchema = z.object({
   order: z.number(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
+  bulkPausedAt: z.string().datetime().nullable().default(null),
 });
 
 // Types are inferred and exported from types.ts — import types from there, schemas from here.

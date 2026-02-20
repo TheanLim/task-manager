@@ -1,31 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { automationRuleRepository, sectionRepository } from '@/stores/dataStore';
 import type { AutomationRule } from '../types';
-import { duplicateRuleToProject } from '../services/ruleDuplicator';
-import { v4 as uuidv4 } from 'uuid';
-
-/**
- * Helper function to create a new automation rule with generated metadata.
- * Centralizes id generation, timestamps, and order calculation.
- */
-function createRuleWithMetadata(
-  data: Omit<AutomationRule, 'id' | 'createdAt' | 'updatedAt' | 'executionCount' | 'lastExecutedAt' | 'recentExecutions' | 'order'>,
-  existingRules: AutomationRule[]
-): AutomationRule {
-  const now = new Date().toISOString();
-  const maxOrder = existingRules.reduce((max, rule) => Math.max(max, rule.order), -1);
-  
-  return {
-    ...data,
-    id: uuidv4(),
-    createdAt: now,
-    updatedAt: now,
-    executionCount: 0,
-    lastExecutedAt: null,
-    recentExecutions: [],
-    order: maxOrder + 1,
-  };
-}
+import { duplicateRuleToProject } from '../services/rules/ruleDuplicator';
+import { createRuleWithMetadata } from '../services/rules/ruleFactory';
 
 export interface UseAutomationRulesReturn {
   rules: AutomationRule[];
@@ -102,6 +79,7 @@ export function useAutomationRules(projectId: string): UseAutomationRulesReturn 
           action: original.action,
           enabled: false,
           brokenReason: original.brokenReason,
+          bulkPausedAt: null,
         },
         allRules
       );

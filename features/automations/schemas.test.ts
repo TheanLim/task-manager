@@ -995,3 +995,510 @@ describe('ExecutionLogEntry extensions', () => {
     expect(result.success).toBe(true);
   });
 });
+
+// Feature: scheduled-triggers-phase-5b, Property 11: New filter schema round-trip
+// **Validates: Requirements 1.4, 2.2, 3.2, 4.3, 5.7**
+describe('Property 11: New filter schema round-trip', () => {
+  const filterUnitArb = fc.constantFrom('days' as const, 'working_days' as const);
+  const positiveIntArb = fc.integer({ min: 1, max: 1000 });
+
+  const newFilterTypes = [
+    'created_more_than',
+    'completed_more_than',
+    'last_updated_more_than',
+    'not_modified_in',
+    'overdue_by_more_than',
+    'in_section_for_more_than',
+  ] as const;
+
+  const newFilterTypeArb = fc.constantFrom(...newFilterTypes);
+
+  const newFilterArb = fc.record({
+    type: newFilterTypeArb,
+    value: positiveIntArb,
+    unit: filterUnitArb,
+  });
+
+  it('all 6 new filter types round-trip correctly through JSON serialization', () => {
+    fc.assert(
+      fc.property(newFilterArb, (filter) => {
+        const parsed1 = CardFilterSchema.parse(filter);
+        const json = JSON.stringify(parsed1);
+        const deserialized = JSON.parse(json);
+        const parsed2 = CardFilterSchema.parse(deserialized);
+        expect(parsed2).toEqual(parsed1);
+      }),
+      { numRuns: 100 },
+    );
+  });
+
+  it('each individual new filter type parses and round-trips correctly', () => {
+    for (const type of newFilterTypes) {
+      fc.assert(
+        fc.property(positiveIntArb, filterUnitArb, (value, unit) => {
+          const filter = { type, value, unit };
+          const parsed = CardFilterSchema.parse(filter);
+          expect(parsed).toEqual(filter);
+
+          const json = JSON.stringify(parsed);
+          const reparsed = CardFilterSchema.parse(JSON.parse(json));
+          expect(reparsed).toEqual(parsed);
+        }),
+        { numRuns: 20 },
+      );
+    }
+  });
+
+  it('value: 0 is rejected for all new filter types', () => {
+    for (const type of newFilterTypes) {
+      const result = CardFilterSchema.safeParse({ type, value: 0, unit: 'days' });
+      expect(result.success).toBe(false);
+    }
+  });
+
+  it('value: -1 is rejected for all new filter types', () => {
+    for (const type of newFilterTypes) {
+      const result = CardFilterSchema.safeParse({ type, value: -1, unit: 'days' });
+      expect(result.success).toBe(false);
+    }
+  });
+
+  it('value: 1 is accepted for all new filter types', () => {
+    for (const type of newFilterTypes) {
+      const result = CardFilterSchema.safeParse({ type, value: 1, unit: 'days' });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it('non-positive values are rejected for all new filter types', () => {
+    fc.assert(
+      fc.property(
+        newFilterTypeArb,
+        fc.integer({ max: 0 }),
+        filterUnitArb,
+        (type, value, unit) => {
+          const result = CardFilterSchema.safeParse({ type, value, unit });
+          expect(result.success).toBe(false);
+        },
+      ),
+      { numRuns: 100 },
+    );
+  });
+
+  it('invalid unit is rejected for all new filter types', () => {
+    fc.assert(
+      fc.property(
+        newFilterTypeArb,
+        positiveIntArb,
+        fc.string().filter((s) => s !== 'days' && s !== 'working_days'),
+        (type, value, unit) => {
+          const result = CardFilterSchema.safeParse({ type, value, unit });
+          expect(result.success).toBe(false);
+        },
+      ),
+      { numRuns: 100 },
+    );
+  });
+
+  it('missing value or unit is rejected for all new filter types', () => {
+    for (const type of newFilterTypes) {
+      expect(CardFilterSchema.safeParse({ type }).success).toBe(false);
+      expect(CardFilterSchema.safeParse({ type, value: 5 }).success).toBe(false);
+      expect(CardFilterSchema.safeParse({ type, unit: 'days' }).success).toBe(false);
+    }
+  });
+});
+
+// Feature: scheduled-triggers-phase-5b, Property 12: catchUpPolicy schema default
+// **Validates: Requirement 7.3**
+describe('Property 12: catchUpPolicy schema default', () => {
+  const isoDateTimeArb = fc
+    .date({ min: new Date('2020-01-01'), max: new Date('2030-12-31') })
+    .map((d) => d.toISOString());
+
+  const catchUpPolicyArb = fc.constantFrom('catch_up_latest' as const, 'skip_missed' as const);
+
+  // ─── Scheduled trigger arbitraries WITH catchUpPolicy ─────────────────
+
+  const scheduledIntervalWithPolicyArb = fc.record({
+    type: fc.constant('scheduled_interval' as const),
+    sectionId: fc.constant(null),
+    schedule: fc.record({
+      kind: fc.constant('interval' as const),
+      intervalMinutes: fc.integer({ min: 5, max: 10080 }),
+    }),
+    lastEvaluatedAt: fc.oneof(isoDateTimeArb, fc.constant(null)),
+    catchUpPolicy: catchUpPolicyArb,
+  });
+
+  const scheduledCronWithPolicyArb = fc.record({
+    type: fc.constant('scheduled_cron' as const),
+    sectionId: fc.constant(null),
+    schedule: fc.record({
+      kind: fc.constant('cron' as const),
+      hour: fc.integer({ min: 0, max: 23 }),
+      minute: fc.integer({ min: 0, max: 59 }),
+      daysOfWeek: fc.constant([] as number[]),
+      daysOfMonth: fc.constant([] as number[]),
+    }),
+    lastEvaluatedAt: fc.oneof(isoDateTimeArb, fc.constant(null)),
+    catchUpPolicy: catchUpPolicyArb,
+  });
+
+  const scheduledDueDateWithPolicyArb = fc.record({
+    type: fc.constant('scheduled_due_date_relative' as const),
+    sectionId: fc.constant(null),
+    schedule: fc.record({
+      kind: fc.constant('due_date_relative' as const),
+      offsetMinutes: fc.integer({ min: -10080, max: 10080 }),
+      displayUnit: fc.constantFrom('minutes' as const, 'hours' as const, 'days' as const),
+    }),
+    lastEvaluatedAt: fc.oneof(isoDateTimeArb, fc.constant(null)),
+    catchUpPolicy: catchUpPolicyArb,
+  });
+
+  const anyScheduledWithPolicyArb = fc.oneof(
+    scheduledIntervalWithPolicyArb,
+    scheduledCronWithPolicyArb,
+    scheduledDueDateWithPolicyArb,
+  );
+
+  // ─── Scheduled trigger arbitraries WITHOUT catchUpPolicy ──────────────
+
+  const scheduledIntervalNoPolicyArb = fc.record({
+    type: fc.constant('scheduled_interval' as const),
+    sectionId: fc.constant(null),
+    schedule: fc.record({
+      kind: fc.constant('interval' as const),
+      intervalMinutes: fc.integer({ min: 5, max: 10080 }),
+    }),
+    lastEvaluatedAt: fc.oneof(isoDateTimeArb, fc.constant(null)),
+  });
+
+  const scheduledCronNoPolicyArb = fc.record({
+    type: fc.constant('scheduled_cron' as const),
+    sectionId: fc.constant(null),
+    schedule: fc.record({
+      kind: fc.constant('cron' as const),
+      hour: fc.integer({ min: 0, max: 23 }),
+      minute: fc.integer({ min: 0, max: 59 }),
+      daysOfWeek: fc.constant([] as number[]),
+      daysOfMonth: fc.constant([] as number[]),
+    }),
+    lastEvaluatedAt: fc.oneof(isoDateTimeArb, fc.constant(null)),
+  });
+
+  const scheduledDueDateNoPolicyArb = fc.record({
+    type: fc.constant('scheduled_due_date_relative' as const),
+    sectionId: fc.constant(null),
+    schedule: fc.record({
+      kind: fc.constant('due_date_relative' as const),
+      offsetMinutes: fc.integer({ min: -10080, max: 10080 }),
+      displayUnit: fc.constantFrom('minutes' as const, 'hours' as const, 'days' as const),
+    }),
+    lastEvaluatedAt: fc.oneof(isoDateTimeArb, fc.constant(null)),
+  });
+
+  const anyScheduledNoPolicyArb = fc.oneof(
+    scheduledIntervalNoPolicyArb,
+    scheduledCronNoPolicyArb,
+    scheduledDueDateNoPolicyArb,
+  );
+
+  // ─── Property test: missing field defaults to catch_up_latest ─────────
+
+  it('missing catchUpPolicy defaults to catch_up_latest for all scheduled trigger variants', () => {
+    fc.assert(
+      fc.property(anyScheduledNoPolicyArb, (trigger) => {
+        const parsed = TriggerSchema.parse(trigger);
+        expect((parsed as any).catchUpPolicy).toBe('catch_up_latest');
+      }),
+      { numRuns: 100 },
+    );
+  });
+
+  // ─── Explicit values round-trip correctly ─────────────────────────────
+
+  it('scheduled trigger with catchUpPolicy: skip_missed parses and round-trips correctly', () => {
+    fc.assert(
+      fc.property(anyScheduledWithPolicyArb, (trigger) => {
+        const parsed1 = TriggerSchema.parse(trigger);
+        const json = JSON.stringify(parsed1);
+        const parsed2 = TriggerSchema.parse(JSON.parse(json));
+        expect(parsed2).toEqual(parsed1);
+        expect((parsed2 as any).catchUpPolicy).toBe(trigger.catchUpPolicy);
+      }),
+      { numRuns: 100 },
+    );
+  });
+
+  // ─── Specific example tests ───────────────────────────────────────────
+
+  it('scheduled_interval with catchUpPolicy: skip_missed is valid', () => {
+    const trigger = {
+      type: 'scheduled_interval',
+      sectionId: null,
+      schedule: { kind: 'interval', intervalMinutes: 60 },
+      lastEvaluatedAt: null,
+      catchUpPolicy: 'skip_missed',
+    };
+    const result = TriggerSchema.safeParse(trigger);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect((result.data as any).catchUpPolicy).toBe('skip_missed');
+    }
+  });
+
+  it('scheduled_cron with catchUpPolicy: catch_up_latest is valid', () => {
+    const trigger = {
+      type: 'scheduled_cron',
+      sectionId: null,
+      schedule: { kind: 'cron', hour: 9, minute: 0, daysOfWeek: [1, 3, 5], daysOfMonth: [] },
+      lastEvaluatedAt: null,
+      catchUpPolicy: 'catch_up_latest',
+    };
+    const result = TriggerSchema.safeParse(trigger);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect((result.data as any).catchUpPolicy).toBe('catch_up_latest');
+    }
+  });
+
+  it('scheduled_due_date_relative without catchUpPolicy defaults to catch_up_latest', () => {
+    const trigger = {
+      type: 'scheduled_due_date_relative',
+      sectionId: null,
+      schedule: { kind: 'due_date_relative', offsetMinutes: -1440, displayUnit: 'days' },
+      lastEvaluatedAt: null,
+    };
+    const result = TriggerSchema.safeParse(trigger);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect((result.data as any).catchUpPolicy).toBe('catch_up_latest');
+    }
+  });
+
+  it('scheduled trigger with catchUpPolicy: invalid is rejected', () => {
+    const trigger = {
+      type: 'scheduled_interval',
+      sectionId: null,
+      schedule: { kind: 'interval', intervalMinutes: 60 },
+      lastEvaluatedAt: null,
+      catchUpPolicy: 'invalid',
+    };
+    const result = TriggerSchema.safeParse(trigger);
+    expect(result.success).toBe(false);
+  });
+
+  // ─── Backward compatibility: Phase 5a rules without catchUpPolicy ────
+
+  it('Phase 5a rules without catchUpPolicy are backward compatible', () => {
+    // Simulate a Phase 5a rule stored without catchUpPolicy
+    const phase5aIntervalTrigger = {
+      type: 'scheduled_interval',
+      sectionId: null,
+      schedule: { kind: 'interval', intervalMinutes: 30 },
+      lastEvaluatedAt: '2024-01-15T10:00:00.000Z',
+    };
+    const phase5aCronTrigger = {
+      type: 'scheduled_cron',
+      sectionId: null,
+      schedule: { kind: 'cron', hour: 9, minute: 0, daysOfWeek: [1], daysOfMonth: [] },
+      lastEvaluatedAt: null,
+    };
+    const phase5aDueDateTrigger = {
+      type: 'scheduled_due_date_relative',
+      sectionId: null,
+      schedule: { kind: 'due_date_relative', offsetMinutes: -60, displayUnit: 'hours' },
+      lastEvaluatedAt: null,
+    };
+
+    for (const trigger of [phase5aIntervalTrigger, phase5aCronTrigger, phase5aDueDateTrigger]) {
+      const result = TriggerSchema.safeParse(trigger);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect((result.data as any).catchUpPolicy).toBe('catch_up_latest');
+      }
+    }
+  });
+});
+
+// Feature: scheduled-triggers-phase-5b, ExecutionLogEntry 'skipped' type
+describe('ExecutionLogEntry skipped execution type', () => {
+  it('accepts executionType: skipped', () => {
+    const entry = {
+      timestamp: new Date().toISOString(),
+      triggerDescription: 'Every 30 minutes',
+      actionDescription: 'Skipped (catch-up)',
+      taskName: 'Aggregated',
+      executionType: 'skipped' as const,
+    };
+    const result = ExecutionLogEntrySchema.safeParse(entry);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.executionType).toBe('skipped');
+    }
+  });
+
+  it('still accepts all existing executionType values', () => {
+    for (const executionType of ['event', 'scheduled', 'catch-up', 'manual'] as const) {
+      const entry = {
+        timestamp: new Date().toISOString(),
+        triggerDescription: 'test',
+        actionDescription: 'test',
+        taskName: 'test',
+        executionType,
+      };
+      const result = ExecutionLogEntrySchema.safeParse(entry);
+      expect(result.success).toBe(true);
+    }
+  });
+});
+
+// ─── Phase 5c: One-Time Trigger & bulkPausedAt Schema Tests ─────────────
+
+import { OneTimeScheduleSchema } from './schemas';
+
+// Feature: scheduled-triggers-phase-5c, Property 9: One-time schema round-trip
+// **Validates: Requirements 2.1, 2.3, 2.4**
+describe('Property 9: One-time schema round-trip', () => {
+  const isoDateTimeArb = fc
+    .date({ min: new Date('2024-01-01'), max: new Date('2030-12-31') })
+    .map((d) => d.toISOString());
+
+  const scheduledOneTimeTriggerArb = fc.record({
+    type: fc.constant('scheduled_one_time' as const),
+    sectionId: fc.constant(null),
+    schedule: fc.record({
+      kind: fc.constant('one_time' as const),
+      fireAt: isoDateTimeArb,
+    }),
+    lastEvaluatedAt: fc.oneof(isoDateTimeArb, fc.constant(null)),
+  });
+
+  it('scheduled_one_time triggers parse and serialize correctly', () => {
+    fc.assert(
+      fc.property(scheduledOneTimeTriggerArb, (trigger) => {
+        const parsed1 = TriggerSchema.parse(trigger);
+        const json = JSON.stringify(parsed1);
+        const parsed2 = TriggerSchema.parse(JSON.parse(json));
+        expect(parsed2).toEqual(parsed1);
+      }),
+      { numRuns: 100 },
+    );
+  });
+
+  // OneTimeScheduleSchema validation
+  it('OneTimeScheduleSchema validates valid ISO datetime', () => {
+    const result = OneTimeScheduleSchema.safeParse({ fireAt: '2025-03-15T15:00:00.000Z' });
+    expect(result.success).toBe(true);
+  });
+
+  it('OneTimeScheduleSchema rejects non-ISO-8601 datetime', () => {
+    const result = OneTimeScheduleSchema.safeParse({ fireAt: 'not-a-date' });
+    expect(result.success).toBe(false);
+  });
+
+  // ScheduleConfigSchema accepts one_time variant
+  it('ScheduleConfigSchema accepts { kind: "one_time", fireAt: "..." }', () => {
+    const result = ScheduleConfigSchema.safeParse({
+      kind: 'one_time',
+      fireAt: '2025-03-15T15:00:00.000Z',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  // TriggerSchema accepts scheduled_one_time variant
+  it('TriggerSchema accepts scheduled_one_time with null sectionId', () => {
+    const result = TriggerSchema.safeParse({
+      type: 'scheduled_one_time',
+      sectionId: null,
+      schedule: { kind: 'one_time', fireAt: '2025-03-15T15:00:00.000Z' },
+      lastEvaluatedAt: null,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  // TriggerSchema rejects scheduled_one_time with non-null sectionId
+  it('TriggerSchema rejects scheduled_one_time with non-null sectionId', () => {
+    const result = TriggerSchema.safeParse({
+      type: 'scheduled_one_time',
+      sectionId: 'abc',
+      schedule: { kind: 'one_time', fireAt: '2025-03-15T15:00:00.000Z' },
+      lastEvaluatedAt: null,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  // ScheduledTriggerTypeSchema includes scheduled_one_time
+  it('ScheduledTriggerTypeSchema includes scheduled_one_time', () => {
+    const result = ScheduledTriggerTypeSchema.safeParse('scheduled_one_time');
+    expect(result.success).toBe(true);
+  });
+});
+
+// Feature: scheduled-triggers-phase-5c, bulkPausedAt schema tests
+// **Validates: Requirement 5.3**
+describe('bulkPausedAt schema on AutomationRuleSchema', () => {
+  const baseRule = {
+    id: 'rule-1',
+    projectId: 'proj-1',
+    name: 'Test Rule',
+    trigger: { type: 'card_moved_into_section', sectionId: null },
+    filters: [],
+    action: {
+      type: 'mark_card_complete',
+      sectionId: null,
+      dateOption: null,
+      position: null,
+      cardTitle: null,
+      cardDateOption: null,
+      specificMonth: null,
+      specificDay: null,
+      monthTarget: null,
+    },
+    enabled: true,
+    brokenReason: null,
+    executionCount: 0,
+    lastExecutedAt: null,
+    recentExecutions: [],
+    order: 0,
+    createdAt: '2025-01-15T10:00:00.000Z',
+    updatedAt: '2025-01-15T10:00:00.000Z',
+  };
+
+  it('accepts bulkPausedAt: null', () => {
+    const result = AutomationRuleSchema.safeParse({ ...baseRule, bulkPausedAt: null });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.bulkPausedAt).toBeNull();
+    }
+  });
+
+  it('accepts bulkPausedAt with valid ISO datetime', () => {
+    const result = AutomationRuleSchema.safeParse({
+      ...baseRule,
+      bulkPausedAt: '2025-01-15T10:00:00.000Z',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.bulkPausedAt).toBe('2025-01-15T10:00:00.000Z');
+    }
+  });
+
+  it('backward compatibility: existing rules without bulkPausedAt parse with default null', () => {
+    const result = AutomationRuleSchema.safeParse(baseRule);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.bulkPausedAt).toBeNull();
+    }
+  });
+
+  it('rejects bulkPausedAt with invalid datetime string', () => {
+    const result = AutomationRuleSchema.safeParse({
+      ...baseRule,
+      bulkPausedAt: 'not-a-date',
+    });
+    expect(result.success).toBe(false);
+  });
+});

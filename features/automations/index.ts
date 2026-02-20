@@ -2,7 +2,7 @@
 
 // Components
 export { AutomationTab } from './components/AutomationTab';
-export { RuleDialog } from './components/RuleDialog';
+export { RuleDialog } from './components/wizard/RuleDialog';
 export { RuleCard } from './components/RuleCard';
 export { SectionContextMenuItem } from './components/SectionContextMenuItem';
 export { SectionPicker } from './components/SectionPicker';
@@ -16,21 +16,18 @@ export { useUndoAutomation } from './hooks/useUndoAutomation';
 
 // Services
 export { AutomationService } from './services/automationService';
-export { RuleExecutor } from './services/ruleExecutor';
-export { getActionHandler, ACTION_HANDLER_REGISTRY } from './services/actionHandlers';
-export type { ActionHandler, ActionContext } from './services/actionHandlers';
-export { evaluateRules } from './services/ruleEngine';
-export { detectBrokenRules } from './services/brokenRuleDetector';
-export { formatAutomationToastMessage } from './services/toastMessageFormatter';
-export { validateImportedRules } from './services/ruleImportExport';
-export { collectSectionReferences } from './services/sectionReferenceCollector';
+export { RuleExecutor } from './services/execution/ruleExecutor';
+export { getActionHandler, ACTION_HANDLER_REGISTRY } from './services/execution/actionHandlers';
+export type { ActionHandler, ActionContext } from './services/execution/actionHandlers';
+export { evaluateRules } from './services/evaluation/ruleEngine';
+export { detectBrokenRules } from './services/rules/brokenRuleDetector';
+export { formatAutomationToastMessage } from './services/preview/toastMessageFormatter';
+export { validateImportedRules } from './services/rules/ruleImportExport';
+export { collectSectionReferences } from './services/rules/sectionReferenceCollector';
 
 // Repository
 export { LocalStorageAutomationRuleRepository } from './repositories/localStorageAutomationRuleRepository';
 export type { AutomationRuleRepository } from './repositories/types';
-
-// Domain events (re-exported from lib/events for backward compat)
-export { emitDomainEvent, subscribeToDomainEvents, unsubscribeAll } from './events';
 
 // Types
 export type {

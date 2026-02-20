@@ -242,3 +242,126 @@ Migration path:
 **Why**: The previous code referenced `action.sectionId`, `action.position`, etc. repeatedly. Destructuring makes the mapping more concise and easier to scan. The `completed` field derivation from `type` is preserved as-is since it's computed, not mapped.
 
 **Trade-off**: Purely cosmetic — same runtime behavior. Slightly easier to maintain when new action fields are added.
+
+## 24. Restructured flat `services/` into responsibility-based sub-modules
+
+**Decision**: Split the flat `services/` directory (28 files) into 5 sub-modules plus the orchestrator at root:
+
+| Sub-module | Files | Responsibility |
+|-----------|-------|---------------|
+| `services/evaluation/` | ruleEngine, filterPredicates, dateCalculations | Pure rule matching & filtering |
+| `services/execution/` | actionHandlers, ruleExecutor, undoService, createCardDedup, titleTemplateEngine | Action execution & undo |
+| `services/scheduler/` | schedulerService, scheduleEvaluator, schedulerLeaderElection, cronExpressionParser, bulkScheduleService, clock | Scheduled trigger subsystem |
+| `services/preview/` | rulePreviewService, ruleMetadata, toastMessageFormatter | Human-readable descriptions |
+| `services/rules/` | brokenRuleDetector, sectionReferenceCollector, ruleImportExport, ruleDuplicator, ruleValidation, dryRunService | Rule lifecycle management |
+| `services/automationService.ts` | (root) | Orchestrator — event handling, batch mode, cascade |
+
+**Why**: The flat `services/` directory had 28 files with distinct responsibility clusters that were hard to navigate. Finding "the cron parser" required scanning past "the undo service" and "the filter predicates." The sub-modules group files by what they do, making it obvious where to look and where to add new code.
+
+**Grouping rationale**:
+- `evaluation/` — all pure functions that evaluate rules against events. No side effects, no repository writes
+- `execution/` — everything that applies actions to entities. Owns the Strategy pattern registry and undo
+- `scheduler/` — the entire scheduled trigger subsystem (tick loop, evaluators, leader election, cron). Self-contained
+- `preview/` — human-readable text generation. No dependencies on execution or scheduling
+- `rules/` — operations on rules as entities (validation, import/export, duplication, broken detection)
+
+**Dependency flow**: `evaluation/` and `rules/` are leaf modules (no cross-sub-module deps). `execution/` imports from `evaluation/` (for dateCalculations) and `scheduler/` (for Clock). `preview/` imports only from types. `automationService.ts` imports from `evaluation/`, `execution/`, and is the only file that orchestrates across sub-modules.
+
+**Trade-off**: Deeper import paths (e.g., `../services/scheduler/clock` instead of `../services/clock`). The barrel `index.ts` absorbs this for external consumers. Internal cross-references use relative paths. Test files are co-located with their source files in each sub-module.
+
+
+## 25. Split `rulePreviewService.ts` into focused modules
+
+**Decision**: Extracted `scheduleDescriptions.ts` (schedule description formatters) and `formatters.ts` (general formatting utilities) from `rulePreviewService.ts`. The preview service re-exports everything for backward compatibility.
+
+**Why**: `rulePreviewService.ts` was 543 lines mixing preview generation, schedule descriptions, formatting utilities, and duplicate detection — a classic grab-bag / Large Class smell. The schedule description logic (`describeSchedule`, `computeNextRunDescription`) is consumed by `ruleExecutor.ts` and `RuleCard.tsx` independently of preview generation. The formatters (`formatRelativeTime`, `formatFilterDescription`, `formatDateOption`) are consumed by 5+ components independently.
+
+**New module responsibilities**:
+- `scheduleDescriptions.ts` — `describeSchedule`, `computeNextRunDescription`, `formatShortDate`, `formatFireAt`
+- `formatters.ts` — `formatRelativeTime`, `formatDateOption`, `formatFilterDescription`
+- `rulePreviewService.ts` — preview part building, duplicate detection, sentinel constant, config types
+
+**Trade-off**: `rulePreviewService.ts` re-exports from both new modules for backward compatibility. Existing consumers don't need to change imports. New code should import from the canonical module.
+
+## 26. Removed `events.ts` backward-compat shim
+
+**Decision**: Deleted `features/automations/events.ts` which was a 6-line re-export of `emitDomainEvent`, `subscribeToDomainEvents`, `unsubscribeAll` from `@/lib/events`.
+
+**Why**: No consumers imported from it. The barrel `index.ts` re-exported from it, but no external code imported those event functions from the automations barrel. Dead code.
+
+## 27. Extracted `ruleFactory.ts` from `useAutomationRules` hook
+
+**Decision**: Moved `createRuleWithMetadata()` from a module-level function in `hooks/useAutomationRules.ts` to `services/rules/ruleFactory.ts`.
+
+**Why**: Architecture rule #5 — no inline entity construction in components/hooks. The function generates `id` (via `uuidv4()`), `createdAt`/`updatedAt` timestamps, and computes `order`. This is entity creation logic that belongs in the service layer.
+
+**Trade-off**: One more import in the hook. The function is now independently testable and reusable.
+
+## 28. Restructured `components/` into sub-folders
+
+**Decision**: Split the flat `components/` directory (33 files) into:
+
+| Sub-folder | Files | Responsibility |
+|-----------|-------|---------------|
+| `components/wizard/` | RuleDialog, StepTrigger, StepFilters, StepAction, StepReview | Multi-step rule creation/edit wizard |
+| `components/schedule/` | ScheduleConfigPanel, ScheduleHistoryView, DryRunDialog | Schedule-specific UI |
+| `components/` (root) | AutomationTab, RuleCard, RuleCardExecutionLog, RulePreview, SectionContextMenuItem, SectionPicker, DateOptionSelect, FilterRow, ProjectPickerDialog | Shared/top-level components |
+
+**Why**: The flat directory had 33 files (16 source + 17 tests). The wizard steps are tightly coupled to `RuleDialog` and never used independently. The schedule components are a cohesive group. Grouping makes navigation easier and clarifies which components are public vs internal.
+
+**Trade-off**: Deeper import paths for wizard steps. The barrel `index.ts` absorbs this for external consumers. Internal references use relative paths.
+
+## 29. Deleted stale planning documents
+
+**Decision**: Removed 4 `SCHEDULED-TRIGGERS-*.md` files (Architecture, PM Analysis, QA Analysis, UI/UX Analysis).
+
+**Why**: These were pre-implementation planning artifacts from the scheduled triggers feature. The feature is fully implemented and the runtime documentation (ARCHITECTURE.md, EXTENDING.md, DATA-FLOW.md) covers everything. Planning docs in the feature folder create noise and confusion about what's current.
+
+
+## 30. Extracted schedule config sub-components from ScheduleConfigPanel
+
+**Decision**: Split `ScheduleConfigPanel.tsx` (658 lines) into 5 files:
+
+| File | Lines | Responsibility |
+|------|-------|---------------|
+| `ScheduleConfigPanel.tsx` | 83 | Coordinator — routes to correct config, renders catch-up toggle |
+| `IntervalConfig.tsx` | 96 | Interval: value + unit (minutes/hours/days) with range clamping |
+| `CronConfig.tsx` | 295 | Cron: picker mode (daily/weekly/monthly tabs) or expression mode |
+| `OneTimeConfig.tsx` | 130 | One-time: date picker + time selectors + past-time warning |
+| `DueDateRelativeConfig.tsx` | 83 | Due-date-relative: offset + unit + direction (before/after) |
+
+**Why**: Classic Large Class smell — 4 self-contained sub-components plus helper functions all in one file. Each config component has its own state, callbacks, and rendering logic with zero coupling to the others. The coordinator just routes by `triggerType`.
+
+**How**: `ScheduleConfig` interface is exported from `ScheduleConfigPanel.tsx` so sub-components can import it. Helper functions (`getTodayISO`, `formatOneTimePreview`) moved with `OneTimeConfig`. `DAY_LABELS` constant moved with `CronConfig`.
+
+**Trade-off**: Sub-components import the `ScheduleConfig` type from the parent, creating a mild circular-ish dependency direction. Acceptable because it's a type-only import and the interface is stable.
+
+## 31. Extracted `ruleSaveService.ts` from RuleDialog's handleSave
+
+**Decision**: Moved entity construction logic from `RuleDialog.tsx`'s `handleSave` callback into `services/rules/ruleSaveService.ts`. Two functions: `buildRuleUpdates()` (for editing) and `buildNewRuleData()` (for creating).
+
+**Why**: Architecture rule #5 — no inline entity construction in components. The `handleSave` callback was building trigger and action objects with `as any` casts and duplicated object construction for create vs update paths. The service properly types the `Trigger` object instead of casting.
+
+**What moved**:
+- Trigger object construction (with schedule, lastEvaluatedAt, catchUpPolicy)
+- Action object construction
+- Auto-name generation (calls `buildPreviewString`/`buildPreviewParts`)
+- Section reference validation (for clearing `brokenReason`)
+
+**RuleDialog.tsx impact**: `handleSave` went from ~60 lines of inline construction to ~10 lines calling the service. Removed `buildPreviewParts`/`buildPreviewString` imports from the component.
+
+**Trade-off**: One more service file. The `Trigger` type still needs `as Trigger` cast in `buildTriggerObject` because the discriminated union can't be constructed generically — but the cast is now in one place instead of two.
+
+## 32. Removed Middle Man re-exports from rulePreviewService
+
+**Decision**: Updated 9 source files to import directly from canonical modules (`ruleMetadata.ts`, `formatters.ts`, `scheduleDescriptions.ts`) instead of through `rulePreviewService.ts` re-exports.
+
+**Why**: `rulePreviewService.ts` was a Middle Man — re-exporting symbols from 3 other modules "for backward compatibility." This added indirection, made dependency graphs inaccurate, and obscured the actual module boundaries. Consumers should import from the module that owns the symbol.
+
+**Remaining re-exports**: 5 symbols (`TRIGGER_META`, `ACTION_META`, `formatFilterDescription`, `describeSchedule`, `computeNextRunDescription`) are still re-exported because co-located test files import them from `rulePreviewService` and test files were not modified in this pass. These are annotated with a comment explaining why.
+
+**Import guideline**: New code should import from the canonical module:
+- Metadata → `ruleMetadata.ts`
+- Formatting → `formatters.ts`
+- Schedule text → `scheduleDescriptions.ts`
+- Preview building, config types, sentinel → `rulePreviewService.ts`

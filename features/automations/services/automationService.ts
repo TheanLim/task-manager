@@ -2,13 +2,13 @@ import type { TaskRepository, SectionRepository } from '@/lib/repositories/types
 import type { AutomationRuleRepository } from '../repositories/types';
 import type { TaskService } from '@/features/tasks/services/taskService';
 import type { AutomationRule, DomainEvent, EvaluationContext, RuleAction, BatchContext } from '../types';
-import { evaluateRules } from './ruleEngine';
-import { RuleExecutor } from './ruleExecutor';
+import { evaluateRules } from './evaluation/ruleEngine';
+import { RuleExecutor } from './execution/ruleExecutor';
 import {
   clearAllUndoSnapshots,
   pushUndoSnapshot,
   buildUndoSnapshot,
-} from './undoService';
+} from './execution/undoService';
 
 /**
  * Callback invoked when an automation rule executes successfully.
@@ -138,7 +138,8 @@ export class AutomationService {
     const newEvents = this.ruleExecutor.executeActions(filteredActions, event);
 
     // Undo + notifications only for top-level user-initiated events
-    if (event.depth === 0 && filteredActions.length > 0) {
+    // Skip notifications for schedule.fired events — the scheduler/UI handles its own toasts
+    if (event.depth === 0 && filteredActions.length > 0 && event.type !== 'schedule.fired') {
       this.buildUndoSnapshots(filteredActions, newEvents, rules, subtaskMap);
       this.notifyRuleExecutions(filteredActions, rules);
     }

@@ -15,7 +15,7 @@ import { SectionService } from '@/features/projects/services/sectionService';
 import { DependencyService } from '@/features/tasks/services/dependencyService';
 import { DependencyResolverImpl } from '@/features/tasks/services/dependencyResolver';
 import { LocalStorageAutomationRuleRepository } from '@/features/automations/repositories/localStorageAutomationRuleRepository';
-import { RuleExecutor } from '@/features/automations/services/ruleExecutor';
+import { RuleExecutor } from '@/features/automations/services/execution/ruleExecutor';
 import { AutomationService } from '@/features/automations/services/automationService';
 import { emitDomainEvent } from '@/lib/events';
 
@@ -43,11 +43,17 @@ export const sectionService = new SectionService(sectionRepository, taskReposito
 export const dependencyService = new DependencyService(dependencyRepository, dependencyResolver);
 
 // --- Automation services ---
+import { SystemClock } from '@/features/automations/services/scheduler/clock';
+import { BulkScheduleService } from '@/features/automations/services/scheduler/bulkScheduleService';
+
+const schedulerClock = new SystemClock();
+
 const ruleExecutor = new RuleExecutor(
   taskRepository,
   sectionRepository,
   taskService,
   automationRuleRepository,
+  schedulerClock,
 );
 
 export const automationService = new AutomationService(
@@ -58,14 +64,15 @@ export const automationService = new AutomationService(
   ruleExecutor,
 );
 
-// --- Scheduler services (scheduled triggers) ---
-import { SystemClock } from '@/features/automations/services/clock';
-import { SchedulerService } from '@/features/automations/services/schedulerService';
-import { SchedulerLeaderElection } from '@/features/automations/services/schedulerLeaderElection';
-import type { AutomationRule } from '@/features/automations/types';
-import type { ScheduleEvaluation } from '@/features/automations/services/scheduleEvaluator';
+export const bulkScheduleService = new BulkScheduleService(
+  automationRuleRepository,
+  schedulerClock,
+);
 
-const schedulerClock = new SystemClock();
+// --- Scheduler services (scheduled triggers) ---
+import { SchedulerService } from '@/features/automations/services/scheduler/schedulerService';
+import type { AutomationRule } from '@/features/automations/types';
+import type { ScheduleEvaluation } from '@/features/automations/services/scheduler/scheduleEvaluator';
 
 /**
  * Callback: routes scheduled rule firings into AutomationService.
@@ -88,11 +95,17 @@ function onScheduledRuleFired({ rule, evaluation }: { rule: AutomationRule; eval
     }
   } else {
     // Interval/cron: single event with rule ID as entityId
+    const trigger = rule.trigger as { schedule?: { intervalMinutes?: number } };
     const event = {
       type: 'schedule.fired' as const,
       entityId: rule.id,
       projectId: rule.projectId,
-      changes: { triggerType: rule.trigger.type },
+      changes: {
+        triggerType: rule.trigger.type,
+        ...(trigger.schedule?.intervalMinutes != null
+          ? { intervalMinutes: trigger.schedule.intervalMinutes }
+          : {}),
+      },
       previousValues: {},
       triggeredByRule: rule.id,
       depth: 0,
@@ -106,9 +119,4 @@ export const schedulerService = new SchedulerService(
   automationRuleRepository,
   taskRepository,
   onScheduledRuleFired,
-);
-
-export const schedulerLeaderElection = new SchedulerLeaderElection(
-  () => schedulerService.start(),
-  () => schedulerService.stop(),
 );

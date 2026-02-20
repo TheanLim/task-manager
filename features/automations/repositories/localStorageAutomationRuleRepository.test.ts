@@ -93,6 +93,7 @@ const automationRuleArb = fc.record({
   order: fc.integer(),
   createdAt: isoDateTimeArb,
   updatedAt: isoDateTimeArb,
+  bulkPausedAt: fc.oneof(isoDateTimeArb, fc.constant(null)),
 }) as fc.Arbitrary<AutomationRule>;
 
 describe('LocalStorageAutomationRuleRepository', () => {
@@ -375,7 +376,7 @@ describe('LocalStorageAutomationRuleRepository', () => {
       expect(rules.length).toBe(1);
       
       // Verify all fields are preserved exactly
-      expect(rules[0]).toEqual({ ...phase3Rule, recentExecutions: [] });
+      expect(rules[0]).toEqual({ ...phase3Rule, recentExecutions: [], bulkPausedAt: null });
     });
 
     it('should handle multiple rules with mixed Phase 1/2 and Phase 3 schemas', () => {
@@ -437,7 +438,7 @@ describe('LocalStorageAutomationRuleRepository', () => {
 
       // Phase 3 rule should be unchanged
       const unchangedPhase3 = rules.find(r => r.id === 'rule-2');
-      expect(unchangedPhase3).toEqual({ ...phase3Rule, recentExecutions: [] });
+      expect(unchangedPhase3).toEqual({ ...phase3Rule, recentExecutions: [], bulkPausedAt: null });
     });
   });
 

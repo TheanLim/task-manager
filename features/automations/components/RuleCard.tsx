@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { AlertTriangle, ArrowRight, Clock, GripVertical, MoreVertical } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { AlertTriangle, ArrowRight, Clock, Eye, GripVertical, MoreVertical } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Card, CardContent } from '@/components/ui/card';
@@ -25,8 +25,12 @@ import {
 import { Button } from '@/components/ui/button';
 import { RulePreview } from './RulePreview';
 import { RuleCardExecutionLog } from './RuleCardExecutionLog';
+import { ScheduleHistoryView } from './schedule/ScheduleHistoryView';
 import { ProjectPickerDialog } from './ProjectPickerDialog';
-import { TRIGGER_META, ACTION_META, formatRelativeTime } from '../services/rulePreviewService';
+import { TRIGGER_META, ACTION_META } from '../services/preview/ruleMetadata';
+import { formatRelativeTime } from '../services/preview/formatters';
+import { computeNextRunDescription } from '../services/preview/scheduleDescriptions';
+import { isScheduledTrigger } from '../types';
 import type { AutomationRule } from '../types';
 import type { Section } from '@/lib/schemas';
 
@@ -39,6 +43,9 @@ interface RuleCardProps {
   onDuplicateToProject: (ruleId: string, targetProjectId: string) => void;
   onDelete: (ruleId: string) => void;
   onToggle: (ruleId: string) => void;
+  onPreview?: (ruleId: string) => void;
+  onRunNow?: (ruleId: string) => void;
+  onReschedule?: (ruleId: string) => void;
 }
 
 // Category color mapping for badges
@@ -65,6 +72,9 @@ export function RuleCard({
   onDuplicateToProject,
   onDelete,
   onToggle,
+  onPreview,
+  onRunNow,
+  onReschedule,
 }: RuleCardProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -74,6 +84,16 @@ export function RuleCard({
 
   // Check if rule is broken
   const isBroken = rule.brokenReason !== null;
+
+  // Check if this is a fired one-time rule
+  const isFiredOneTime = rule.trigger.type === 'scheduled_one_time' && !rule.enabled;
+
+  // Force re-render every 30s so "Last fired" timestamp stays fresh
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   // Sortable drag-and-drop
   const {
@@ -119,7 +139,12 @@ export function RuleCard({
                   )}
                   {rule.name}
                 </h3>
-                {!rule.enabled && (
+                {!rule.enabled && isFiredOneTime && (
+                  <Badge variant="outline" className="text-xs text-muted-foreground">
+                    Fired
+                  </Badge>
+                )}
+                {!rule.enabled && !isFiredOneTime && (
                   <Badge variant="secondary" className="text-xs">
                     Paused
                   </Badge>
@@ -157,6 +182,22 @@ export function RuleCard({
                   <DropdownMenuItem onClick={() => onEdit(rule.id)}>
                     Edit
                   </DropdownMenuItem>
+                  {isScheduledTrigger(rule.trigger) && onPreview && (
+                    <DropdownMenuItem onClick={() => onPreview(rule.id)}>
+                      <Eye className="h-4 w-4 mr-2" />
+                      Preview
+                    </DropdownMenuItem>
+                  )}
+                  {isScheduledTrigger(rule.trigger) && onRunNow && (
+                    <DropdownMenuItem onClick={() => onRunNow(rule.id)}>
+                      Run Now
+                    </DropdownMenuItem>
+                  )}
+                  {isFiredOneTime && onReschedule && (
+                    <DropdownMenuItem onClick={() => onReschedule(rule.id)}>
+                      Reschedule
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSub>
                     <DropdownMenuSubTrigger>Duplicate</DropdownMenuSubTrigger>
                     <DropdownMenuSubContent>
@@ -224,8 +265,19 @@ export function RuleCard({
             fired {rule.lastExecutedAt ? formatRelativeTime(rule.lastExecutedAt) : 'Never'}
           </div>
 
-          {/* Execution log */}
-          <RuleCardExecutionLog entries={rule.recentExecutions ?? []} />
+          {/* Next run line for one-time triggers */}
+          {rule.trigger.type === 'scheduled_one_time' && (
+            <div className="text-xs text-muted-foreground">
+              {computeNextRunDescription(rule.trigger, Date.now(), rule.enabled)}
+            </div>
+          )}
+
+          {/* Execution log — scheduled rules use aggregated history view */}
+          {isScheduledTrigger(rule.trigger) ? (
+            <ScheduleHistoryView entries={rule.recentExecutions ?? []} />
+          ) : (
+            <RuleCardExecutionLog entries={rule.recentExecutions ?? []} />
+          )}
         </div>
       </CardContent>
 

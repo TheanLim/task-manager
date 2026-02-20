@@ -263,6 +263,69 @@ export function FilterRow({ filter, sections, onChange, onRemove }: FilterRowPro
     );
   }
 
+  // Age / activity / section duration filters: "[Label] [N] [days ▾]"
+  if (
+    filter.type === 'created_more_than' ||
+    filter.type === 'completed_more_than' ||
+    filter.type === 'last_updated_more_than' ||
+    filter.type === 'not_modified_in' ||
+    filter.type === 'overdue_by_more_than' ||
+    filter.type === 'in_section_for_more_than'
+  ) {
+    const AGE_FILTER_LABELS: Record<string, string> = {
+      created_more_than: 'Created more than',
+      completed_more_than: 'Completed more than',
+      last_updated_more_than: 'Not updated in',
+      not_modified_in: 'Not modified in',
+      overdue_by_more_than: 'Overdue by more than',
+      in_section_for_more_than: 'In section for more than',
+    };
+
+    return (
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-sm">{AGE_FILTER_LABELS[filter.type]}</span>
+        <Input
+          type="number"
+          min="1"
+          value={filter.value}
+          onChange={(e) =>
+            onChange({
+              ...filter,
+              value: parseInt(e.target.value, 10) || 1,
+            })
+          }
+          className="w-[80px]"
+        />
+        <Select
+          value={filter.unit}
+          onValueChange={(value) =>
+            onChange({
+              ...filter,
+              unit: value as 'days' | 'working_days',
+            })
+          }
+        >
+          <SelectTrigger className="w-[140px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="days">days</SelectItem>
+            <SelectItem value="working_days">working days</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={onRemove}
+          className="h-8 w-8"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+    );
+  }
+
   // Fallback for unknown filter types
   return null;
 }

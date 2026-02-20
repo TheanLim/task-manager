@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fc from 'fast-check';
 import { AutomationService } from './automationService';
-import { RuleExecutor } from './ruleExecutor';
+import { RuleExecutor } from './execution/ruleExecutor';
 import type {
   DomainEvent,
   AutomationRule,
@@ -766,7 +766,7 @@ import {
   performUndo,
   performUndoById,
   UNDO_EXPIRY_MS,
-} from './undoService';
+} from './execution/undoService';
 import type { UndoSnapshot } from '../types';
 
 describe('Undo snapshot capture (Task 5.1)', () => {
@@ -2813,5 +2813,409 @@ describe('Regression: circular mark_complete ↔ move rules produce single toast
     expect(toastCallbacks).toHaveLength(1);
     expect(toastCallbacks[0].ruleId).toBe('rule-a');
     expect(toastCallbacks[0].ruleName).toBe('Done → Complete');
+  });
+});
+
+// ============================================================================
+// Regression: schedule.fired events should NOT produce automation toasts
+// Manual "Run Now" shows its own toast — the automation notification is redundant
+// ============================================================================
+
+describe('schedule.fired events suppress automation toasts', () => {
+  let taskRepo: MockTaskRepository;
+  let sectionRepo: MockSectionRepository;
+  let ruleRepo: MockAutomationRuleRepository;
+  let taskService: MockTaskService;
+
+  beforeEach(() => {
+    taskRepo = new MockTaskRepository();
+    sectionRepo = new MockSectionRepository();
+    ruleRepo = new MockAutomationRuleRepository();
+    taskService = new MockTaskService(taskRepo);
+  });
+
+  it('schedule.fired event does NOT trigger notification callback', () => {
+    // Set up a section and a scheduled rule with create_card action
+    sectionRepo.create({
+      id: 'section-1',
+      projectId: 'proj-1',
+      name: 'To Do',
+      order: 0,
+      collapsed: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    const rule: AutomationRule = {
+      id: 'sched-rule-1',
+      projectId: 'proj-1',
+      name: 'Create standup card',
+      trigger: {
+        type: 'scheduled_interval',
+        sectionId: null,
+        schedule: { kind: 'interval', intervalMinutes: 5 },
+        lastEvaluatedAt: null,
+      },
+      filters: [],
+      action: {
+        type: 'create_card',
+        sectionId: 'section-1',
+        dateOption: null,
+        position: null,
+        cardTitle: 'Standup',
+        cardDateOption: null,
+        specificMonth: null,
+        specificDay: null,
+        monthTarget: null,
+      },
+      enabled: true,
+      brokenReason: null,
+      executionCount: 0,
+      lastExecutedAt: null,
+      recentExecutions: [],
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    } as AutomationRule;
+    ruleRepo.create(rule);
+
+    const toasts: Array<{ ruleName: string }> = [];
+    const ruleExecutor = new RuleExecutor(taskRepo, sectionRepo, taskService as any, ruleRepo);
+    const service = new AutomationService(
+      ruleRepo, taskRepo, sectionRepo, taskService as any, ruleExecutor, 5,
+      (params: any) => toasts.push(params),
+    );
+
+    // Fire a schedule.fired event (simulating what the scheduler does)
+    const event: DomainEvent = {
+      type: 'schedule.fired',
+      entityId: rule.id,
+      projectId: 'proj-1',
+      changes: { triggerType: 'scheduled_interval', intervalMinutes: 5 },
+      previousValues: {},
+      triggeredByRule: rule.id,
+      depth: 0,
+    };
+
+    service.handleEvent(event);
+
+    // The action should have executed (task created)
+    const tasks = taskRepo.findAll();
+    expect(tasks.length).toBeGreaterThanOrEqual(1);
+
+    // But NO automation toast should have fired
+    expect(toasts).toHaveLength(0);
+  });
+
+  it('user-initiated task.updated event DOES trigger notification callback', () => {
+    // Set up task, sections, and a move rule
+    taskRepo.create({
+      id: 'task-1',
+      projectId: 'proj-1',
+      parentTaskId: null,
+      sectionId: 'section-a',
+      description: 'Test task',
+      notes: '',
+      assignee: '',
+      priority: 'none',
+      tags: [],
+      dueDate: null,
+      completed: false,
+      completedAt: null,
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    } as Task);
+
+    sectionRepo.create({
+      id: 'section-a',
+      projectId: 'proj-1',
+      name: 'To Do',
+      order: 0,
+      collapsed: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    sectionRepo.create({
+      id: 'section-b',
+      projectId: 'proj-1',
+      name: 'Done',
+      order: 1,
+      collapsed: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    const rule: AutomationRule = {
+      id: 'event-rule-1',
+      projectId: 'proj-1',
+      name: 'Move to Done',
+      trigger: {
+        type: 'card_moved_into_section',
+        sectionId: 'section-a',
+      },
+      filters: [],
+      action: {
+        type: 'move_card_to_top_of_section',
+        sectionId: 'section-b',
+        dateOption: null,
+        position: 'top',
+        cardTitle: null,
+        cardDateOption: null,
+        specificMonth: null,
+        specificDay: null,
+        monthTarget: null,
+      },
+      enabled: true,
+      brokenReason: null,
+      executionCount: 0,
+      lastExecutedAt: null,
+      recentExecutions: [],
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    } as AutomationRule;
+    ruleRepo.create(rule);
+
+    const toasts: Array<{ ruleName: string }> = [];
+    const ruleExecutor = new RuleExecutor(taskRepo, sectionRepo, taskService as any, ruleRepo);
+    const service = new AutomationService(
+      ruleRepo, taskRepo, sectionRepo, taskService as any, ruleExecutor, 5,
+      (params: any) => toasts.push(params),
+    );
+
+    // Fire a user-initiated event
+    const event: DomainEvent = {
+      type: 'task.updated',
+      entityId: 'task-1',
+      projectId: 'proj-1',
+      changes: { sectionId: 'section-a' },
+      previousValues: { sectionId: 'section-old' },
+      depth: 0,
+    };
+
+    service.handleEvent(event);
+
+    // User-initiated events SHOULD produce toasts
+    expect(toasts.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// ============================================================================
+// Regression: create_card scheduled rule should create exactly ONE task per fire
+// User reported: 0 existing tasks → 3 created; 3 existing → 4 created (should be +1 each time)
+// ============================================================================
+
+describe('create_card scheduled rule creates exactly one task per fire', () => {
+  let taskRepo: MockTaskRepository;
+  let sectionRepo: MockSectionRepository;
+  let ruleRepo: MockAutomationRuleRepository;
+  let taskService: MockTaskService;
+
+  beforeEach(() => {
+    taskRepo = new MockTaskRepository();
+    sectionRepo = new MockSectionRepository();
+    ruleRepo = new MockAutomationRuleRepository();
+    taskService = new MockTaskService(taskRepo);
+  });
+
+  function setupCreateCardRule() {
+    sectionRepo.create({
+      id: 'section-1',
+      projectId: 'proj-1',
+      name: 'To Do',
+      order: 0,
+      collapsed: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    const rule: AutomationRule = {
+      id: 'sched-create-1',
+      projectId: 'proj-1',
+      name: 'Create standup card',
+      trigger: {
+        type: 'scheduled_interval',
+        sectionId: null,
+        schedule: { kind: 'interval', intervalMinutes: 5 },
+        lastEvaluatedAt: null,
+      },
+      filters: [],
+      action: {
+        type: 'create_card',
+        sectionId: 'section-1',
+        dateOption: null,
+        position: null,
+        cardTitle: 'Standup',
+        cardDateOption: null,
+        specificMonth: null,
+        specificDay: null,
+        monthTarget: null,
+      },
+      enabled: true,
+      brokenReason: null,
+      executionCount: 0,
+      lastExecutedAt: null,
+      recentExecutions: [],
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    } as AutomationRule;
+    ruleRepo.create(rule);
+    return rule;
+  }
+
+  it('with 0 existing tasks, creates exactly 1 task', () => {
+    setupCreateCardRule();
+
+    const ruleExecutor = new RuleExecutor(taskRepo, sectionRepo, taskService as any, ruleRepo);
+    const service = new AutomationService(
+      ruleRepo, taskRepo, sectionRepo, taskService as any, ruleExecutor, 5,
+    );
+
+    const event: DomainEvent = {
+      type: 'schedule.fired',
+      entityId: 'sched-create-1',
+      projectId: 'proj-1',
+      changes: { triggerType: 'scheduled_interval', intervalMinutes: 5 },
+      previousValues: {},
+      triggeredByRule: 'sched-create-1',
+      depth: 0,
+    };
+
+    const tasksBefore = taskRepo.findAll().length;
+    service.handleEvent(event);
+    const tasksAfter = taskRepo.findAll().length;
+
+    expect(tasksAfter - tasksBefore).toBe(1);
+  });
+
+  it('with 3 existing tasks, creates exactly 1 more task (not 3)', () => {
+    setupCreateCardRule();
+
+    // Add 3 existing tasks
+    for (let i = 0; i < 3; i++) {
+      taskRepo.create({
+        id: `existing-${i}`,
+        projectId: 'proj-1',
+        parentTaskId: null,
+        sectionId: 'section-1',
+        description: `Existing task ${i}`,
+        notes: '',
+        assignee: '',
+        priority: 'none',
+        tags: [],
+        dueDate: null,
+        completed: false,
+        completedAt: null,
+        order: i,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      } as Task);
+    }
+
+    const ruleExecutor = new RuleExecutor(taskRepo, sectionRepo, taskService as any, ruleRepo);
+    const service = new AutomationService(
+      ruleRepo, taskRepo, sectionRepo, taskService as any, ruleExecutor, 5,
+    );
+
+    const event: DomainEvent = {
+      type: 'schedule.fired',
+      entityId: 'sched-create-1',
+      projectId: 'proj-1',
+      changes: { triggerType: 'scheduled_interval', intervalMinutes: 5 },
+      previousValues: {},
+      triggeredByRule: 'sched-create-1',
+      depth: 0,
+    };
+
+    const tasksBefore = taskRepo.findAll().length;
+    service.handleEvent(event);
+    const tasksAfter = taskRepo.findAll().length;
+
+    // Should create exactly 1 task, not 1 per existing task
+    expect(tasksAfter - tasksBefore).toBe(1);
+  });
+
+  it('with 10 existing tasks, still creates exactly 1 task', () => {
+    setupCreateCardRule();
+
+    for (let i = 0; i < 10; i++) {
+      taskRepo.create({
+        id: `existing-${i}`,
+        projectId: 'proj-1',
+        parentTaskId: null,
+        sectionId: 'section-1',
+        description: `Task ${i}`,
+        notes: '',
+        assignee: '',
+        priority: 'none',
+        tags: [],
+        dueDate: null,
+        completed: false,
+        completedAt: null,
+        order: i,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      } as Task);
+    }
+
+    const ruleExecutor = new RuleExecutor(taskRepo, sectionRepo, taskService as any, ruleRepo);
+    const service = new AutomationService(
+      ruleRepo, taskRepo, sectionRepo, taskService as any, ruleExecutor, 5,
+    );
+
+    const event: DomainEvent = {
+      type: 'schedule.fired',
+      entityId: 'sched-create-1',
+      projectId: 'proj-1',
+      changes: { triggerType: 'scheduled_interval', intervalMinutes: 5 },
+      previousValues: {},
+      triggeredByRule: 'sched-create-1',
+      depth: 0,
+    };
+
+    const tasksBefore = taskRepo.findAll().length;
+    service.handleEvent(event);
+    const tasksAfter = taskRepo.findAll().length;
+
+    expect(tasksAfter - tasksBefore).toBe(1);
+  });
+});
+
+// ============================================================================
+// Regression: HMR listener accumulation — unsubscribeAll prevents duplicate handlers
+// ============================================================================
+
+describe('domain event listener dedup (HMR safety)', () => {
+  it('emitDomainEvent calls handler exactly once even after simulated HMR re-registration', async () => {
+    const events = await import('@/lib/events');
+
+    const handler = vi.fn();
+
+    // Simulate HMR: subscribe, then "re-evaluate module" by subscribing again
+    // WITHOUT unsubscribeAll, this would accumulate listeners
+    events.unsubscribeAll();
+    events.subscribeToDomainEvents(handler);
+
+    // Simulate second HMR cycle
+    events.unsubscribeAll();
+    events.subscribeToDomainEvents(handler);
+
+    // Emit an event
+    events.emitDomainEvent({
+      type: 'task.updated',
+      entityId: 'task-1',
+      projectId: 'proj-1',
+      changes: {},
+      previousValues: {},
+      depth: 0,
+    });
+
+    // Should be called exactly once, not twice
+    expect(handler).toHaveBeenCalledTimes(1);
+
+    // Cleanup
+    events.unsubscribeAll();
   });
 });

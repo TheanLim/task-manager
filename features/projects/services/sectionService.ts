@@ -2,7 +2,7 @@ import type { UUID } from '@/types';
 import type { Section } from '@/lib/schemas';
 import type { TaskRepository, SectionRepository } from '@/lib/repositories/types';
 import type { AutomationRuleRepository } from '@/features/automations/repositories/types';
-import { detectBrokenRules } from '@/features/automations/services/brokenRuleDetector';
+import { detectBrokenRules } from '@/features/automations/services/rules/brokenRuleDetector';
 import { v4 as uuidv4 } from 'uuid';
 
 /**

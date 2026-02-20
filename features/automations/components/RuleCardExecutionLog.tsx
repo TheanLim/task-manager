@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ChevronRight, ChevronDown, Activity } from 'lucide-react';
-import { formatRelativeTime } from '../services/rulePreviewService';
+import { formatRelativeTime } from '../services/preview/formatters';
 import type { ExecutionLogEntry } from '../types';
 
 interface RuleCardExecutionLogProps {
@@ -11,6 +11,12 @@ interface RuleCardExecutionLogProps {
 
 export function RuleCardExecutionLog({ entries }: RuleCardExecutionLogProps) {
   const [open, setOpen] = useState(false);
+  // Force re-render every 30s so relative timestamps stay fresh
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   return (
     <div className="border-t pt-2">

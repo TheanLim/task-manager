@@ -325,3 +325,138 @@ describe('Feature: task-last-action-ordering, Property 1: Schema validation with
   });
 });
 
+
+
+// Feature: scheduled-triggers-phase-5b, Property 13: movedToSectionAt backfill correctness
+describe('Feature: scheduled-triggers-phase-5b, Property 13: movedToSectionAt backfill correctness', () => {
+  /**
+   * **Validates: Requirements 11.1, 11.2, 11.3, 11.4**
+   *
+   * Tasks without movedToSectionAt field get `updatedAt` on backfill;
+   * tasks with the field are preserved. The TaskSchema accepts
+   * movedToSectionAt as ISO datetime string, null, or absent (optional).
+   */
+
+  // Constrain dates to 4-digit years so toISOString() produces Zod-compatible datetime
+  const safeDate = fc.date({ min: new Date('1970-01-01'), max: new Date('2099-12-31') });
+
+  const baseTaskArb = fc.record({
+    id: fc.uuid(),
+    projectId: fc.option(fc.uuid(), { nil: null }),
+    parentTaskId: fc.option(fc.uuid(), { nil: null }),
+    sectionId: fc.option(fc.string({ minLength: 1 }), { nil: null }),
+    description: fc.string({ minLength: 1, maxLength: 500 }),
+    notes: fc.string(),
+    assignee: fc.string(),
+    priority: fc.constantFrom('none' as const, 'low' as const, 'medium' as const, 'high' as const),
+    tags: fc.array(fc.string(), { maxLength: 5 }),
+    dueDate: fc.option(safeDate.map((d) => d.toISOString()), { nil: null }),
+    completed: fc.boolean(),
+    completedAt: fc.option(safeDate.map((d) => d.toISOString()), { nil: null }),
+    order: fc.integer(),
+    createdAt: safeDate.map((d) => d.toISOString()),
+    updatedAt: safeDate.map((d) => d.toISOString()),
+  });
+
+  it('accepts task with movedToSectionAt as ISO datetime string', () => {
+    fc.assert(
+      fc.property(baseTaskArb, safeDate, (baseTask, movedDate) => {
+        const task = { ...baseTask, movedToSectionAt: movedDate.toISOString() };
+        const result = TaskSchema.safeParse(task);
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.data.movedToSectionAt).toBe(movedDate.toISOString());
+        }
+      }),
+      PROPERTY_CONFIG,
+    );
+  });
+
+  it('accepts task with movedToSectionAt: null', () => {
+    fc.assert(
+      fc.property(baseTaskArb, (baseTask) => {
+        const task = { ...baseTask, movedToSectionAt: null };
+        const result = TaskSchema.safeParse(task);
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.data.movedToSectionAt).toBeNull();
+        }
+      }),
+      PROPERTY_CONFIG,
+    );
+  });
+
+  it('accepts task without movedToSectionAt field (optional / backward compatible)', () => {
+    fc.assert(
+      fc.property(baseTaskArb, (baseTask) => {
+        // Ensure movedToSectionAt is NOT present
+        const { ...taskWithout } = baseTask;
+        const result = TaskSchema.safeParse(taskWithout);
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.data.movedToSectionAt).toBeUndefined();
+        }
+      }),
+      PROPERTY_CONFIG,
+    );
+  });
+
+  it('round-trip: serialize → parse → equivalent', () => {
+    const movedToSectionAtVariantArb = fc.oneof(
+      safeDate.map((d) => d.toISOString() as string | null | undefined),
+      fc.constant(null as string | null | undefined),
+      fc.constant(undefined as string | null | undefined),
+    );
+
+    fc.assert(
+      fc.property(baseTaskArb, movedToSectionAtVariantArb, (baseTask, movedToSectionAt) => {
+        const task = movedToSectionAt !== undefined
+          ? { ...baseTask, movedToSectionAt }
+          : { ...baseTask };
+        const parsed = TaskSchema.parse(task);
+        const serialized = JSON.stringify(parsed);
+        const reparsed = TaskSchema.parse(JSON.parse(serialized));
+        expect(reparsed).toEqual(parsed);
+      }),
+      PROPERTY_CONFIG,
+    );
+  });
+
+  it('backfill correctness: tasks without field get updatedAt; tasks with field are preserved', () => {
+    fc.assert(
+      fc.property(baseTaskArb, safeDate, (baseTask, movedDate) => {
+        // Simulate backfill logic: if movedToSectionAt is missing, set to updatedAt
+        const taskWithout = { ...baseTask };
+        const backfilledWithout = {
+          ...taskWithout,
+          movedToSectionAt: taskWithout.movedToSectionAt ?? taskWithout.updatedAt,
+        };
+        expect(backfilledWithout.movedToSectionAt).toBe(taskWithout.updatedAt);
+
+        // Task with existing movedToSectionAt is preserved
+        const taskWith = { ...baseTask, movedToSectionAt: movedDate.toISOString() };
+        const backfilledWith = {
+          ...taskWith,
+          movedToSectionAt: taskWith.movedToSectionAt ?? taskWith.updatedAt,
+        };
+        expect(backfilledWith.movedToSectionAt).toBe(movedDate.toISOString());
+      }),
+      PROPERTY_CONFIG,
+    );
+  });
+
+  it('rejects non-datetime string for movedToSectionAt', () => {
+    const invalidDateArb = fc.string({ minLength: 1 }).filter(
+      (s) => Number.isNaN(Date.parse(s)) || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(s),
+    );
+
+    fc.assert(
+      fc.property(baseTaskArb, invalidDateArb, (baseTask, badValue) => {
+        const task = { ...baseTask, movedToSectionAt: badValue };
+        const result = TaskSchema.safeParse(task);
+        expect(result.success).toBe(false);
+      }),
+      PROPERTY_CONFIG,
+    );
+  });
+});

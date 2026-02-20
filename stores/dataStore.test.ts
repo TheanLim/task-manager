@@ -8,6 +8,7 @@ import {
   sectionRepository,
   dependencyRepository,
   automationRuleRepository,
+  backfillMovedToSectionAt,
 } from './dataStore';
 import { subscribeToDomainEvents } from '@/lib/events';
 import type { Project, Task, Section, TaskDependency } from '@/types';
@@ -500,6 +501,7 @@ describe('useDataStore', () => {
         order: 0,
         createdAt: '2025-01-01T00:00:00.000Z',
         updatedAt: '2025-01-01T00:00:00.000Z',
+        bulkPausedAt: null,
       };
 
       automationRuleRepository.create(rule);
@@ -554,6 +556,7 @@ describe('useDataStore', () => {
         order: 0,
         createdAt: '2025-01-01T00:00:00.000Z',
         updatedAt: '2025-01-01T00:00:00.000Z',
+        bulkPausedAt: null,
       };
 
       automationRuleRepository.create(rule);
@@ -1115,6 +1118,7 @@ describe('Automation Rules Integration', () => {
       order: 0,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      bulkPausedAt: null,
     };
 
     // Create rule directly in repository
@@ -1155,6 +1159,7 @@ describe('Automation Rules Integration', () => {
       order: 0,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      bulkPausedAt: null,
     };
 
     automationRuleRepository.create(rule);
@@ -1205,6 +1210,7 @@ describe('Automation Rules Integration', () => {
       order: 0,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      bulkPausedAt: null,
     };
 
     useDataStore.getState().addProject(project);
@@ -1465,5 +1471,283 @@ describe('Domain Event Emission', () => {
     expect(emittedEvent.previousValues.name).toBe('Original Name');
 
     unsubscribe();
+  });
+});
+
+
+// ============================================================================
+// Feature: scheduled-triggers-phase-5b, Property 3: movedToSectionAt update invariant
+// movedToSectionAt changes iff sectionId changes
+// **Validates: Requirements 5.2, 5.3, 5.4**
+// ============================================================================
+describe('Feature: scheduled-triggers-phase-5b, Property 3: movedToSectionAt update invariant', () => {
+  beforeEach(() => {
+    localStorageBackend.reset();
+  });
+
+  it('update task with new sectionId → movedToSectionAt set to current time', () => {
+    const now = new Date();
+    const task: Task = {
+      id: 'task-msa-1',
+      projectId: 'project-1',
+      parentTaskId: null,
+      sectionId: 'section-a',
+      description: 'Test Task',
+      notes: '',
+      assignee: '',
+      priority: Priority.NONE,
+      tags: [],
+      dueDate: null,
+      completed: false,
+      completedAt: null,
+      order: 0,
+      createdAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-01-01T00:00:00.000Z',
+      movedToSectionAt: '2024-01-01T00:00:00.000Z',
+    };
+
+    useDataStore.getState().addTask(task);
+
+    const beforeUpdate = Date.now();
+    useDataStore.getState().updateTask('task-msa-1', { sectionId: 'section-b' });
+    const afterUpdate = Date.now();
+
+    const updatedTask = useDataStore.getState().tasks[0];
+    expect(updatedTask.sectionId).toBe('section-b');
+    expect(updatedTask.movedToSectionAt).toBeDefined();
+    // movedToSectionAt should be a recent timestamp
+    const movedAt = new Date(updatedTask.movedToSectionAt!).getTime();
+    expect(movedAt).toBeGreaterThanOrEqual(beforeUpdate);
+    expect(movedAt).toBeLessThanOrEqual(afterUpdate);
+  });
+
+  it('update task without changing sectionId → movedToSectionAt preserved', () => {
+    const originalMovedAt = '2024-06-15T12:00:00.000Z';
+    const task: Task = {
+      id: 'task-msa-2',
+      projectId: 'project-1',
+      parentTaskId: null,
+      sectionId: 'section-a',
+      description: 'Test Task',
+      notes: '',
+      assignee: '',
+      priority: Priority.NONE,
+      tags: [],
+      dueDate: null,
+      completed: false,
+      completedAt: null,
+      order: 0,
+      createdAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-01-01T00:00:00.000Z',
+      movedToSectionAt: originalMovedAt,
+    };
+
+    useDataStore.getState().addTask(task);
+
+    // Update description only — no sectionId change
+    useDataStore.getState().updateTask('task-msa-2', { description: 'Updated description' });
+
+    const updatedTask = useDataStore.getState().tasks[0];
+    expect(updatedTask.movedToSectionAt).toBe(originalMovedAt);
+  });
+
+  it('update task with same sectionId explicitly → movedToSectionAt preserved', () => {
+    const originalMovedAt = '2024-06-15T12:00:00.000Z';
+    const task: Task = {
+      id: 'task-msa-3',
+      projectId: 'project-1',
+      parentTaskId: null,
+      sectionId: 'section-a',
+      description: 'Test Task',
+      notes: '',
+      assignee: '',
+      priority: Priority.NONE,
+      tags: [],
+      dueDate: null,
+      completed: false,
+      completedAt: null,
+      order: 0,
+      createdAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-01-01T00:00:00.000Z',
+      movedToSectionAt: originalMovedAt,
+    };
+
+    useDataStore.getState().addTask(task);
+
+    // Explicitly pass same sectionId
+    useDataStore.getState().updateTask('task-msa-3', { sectionId: 'section-a' });
+
+    const updatedTask = useDataStore.getState().tasks[0];
+    expect(updatedTask.movedToSectionAt).toBe(originalMovedAt);
+  });
+
+  // Property-based test: movedToSectionAt changes iff sectionId changes
+  it('property: movedToSectionAt changes iff sectionId changes (fast-check)', () => {
+    fc.assert(
+      fc.property(
+        fc.string({ minLength: 1, maxLength: 20 }),  // original sectionId
+        fc.string({ minLength: 1, maxLength: 20 }),  // new sectionId (may be same)
+        fc.date({ min: new Date('2023-01-01'), max: new Date('2025-12-31') }).map(d => d.toISOString()),  // original movedToSectionAt
+        (originalSectionId, newSectionId, originalMovedAt) => {
+          localStorageBackend.reset();
+
+          const task: Task = {
+            id: 'task-prop-msa',
+            projectId: 'project-1',
+            parentTaskId: null,
+            sectionId: originalSectionId,
+            description: 'Property test task',
+            notes: '',
+            assignee: '',
+            priority: Priority.NONE,
+            tags: [],
+            dueDate: null,
+            completed: false,
+            completedAt: null,
+            order: 0,
+            createdAt: '2024-01-01T00:00:00.000Z',
+            updatedAt: '2024-01-01T00:00:00.000Z',
+            movedToSectionAt: originalMovedAt,
+          };
+
+          useDataStore.getState().addTask(task);
+          useDataStore.getState().updateTask('task-prop-msa', { sectionId: newSectionId });
+
+          const updatedTask = useDataStore.getState().tasks[0];
+          const sectionChanged = originalSectionId !== newSectionId;
+
+          if (sectionChanged) {
+            // movedToSectionAt should have changed to a new timestamp
+            expect(updatedTask.movedToSectionAt).not.toBe(originalMovedAt);
+          } else {
+            // movedToSectionAt should be preserved
+            expect(updatedTask.movedToSectionAt).toBe(originalMovedAt);
+          }
+        },
+      ),
+      { numRuns: 100 },
+    );
+  });
+});
+
+// ============================================================================
+// Backfill migration tests for movedToSectionAt
+// **Validates: Requirements 11.1, 11.2, 11.3**
+// ============================================================================
+describe('movedToSectionAt backfill migration', () => {
+  beforeEach(() => {
+    localStorageBackend.reset();
+  });
+
+  it('task without movedToSectionAt gets updatedAt value on backfill', () => {
+    const task: Task = {
+      id: 'task-backfill-1',
+      projectId: 'project-1',
+      parentTaskId: null,
+      sectionId: 'section-a',
+      description: 'Legacy task',
+      notes: '',
+      assignee: '',
+      priority: Priority.NONE,
+      tags: [],
+      dueDate: null,
+      completed: false,
+      completedAt: null,
+      order: 0,
+      createdAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-03-15T10:30:00.000Z',
+    };
+
+    // Add task without movedToSectionAt
+    useDataStore.getState().addTask(task);
+
+    // Run backfill
+    backfillMovedToSectionAt();
+
+    const backfilledTask = taskRepository.findById('task-backfill-1')!;
+    expect(backfilledTask.movedToSectionAt).toBe('2024-03-15T10:30:00.000Z');
+  });
+
+  it('task with existing movedToSectionAt is not overwritten on backfill', () => {
+    const existingMovedAt = '2024-06-01T08:00:00.000Z';
+    const task: Task = {
+      id: 'task-backfill-2',
+      projectId: 'project-1',
+      parentTaskId: null,
+      sectionId: 'section-a',
+      description: 'Task with movedToSectionAt',
+      notes: '',
+      assignee: '',
+      priority: Priority.NONE,
+      tags: [],
+      dueDate: null,
+      completed: false,
+      completedAt: null,
+      order: 0,
+      createdAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-03-15T10:30:00.000Z',
+      movedToSectionAt: existingMovedAt,
+    };
+
+    useDataStore.getState().addTask(task);
+
+    // Run backfill
+    backfillMovedToSectionAt();
+
+    const backfilledTask = taskRepository.findById('task-backfill-2')!;
+    expect(backfilledTask.movedToSectionAt).toBe(existingMovedAt);
+  });
+
+  it('backfill handles mix of tasks with and without movedToSectionAt', () => {
+    const taskWithout: Task = {
+      id: 'task-mix-1',
+      projectId: 'project-1',
+      parentTaskId: null,
+      sectionId: 'section-a',
+      description: 'Legacy task',
+      notes: '',
+      assignee: '',
+      priority: Priority.NONE,
+      tags: [],
+      dueDate: null,
+      completed: false,
+      completedAt: null,
+      order: 0,
+      createdAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-02-01T00:00:00.000Z',
+    };
+
+    const existingMovedAt = '2024-05-01T00:00:00.000Z';
+    const taskWith: Task = {
+      id: 'task-mix-2',
+      projectId: 'project-1',
+      parentTaskId: null,
+      sectionId: 'section-b',
+      description: 'Modern task',
+      notes: '',
+      assignee: '',
+      priority: Priority.NONE,
+      tags: [],
+      dueDate: null,
+      completed: false,
+      completedAt: null,
+      order: 1,
+      createdAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-04-01T00:00:00.000Z',
+      movedToSectionAt: existingMovedAt,
+    };
+
+    useDataStore.getState().addTask(taskWithout);
+    useDataStore.getState().addTask(taskWith);
+
+    backfillMovedToSectionAt();
+
+    const t1 = taskRepository.findById('task-mix-1')!;
+    const t2 = taskRepository.findById('task-mix-2')!;
+
+    // Task without movedToSectionAt gets updatedAt
+    expect(t1.movedToSectionAt).toBe('2024-02-01T00:00:00.000Z');
+    // Task with movedToSectionAt is preserved
+    expect(t2.movedToSectionAt).toBe(existingMovedAt);
   });
 });

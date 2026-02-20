@@ -1,10 +1,11 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import * as fc from 'fast-check';
 import { RuleCard } from './RuleCard';
 import type { AutomationRule } from '../types';
 import type { Section } from '@/lib/schemas';
+import type { DryRunResult } from '../services/rules/dryRunService';
 
 // Mock useDataStore for ProjectPickerDialog
 vi.mock('@/stores/dataStore', () => ({
@@ -362,6 +363,115 @@ describe('RuleCard', () => {
     });
   });
 
+  describe('Preview button for scheduled rules', () => {
+    function createScheduledRule(overrides?: Partial<AutomationRule>): AutomationRule {
+      return createMockRule({
+        trigger: {
+          type: 'scheduled_cron',
+          sectionId: null,
+          schedule: { kind: 'cron', hour: 9, minute: 0, daysOfWeek: [1], daysOfMonth: [] },
+          lastEvaluatedAt: null,
+          catchUpPolicy: 'catch_up_latest',
+        },
+        ...overrides,
+      });
+    }
+
+    it('"Preview" button appears in dropdown for scheduled rules', async () => {
+      const user = userEvent.setup();
+      const rule = createScheduledRule();
+      const onPreview = vi.fn();
+      render(<RuleCard rule={rule} {...defaultProps} onPreview={onPreview} />);
+
+      const menuButton = screen.getByRole('button', { name: /open menu/i });
+      await user.click(menuButton);
+
+      expect(screen.getByText('Preview')).toBeInTheDocument();
+    });
+
+    it('"Preview" button does NOT appear for event-driven rules', async () => {
+      const user = userEvent.setup();
+      const rule = createMockRule(); // event-driven trigger
+      const onPreview = vi.fn();
+      render(<RuleCard rule={rule} {...defaultProps} onPreview={onPreview} />);
+
+      const menuButton = screen.getByRole('button', { name: /open menu/i });
+      await user.click(menuButton);
+
+      expect(screen.queryByText('Preview')).not.toBeInTheDocument();
+    });
+
+    it('clicking "Preview" calls onPreview with rule id', async () => {
+      const user = userEvent.setup();
+      const rule = createScheduledRule({ id: 'sched-rule-1' });
+      const onPreview = vi.fn();
+      render(<RuleCard rule={rule} {...defaultProps} onPreview={onPreview} />);
+
+      const menuButton = screen.getByRole('button', { name: /open menu/i });
+      await user.click(menuButton);
+
+      const previewButton = screen.getByText('Preview');
+      await user.click(previewButton);
+
+      expect(onPreview).toHaveBeenCalledWith('sched-rule-1');
+    });
+  });
+
+  describe('ScheduleHistoryView for scheduled rules', () => {
+    it('renders ScheduleHistoryView instead of RuleCardExecutionLog for scheduled rules', async () => {
+      const user = userEvent.setup();
+      const rule = createMockRule({
+        trigger: {
+          type: 'scheduled_interval',
+          sectionId: null,
+          schedule: { kind: 'interval', intervalMinutes: 60 },
+          lastEvaluatedAt: null,
+          catchUpPolicy: 'catch_up_latest',
+        },
+        recentExecutions: [
+          {
+            timestamp: '2024-01-15T10:00:00Z',
+            triggerDescription: 'Every 60 minutes',
+            actionDescription: 'Moved to top of In Progress',
+            taskName: 'Aggregated',
+            matchCount: 5,
+            details: ['Task A', 'Task B'],
+            executionType: 'scheduled',
+          },
+        ],
+      });
+      render(<RuleCard rule={rule} {...defaultProps} />);
+
+      // Expand the log
+      await user.click(screen.getByRole('button', { name: /recent activity/i }));
+
+      // Should show execution type badge (ScheduleHistoryView behavior)
+      expect(screen.getByText('⚡ Scheduled')).toBeInTheDocument();
+      expect(screen.getByText(/5 tasks/)).toBeInTheDocument();
+    });
+
+    it('renders standard RuleCardExecutionLog for event-driven rules', async () => {
+      const user = userEvent.setup();
+      const rule = createMockRule({
+        recentExecutions: [
+          {
+            timestamp: '2024-01-15T10:00:00Z',
+            triggerDescription: 'Card moved into To Do',
+            actionDescription: 'Moved to top of In Progress',
+            taskName: 'My Task',
+          },
+        ],
+      });
+      render(<RuleCard rule={rule} {...defaultProps} />);
+
+      // Expand the log
+      await user.click(screen.getByRole('button', { name: /recent activity/i }));
+
+      // Should show standard format with task name (RuleCardExecutionLog behavior)
+      expect(screen.getByText(/Task: My Task/)).toBeInTheDocument();
+    });
+  });
+
   describe('Property 11: Rule card renders correct visual state', () => {
     it('validates Requirements 9.2, 9.3, 9.4, 14.4', () => {
       fc.assert(
@@ -417,5 +527,183 @@ describe('RuleCard', () => {
         { numRuns: 100 }
       );
     });
+  });
+});
+
+describe('RuleCard — "Last fired" auto-refresh', () => {
+  function createMockRuleForTimer(lastExecutedAt: string): AutomationRule {
+    return {
+      id: 'rule-timer',
+      projectId: 'proj-1',
+      name: 'Timer Test Rule',
+      trigger: { type: 'card_moved_into_section', sectionId: 'section-1' } as any,
+      filters: [],
+      action: { type: 'mark_card_complete', sectionId: null, dateOption: null, position: null, cardTitle: null, cardDateOption: null, specificMonth: null, specificDay: null, monthTarget: null },
+      enabled: true,
+      brokenReason: null,
+      executionCount: 1,
+      lastExecutedAt,
+      recentExecutions: [],
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  const defaultProps = {
+    sections: [{ id: 'section-1', projectId: 'proj-1', name: 'Done', order: 0, collapsed: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }] as Section[],
+    projectId: 'proj-1',
+    onEdit: vi.fn(),
+    onDuplicate: vi.fn(),
+    onDuplicateToProject: vi.fn(),
+    onDelete: vi.fn(),
+    onToggle: vi.fn(),
+  };
+
+  it('updates "Last fired" text after 30 seconds', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    try {
+      const tenSecondsAgo = new Date(Date.now() - 10_000).toISOString();
+      const rule = createMockRuleForTimer(tenSecondsAgo);
+
+      render(<RuleCard rule={rule} {...defaultProps} />);
+
+      // Initially "Just now" (10s < 60s)
+      expect(screen.getByText(/Last fired Just now/)).toBeInTheDocument();
+
+      // Advance 60s — now 70s old → "1m ago"
+      vi.advanceTimersByTime(60_000);
+
+      await vi.waitFor(() => {
+        expect(screen.getByText(/Last fired 1m ago/)).toBeInTheDocument();
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('RuleCard — one-time scheduled trigger (Task 14)', () => {
+  const mockHandlers = {
+    onEdit: vi.fn(),
+    onDuplicate: vi.fn(),
+    onDuplicateToProject: vi.fn(),
+    onDelete: vi.fn(),
+    onToggle: vi.fn(),
+    onPreview: vi.fn(),
+    onRunNow: vi.fn(),
+    onReschedule: vi.fn(),
+  };
+
+  const defaultProps = {
+    ...mockHandlers,
+    sections: mockSections,
+    projectId: 'project-1',
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function createOneTimeRule(overrides?: Partial<AutomationRule>): AutomationRule {
+    return createMockRule({
+      trigger: {
+        type: 'scheduled_one_time',
+        sectionId: null,
+        schedule: { kind: 'one_time', fireAt: '2025-03-15T15:00:00.000Z' },
+        lastEvaluatedAt: null,
+        catchUpPolicy: 'catch_up_latest',
+      },
+      ...overrides,
+    });
+  }
+
+  it('enabled one-time rule shows "Next run" line with "Fires on" description', () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date('2025-03-10T15:00:00.000Z'));
+
+    const rule = createOneTimeRule({ enabled: true });
+    render(<RuleCard rule={rule} {...defaultProps} />);
+
+    expect(screen.getByText(/Fires on Mar 15, 2025/)).toBeInTheDocument();
+  });
+
+  it('fired (disabled) one-time rule shows "Fired" badge', () => {
+    const rule = createOneTimeRule({ enabled: false });
+    render(<RuleCard rule={rule} {...defaultProps} />);
+
+    expect(screen.getByText('Fired')).toBeInTheDocument();
+  });
+
+  it('fired (disabled) one-time rule shows "Fired on" in next run line', () => {
+    const rule = createOneTimeRule({ enabled: false });
+    render(<RuleCard rule={rule} {...defaultProps} />);
+
+    expect(screen.getByText(/Fired on Mar 15, 2025/)).toBeInTheDocument();
+  });
+
+  it('fired one-time rule does NOT show "Fired" badge when enabled', () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date('2025-03-10T15:00:00.000Z'));
+
+    const rule = createOneTimeRule({ enabled: true });
+    render(<RuleCard rule={rule} {...defaultProps} />);
+
+    expect(screen.queryByText('Fired')).not.toBeInTheDocument();
+  });
+
+  it('dropdown menu for fired one-time rule includes "Reschedule" option', async () => {
+    const user = userEvent.setup();
+    const rule = createOneTimeRule({ enabled: false });
+    render(<RuleCard rule={rule} {...defaultProps} />);
+
+    const menuButton = screen.getByRole('button', { name: /open menu/i });
+    await user.click(menuButton);
+
+    expect(screen.getByText('Reschedule')).toBeInTheDocument();
+  });
+
+  it('"Reschedule" does NOT appear for enabled one-time rules', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date('2025-03-10T15:00:00.000Z'));
+
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const rule = createOneTimeRule({ enabled: true });
+    render(<RuleCard rule={rule} {...defaultProps} />);
+
+    const menuButton = screen.getByRole('button', { name: /open menu/i });
+    await user.click(menuButton);
+
+    expect(screen.queryByText('Reschedule')).not.toBeInTheDocument();
+  });
+
+  it('"Reschedule" does NOT appear for non-one-time rules', async () => {
+    const user = userEvent.setup();
+    const rule = createMockRule({ enabled: false }); // event-driven, disabled
+    render(<RuleCard rule={rule} {...defaultProps} />);
+
+    const menuButton = screen.getByRole('button', { name: /open menu/i });
+    await user.click(menuButton);
+
+    expect(screen.queryByText('Reschedule')).not.toBeInTheDocument();
+  });
+
+  it('clicking "Reschedule" calls onReschedule with rule id', async () => {
+    const user = userEvent.setup();
+    const rule = createOneTimeRule({ id: 'one-time-rule-1', enabled: false });
+    render(<RuleCard rule={rule} {...defaultProps} />);
+
+    const menuButton = screen.getByRole('button', { name: /open menu/i });
+    await user.click(menuButton);
+
+    const rescheduleButton = screen.getByText('Reschedule');
+    await user.click(rescheduleButton);
+
+    expect(mockHandlers.onReschedule).toHaveBeenCalledWith('one-time-rule-1');
   });
 });

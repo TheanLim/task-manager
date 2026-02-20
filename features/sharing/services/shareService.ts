@@ -3,7 +3,7 @@ import { TimeManagementSystem } from '@/types';
 import { validateAppState } from '@/features/sharing/services/importExport';
 import type { AutomationRuleRepository } from '@/features/automations/repositories/types';
 import type { AutomationRule } from '@/features/automations/types';
-import { validateImportedRules } from '@/features/automations/services/ruleImportExport';
+import { validateImportedRules } from '@/features/automations/services/rules/ruleImportExport';
 
 // LZMA global object interface (when loading lzma_worker.js directly)
 interface LZMAGlobal {

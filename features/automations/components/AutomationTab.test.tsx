@@ -8,6 +8,34 @@ import type { Section } from '@/lib/schemas';
 // Mock the useAutomationRules hook
 vi.mock('../hooks/useAutomationRules');
 
+// Mock bulkScheduleService from service container
+const mockPauseAllScheduled = vi.fn().mockReturnValue({ pausedCount: 0, pausedRuleIds: [] });
+const mockResumeAllScheduled = vi.fn().mockReturnValue({ resumedCount: 0, resumedRuleIds: [] });
+vi.mock('@/lib/serviceContainer', async (importOriginal) => {
+  const actual = await importOriginal() as any;
+  return {
+    ...actual,
+    bulkScheduleService: {
+      pauseAllScheduled: (...args: any[]) => mockPauseAllScheduled(...args),
+      resumeAllScheduled: (...args: any[]) => mockResumeAllScheduled(...args),
+    },
+    schedulerService: {
+      evaluateSingleRule: vi.fn(),
+    },
+  };
+});
+
+// Mock sonner toast
+const mockToastSuccess = vi.fn();
+const mockToastInfo = vi.fn();
+vi.mock('sonner', () => ({
+  toast: Object.assign(vi.fn(), {
+    success: (...args: any[]) => mockToastSuccess(...args),
+    info: (...args: any[]) => mockToastInfo(...args),
+    error: vi.fn(),
+  }),
+}));
+
 // Mock @dnd-kit/core — provide a passthrough DndContext for jsdom
 vi.mock('@dnd-kit/core', () => {
   const React = require('react');
@@ -51,7 +79,7 @@ const mockSections: Section[] = [
   { id: 'section-3', projectId: 'project-1', name: 'Done', order: 2, createdAt: '2024-01-01T00:00:00Z', updatedAt: '2024-01-01T00:00:00Z' },
 ];
 
-// Helper to create mock rules
+// Helper to create mock event-driven rules
 function createMockRule(id: string, name: string) {
   return {
     id,
@@ -69,11 +97,42 @@ function createMockRule(id: string, name: string) {
     },
     enabled: true,
     brokenReason: null,
+    bulkPausedAt: null,
     executionCount: 5,
     lastExecutedAt: '2024-01-15T10:30:00Z',
     order: 0,
     createdAt: '2024-01-01T00:00:00Z',
     updatedAt: '2024-01-01T00:00:00Z',
+  };
+}
+
+// Helper to create mock scheduled rules
+function createScheduledRule(id: string, name: string, overrides?: Record<string, any>) {
+  return {
+    id,
+    projectId: 'project-1',
+    name,
+    trigger: {
+      type: 'scheduled_cron' as const,
+      sectionId: null,
+      schedule: { kind: 'cron' as const, hour: 9, minute: 0, daysOfWeek: [1], daysOfMonth: [] },
+      lastEvaluatedAt: null,
+    },
+    action: {
+      type: 'move_card_to_top_of_section' as const,
+      sectionId: 'section-2',
+      dateOption: null,
+      position: 'top' as const,
+    },
+    enabled: true,
+    brokenReason: null,
+    bulkPausedAt: null,
+    executionCount: 0,
+    lastExecutedAt: null,
+    order: 0,
+    createdAt: '2024-01-01T00:00:00Z',
+    updatedAt: '2024-01-01T00:00:00Z',
+    ...overrides,
   };
 }
 
@@ -84,6 +143,7 @@ describe('AutomationTab', () => {
     updateRule: vi.fn(),
     deleteRule: vi.fn(),
     duplicateRule: vi.fn(),
+    duplicateToProject: vi.fn(),
     toggleRule: vi.fn(),
     reorderRules: vi.fn(),
     bulkSetEnabled: vi.fn(),
@@ -91,6 +151,8 @@ describe('AutomationTab', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPauseAllScheduled.mockReturnValue({ pausedCount: 0, pausedRuleIds: [] });
+    mockResumeAllScheduled.mockReturnValue({ resumedCount: 0, resumedRuleIds: [] });
     (useAutomationRules as any).mockReturnValue(mockHandlers);
   });
 
@@ -543,6 +605,185 @@ describe('AutomationTab', () => {
       render(<AutomationTab projectId="project-1" sections={mockSections} />);
 
       expect(screen.queryByTitle('Consider reviewing and consolidating your rules')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('bulk schedule management (Req 6.1–6.6, 5.4)', () => {
+    it('renders bulk schedule dropdown when scheduled rules exist', () => {
+      const rules = [
+        createMockRule('rule-1', 'Event Rule'),
+        createScheduledRule('rule-2', 'Scheduled Rule'),
+      ];
+      (useAutomationRules as any).mockReturnValue({ ...mockHandlers, rules });
+
+      render(<AutomationTab projectId="project-1" sections={mockSections} />);
+
+      expect(screen.getByRole('button', { name: /schedule actions/i })).toBeInTheDocument();
+    });
+
+    it('hides bulk schedule dropdown when no scheduled rules exist', () => {
+      const rules = [
+        createMockRule('rule-1', 'Event Rule 1'),
+        createMockRule('rule-2', 'Event Rule 2'),
+      ];
+      (useAutomationRules as any).mockReturnValue({ ...mockHandlers, rules });
+
+      render(<AutomationTab projectId="project-1" sections={mockSections} />);
+
+      expect(screen.queryByRole('button', { name: /schedule actions/i })).not.toBeInTheDocument();
+    });
+
+    it('shows dropdown options with counts when opened', async () => {
+      const user = userEvent.setup();
+      const rules = [
+        createMockRule('rule-1', 'Event Rule'),
+        createScheduledRule('rule-2', 'Scheduled Rule 1'),
+        createScheduledRule('rule-3', 'Scheduled Rule 2', { order: 1 }),
+      ];
+      (useAutomationRules as any).mockReturnValue({ ...mockHandlers, rules });
+
+      render(<AutomationTab projectId="project-1" sections={mockSections} />);
+
+      await user.click(screen.getByRole('button', { name: /schedule actions/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText(/Scheduled only \(2\).*Pause/)).toBeInTheDocument();
+        expect(screen.getByText(/Scheduled only \(2\).*Resume/)).toBeInTheDocument();
+        expect(screen.getByText(/Event-driven only \(1\).*Disable/)).toBeInTheDocument();
+        expect(screen.getByText(/Event-driven only \(1\).*Enable/)).toBeInTheDocument();
+      });
+    });
+
+    it('"Scheduled only" pause calls bulkScheduleService.pauseAllScheduled()', async () => {
+      const user = userEvent.setup();
+      const rules = [
+        createScheduledRule('rule-2', 'Scheduled Rule 1'),
+        createScheduledRule('rule-3', 'Scheduled Rule 2', { order: 1 }),
+      ];
+      mockPauseAllScheduled.mockReturnValue({ pausedCount: 2, pausedRuleIds: ['rule-2', 'rule-3'] });
+      (useAutomationRules as any).mockReturnValue({ ...mockHandlers, rules });
+
+      render(<AutomationTab projectId="project-1" sections={mockSections} />);
+
+      await user.click(screen.getByRole('button', { name: /schedule actions/i }));
+
+      const pauseItem = await screen.findByText(/Scheduled only \(2\).*Pause/);
+      await user.click(pauseItem);
+
+      expect(mockPauseAllScheduled).toHaveBeenCalledWith('project-1');
+    });
+
+    it('"Scheduled only" resume calls bulkScheduleService.resumeAllScheduled()', async () => {
+      const user = userEvent.setup();
+      const rules = [
+        createScheduledRule('rule-2', 'Scheduled Rule 1', { enabled: false, bulkPausedAt: '2025-01-15T10:00:00.000Z' }),
+        createScheduledRule('rule-3', 'Scheduled Rule 2', { enabled: false, bulkPausedAt: '2025-01-15T10:00:00.000Z', order: 1 }),
+      ];
+      mockResumeAllScheduled.mockReturnValue({ resumedCount: 2, resumedRuleIds: ['rule-2', 'rule-3'] });
+      (useAutomationRules as any).mockReturnValue({ ...mockHandlers, rules });
+
+      render(<AutomationTab projectId="project-1" sections={mockSections} />);
+
+      await user.click(screen.getByRole('button', { name: /schedule actions/i }));
+
+      const resumeItem = await screen.findByText(/Scheduled only \(2\).*Resume/);
+      await user.click(resumeItem);
+
+      expect(mockResumeAllScheduled).toHaveBeenCalledWith('project-1');
+    });
+
+    it('shows toast with undo after pausing scheduled rules', async () => {
+      const user = userEvent.setup();
+      const rules = [
+        createScheduledRule('rule-2', 'Scheduled Rule 1'),
+        createScheduledRule('rule-3', 'Scheduled Rule 2', { order: 1 }),
+      ];
+      mockPauseAllScheduled.mockReturnValue({ pausedCount: 2, pausedRuleIds: ['rule-2', 'rule-3'] });
+      (useAutomationRules as any).mockReturnValue({ ...mockHandlers, rules });
+
+      render(<AutomationTab projectId="project-1" sections={mockSections} />);
+
+      await user.click(screen.getByRole('button', { name: /schedule actions/i }));
+      const pauseItem = await screen.findByText(/Scheduled only \(2\).*Pause/);
+      await user.click(pauseItem);
+
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        '⏸️ Paused 2 scheduled rules',
+        expect.objectContaining({
+          action: expect.objectContaining({ label: 'Undo' }),
+        })
+      );
+    });
+
+    it('shows toast with undo after resuming scheduled rules', async () => {
+      const user = userEvent.setup();
+      const rules = [
+        createScheduledRule('rule-2', 'Scheduled Rule 1', { enabled: false, bulkPausedAt: '2025-01-15T10:00:00.000Z' }),
+        createScheduledRule('rule-3', 'Scheduled Rule 2', { enabled: false, bulkPausedAt: '2025-01-15T10:00:00.000Z', order: 1 }),
+      ];
+      mockResumeAllScheduled.mockReturnValue({ resumedCount: 2, resumedRuleIds: ['rule-2', 'rule-3'] });
+      (useAutomationRules as any).mockReturnValue({ ...mockHandlers, rules });
+
+      render(<AutomationTab projectId="project-1" sections={mockSections} />);
+
+      await user.click(screen.getByRole('button', { name: /schedule actions/i }));
+      const resumeItem = await screen.findByText(/Scheduled only \(2\).*Resume/);
+      await user.click(resumeItem);
+
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        '▶️ Resumed 2 scheduled rules',
+        expect.objectContaining({
+          action: expect.objectContaining({ label: 'Undo' }),
+        })
+      );
+    });
+
+    it('undo on pause toast re-enables the paused rules', async () => {
+      const user = userEvent.setup();
+      const rules = [
+        createScheduledRule('rule-2', 'Scheduled Rule 1'),
+      ];
+      mockPauseAllScheduled.mockReturnValue({ pausedCount: 1, pausedRuleIds: ['rule-2'] });
+      (useAutomationRules as any).mockReturnValue({ ...mockHandlers, rules });
+
+      render(<AutomationTab projectId="project-1" sections={mockSections} />);
+
+      await user.click(screen.getByRole('button', { name: /schedule actions/i }));
+      const pauseItem = await screen.findByText(/Scheduled only \(1\).*Pause/);
+      await user.click(pauseItem);
+
+      // Extract the undo callback from the toast call
+      const toastCall = mockToastSuccess.mock.calls[0];
+      const undoAction = toastCall[1]?.action;
+      expect(undoAction).toBeDefined();
+
+      // Execute undo — should call resumeAllScheduled
+      undoAction.onClick();
+      expect(mockResumeAllScheduled).toHaveBeenCalledWith('project-1');
+    });
+
+    it('undo on resume toast re-disables the resumed rules', async () => {
+      const user = userEvent.setup();
+      const rules = [
+        createScheduledRule('rule-2', 'Scheduled Rule 1', { enabled: false, bulkPausedAt: '2025-01-15T10:00:00.000Z' }),
+      ];
+      mockResumeAllScheduled.mockReturnValue({ resumedCount: 1, resumedRuleIds: ['rule-2'] });
+      (useAutomationRules as any).mockReturnValue({ ...mockHandlers, rules });
+
+      render(<AutomationTab projectId="project-1" sections={mockSections} />);
+
+      await user.click(screen.getByRole('button', { name: /schedule actions/i }));
+      const resumeItem = await screen.findByText(/Scheduled only \(1\).*Resume/);
+      await user.click(resumeItem);
+
+      // Extract the undo callback from the toast call
+      const toastCall = mockToastSuccess.mock.calls[0];
+      const undoAction = toastCall[1]?.action;
+      expect(undoAction).toBeDefined();
+
+      // Execute undo — should call pauseAllScheduled
+      undoAction.onClick();
+      expect(mockPauseAllScheduled).toHaveBeenCalledWith('project-1');
     });
   });
 });

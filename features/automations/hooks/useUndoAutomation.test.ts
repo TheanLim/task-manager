@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useUndoAutomation, notifyUndoChange } from './useUndoAutomation';
-import * as undoService from '../services/undoService';
+import * as undoService from '../services/execution/undoService';
 
 // Mock the undoService functions
-vi.mock('../services/undoService', () => ({
+vi.mock('../services/execution/undoService', () => ({
   getUndoSnapshot: vi.fn(),
   clearUndoSnapshot: vi.fn(),
   performUndo: vi.fn(),
