@@ -23,3 +23,9 @@ Section skip needs `activeCell.row` and `sectionStartIndices` context to find th
 
 ## #8 Services barrel added
 `services/index.ts` barrel added for consistency with other features (automations has barrels for all sub-modules).
+
+## #9 All shortcuts read from the shortcut map — no hardcoded keys in hooks
+Previously 6 of 10 customizable actions were hardcoded (/, ?, Ctrl+Enter, Escape, Space, Enter) and ignored the shortcut map. Now all actions read from `shortcutMap[action].key`. Two new utilities support this: `toHotkeyFormat()` converts stored keys to react-hotkeys-hook format (with Ctrl→meta Mac variant), and `matchesKey()` matches keyboard events against stored keys for `onTableKeyDown`.
+
+## #10 Chord shortcuts (kk, dd) not supported — by design
+Only `gg` is supported as a chord, hardcoded with a 300ms timeout. Generalizing chords would add 300ms input lag to every single-key shortcut while the system waits for a potential second key. Modifier combos (Ctrl+K) cover the "more key space" use case without latency.

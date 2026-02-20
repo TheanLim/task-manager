@@ -3,6 +3,7 @@
 import { useHotkeys } from 'react-hotkeys-hook';
 import type { ShortcutMap } from '../types';
 import { isInputContext } from '../services/inputContext';
+import { toHotkeyFormat } from '../services/hotkeyFormat';
 import { useKeyboardNavStore } from '../stores/keyboardNavStore';
 
 interface UseGlobalShortcutsOptions {
@@ -35,27 +36,27 @@ export function useGlobalShortcuts({
   const hotkeyOpts = { enableOnFormTags: false as const, preventDefault: true, enabled };
 
   // Global shortcuts — fire when not in input context
-  useHotkeys(shortcutMap['global.newTask'].key, () => {
+  useHotkeys(toHotkeyFormat(shortcutMap['global.newTask'].key), () => {
     if (!isInputContext(document.activeElement)) {
       onNewTask();
     }
   }, hotkeyOpts, [shortcutMap, onNewTask]);
 
-  useHotkeys('slash', () => {
+  useHotkeys(toHotkeyFormat(shortcutMap['global.search'].key), () => {
     if (!isInputContext(document.activeElement)) {
       onSearch();
     }
-  }, hotkeyOpts, [onSearch]);
+  }, hotkeyOpts, [shortcutMap, onSearch]);
 
-  useHotkeys('shift+slash', () => {
+  useHotkeys(toHotkeyFormat(shortcutMap['global.help'].key), () => {
     if (!isInputContext(document.activeElement)) {
       onHelp();
     }
-  }, hotkeyOpts, [onHelp]);
+  }, hotkeyOpts, [shortcutMap, onHelp]);
 
   // Task-context shortcuts — read focusedTaskId from store directly (not from closure)
   // to avoid stale isTaskFocused after click-to-focus
-  useHotkeys(shortcutMap['task.edit'].key, () => {
+  useHotkeys(toHotkeyFormat(shortcutMap['task.edit'].key), () => {
     const focused = useKeyboardNavStore.getState().focusedTaskId;
     if (focused && !isInputContext(document.activeElement)) {
       onEditTask();
@@ -66,22 +67,22 @@ export function useGlobalShortcuts({
   // for more reliable behavior when the table has focus. The bindings below are kept
   // as fallbacks for when the table doesn't have focus but a task is conceptually focused.
 
-  useHotkeys(shortcutMap['task.delete'].key, () => {
+  useHotkeys(toHotkeyFormat(shortcutMap['task.delete'].key), () => {
     const focused = useKeyboardNavStore.getState().focusedTaskId;
     if (focused && !isInputContext(document.activeElement)) {
       onDeleteTask();
     }
   }, hotkeyOpts, [shortcutMap, onDeleteTask]);
 
-  useHotkeys(shortcutMap['task.addSubtask'].key, () => {
+  useHotkeys(toHotkeyFormat(shortcutMap['task.addSubtask'].key), () => {
     const focused = useKeyboardNavStore.getState().focusedTaskId;
     if (focused && !isInputContext(document.activeElement)) {
       onAddSubtask();
     }
   }, hotkeyOpts, [shortcutMap, onAddSubtask]);
 
-  // Ctrl+Enter / Cmd+Enter — save inline edit (blur triggers save in InlineEditable)
-  useHotkeys('ctrl+enter, meta+enter', () => {
+  // Save inline edit — Ctrl/Cmd+Enter (blur triggers save in InlineEditable)
+  useHotkeys(toHotkeyFormat(shortcutMap['task.saveEdit'].key), () => {
     if (isInputContext(document.activeElement)) {
       (document.activeElement as HTMLElement)?.blur();
       const table = document.querySelector('table[role="grid"]') as HTMLElement;
@@ -89,8 +90,8 @@ export function useGlobalShortcuts({
     }
   }, { enableOnFormTags: true, enableOnContentEditable: true, preventDefault: true, enabled }, []);
 
-  // Escape in input context — blur the active element and refocus the table
-  useHotkeys('Escape', () => {
+  // Cancel edit — blur the active element and refocus the table
+  useHotkeys(toHotkeyFormat(shortcutMap['task.cancelEdit'].key), () => {
     if (isInputContext(document.activeElement)) {
       (document.activeElement as HTMLElement)?.blur();
       // Refocus the nearest grid table so keyboard shortcuts work again

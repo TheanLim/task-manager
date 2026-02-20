@@ -5,6 +5,7 @@ import type { GridCoord, ShortcutMap, MoveDirection } from '../types';
 import { moveActiveCell } from '../services/gridNavigationService';
 import { isInputContext } from '../services/inputContext';
 import { resolveDirection } from '../services/keyMappings';
+import { matchesKey } from '../services/keyMatch';
 import { useKeyboardNavStore } from '../stores/keyboardNavStore';
 import { useRowHighlight } from './useRowHighlight';
 
@@ -275,16 +276,17 @@ export function useKeyboardNavigation(
 
       const { key, ctrlKey, metaKey, shiftKey } = e;
       const ctrl = ctrlKey || metaKey;
+      const eventMods = { key, ctrlKey, metaKey, shiftKey, altKey: e.altKey };
 
-      // Space and Enter — handle directly on the table (more reliable than react-hotkeys-hook for focused elements)
-      if (key === ' ' && !ctrl && !shiftKey) {
+      // Toggle complete and open detail — read from shortcut map
+      if (matchesKey(eventMods, shortcutMap['task.toggleComplete'].key)) {
         e.preventDefault();
         e.stopPropagation();
         const taskId = activeCell.taskId ?? visibleRowTaskIdsRef.current[activeCell.row];
         if (taskId) onSpacePressRef.current?.(taskId);
         return;
       }
-      if (key === 'Enter' && !ctrl && !shiftKey) {
+      if (matchesKey(eventMods, shortcutMap['task.open'].key)) {
         e.preventDefault();
         e.stopPropagation();
         const taskId = activeCell.taskId ?? visibleRowTaskIdsRef.current[activeCell.row];
