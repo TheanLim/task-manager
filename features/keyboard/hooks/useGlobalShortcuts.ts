@@ -15,6 +15,7 @@ interface UseGlobalShortcutsOptions {
   onToggleComplete: () => void;
   onDeleteTask: () => void;
   onAddSubtask: () => void;
+  onReinsertTask: () => void;
   isTaskFocused: boolean;
   shortcutMap: ShortcutMap;
   enabled?: boolean;
@@ -29,6 +30,7 @@ export function useGlobalShortcuts({
   onToggleComplete,
   onDeleteTask,
   onAddSubtask,
+  onReinsertTask,
   isTaskFocused,
   shortcutMap,
   enabled = true,
@@ -80,6 +82,13 @@ export function useGlobalShortcuts({
       onAddSubtask();
     }
   }, hotkeyOpts, [shortcutMap, onAddSubtask]);
+
+  useHotkeys(toHotkeyFormat(shortcutMap['task.reinsert'].key), () => {
+    const focused = useKeyboardNavStore.getState().focusedTaskId;
+    if (focused && !isInputContext(document.activeElement)) {
+      onReinsertTask();
+    }
+  }, hotkeyOpts, [shortcutMap, onReinsertTask]);
 
   // Save inline edit — Ctrl/Cmd+Enter (blur triggers save in InlineEditable)
   useHotkeys(toHotkeyFormat(shortcutMap['task.saveEdit'].key), () => {

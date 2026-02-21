@@ -9,6 +9,7 @@ export type ShortcutAction =
   // Task context
   | 'task.edit' | 'task.open' | 'task.toggleComplete'
   | 'task.delete' | 'task.addSubtask'
+  | 'task.reinsert'
   | 'task.saveEdit' | 'task.cancelEdit';
 
 /** A single shortcut binding */

@@ -9,10 +9,10 @@ import { isInputContext } from './inputContext';
 import type { ShortcutMap, ShortcutAction } from '../types';
 
 describe('getDefaultShortcutMap', () => {
-  it('returns all 20 actions', () => {
+  it('returns all 21 actions', () => {
     const map = getDefaultShortcutMap();
     const actions = Object.keys(map);
-    expect(actions).toHaveLength(20);
+    expect(actions).toHaveLength(21);
   });
 
   it('contains all expected action keys', () => {
@@ -23,7 +23,7 @@ describe('getDefaultShortcutMap', () => {
       'nav.gg', 'nav.G', 'nav.halfPageDown', 'nav.halfPageUp',
       'global.newTask', 'global.search', 'global.help',
       'task.edit', 'task.open', 'task.toggleComplete',
-      'task.delete', 'task.addSubtask',
+      'task.delete', 'task.addSubtask', 'task.reinsert',
       'task.saveEdit', 'task.cancelEdit',
     ];
     for (const action of expectedActions) {
@@ -65,7 +65,7 @@ describe('mergeShortcutMaps', () => {
       'global.newTask': { key: 't', label: 'New task', category: 'Global' as const, description: 'Create a new task' },
     };
     const merged = mergeShortcutMaps(defaults, override);
-    expect(Object.keys(merged)).toHaveLength(20);
+    expect(Object.keys(merged)).toHaveLength(21);
     expect(merged['global.search'].key).toBe('/');
   });
 
@@ -161,7 +161,7 @@ const ALL_ACTIONS: ShortcutAction[] = [
   'nav.gg', 'nav.G', 'nav.halfPageDown', 'nav.halfPageUp',
   'global.newTask', 'global.search', 'global.help',
   'task.edit', 'task.open', 'task.toggleComplete',
-  'task.delete', 'task.addSubtask',
+  'task.delete', 'task.addSubtask', 'task.reinsert',
   'task.saveEdit', 'task.cancelEdit',
 ];
 
@@ -271,7 +271,7 @@ describe('Property 7: Shortcut map merge preserves overrides and fills defaults'
 
         // Result contains exactly the same set of actions as defaults
         expect(Object.keys(merged).sort()).toEqual(Object.keys(defaults).sort());
-        expect(Object.keys(merged)).toHaveLength(20);
+        expect(Object.keys(merged)).toHaveLength(21);
 
         for (const action of ALL_ACTIONS) {
           if (action in partial && defaults[action].customizable !== false) {

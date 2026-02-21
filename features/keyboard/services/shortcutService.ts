@@ -25,6 +25,7 @@ export function getDefaultShortcutMap(): ShortcutMap {
     'task.toggleComplete': { key: 'Space', label: 'Toggle complete', category: 'Task Actions', description: 'Toggle completion status' },
     'task.delete': { key: 'x', label: 'Delete task', category: 'Task Actions', description: 'Delete the focused task' },
     'task.addSubtask': { key: 'a', label: 'Add subtask', category: 'Task Actions', description: 'Add a subtask under the focused task' },
+    'task.reinsert': { key: 'r', label: 'Reinsert task', category: 'Task Actions', description: 'Push the focused task to the bottom of the review queue' },
     'task.saveEdit': { key: 'Ctrl+Enter', label: 'Save & close edit', category: 'Task Actions', description: 'Save the current edit and close the editor' },
     'task.cancelEdit': { key: 'Escape', label: 'Cancel edit', category: 'Task Actions', description: 'Cancel the inline edit and restore previous value' },
   };

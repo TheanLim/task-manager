@@ -153,6 +153,12 @@ function HomeContent() {
         handleNewTask(task?.sectionId ?? undefined, taskId);
       }
     },
+    onReinsertTask: () => {
+      const taskId = useKeyboardNavStore.getState().focusedTaskId;
+      if (taskId) {
+        taskService.reinsertTask(taskId);
+      }
+    },
     isTaskFocused: !!focusedTaskId,
     shortcutMap,
   });
