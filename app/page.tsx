@@ -20,6 +20,7 @@ import { getTMSHandler } from '@/features/tms/handlers';
 import { ViewMode, Priority, TimeManagementSystem } from '@/types';
 import { ProjectService } from '@/features/projects/services/projectService';
 import { TaskService } from '@/features/tasks/services/taskService';
+import { taskService } from '@/lib/serviceContainer';
 import { ImportExportMenu } from '@/features/sharing/components/ImportExportMenu';
 import { LandingEmptyState } from '@/components/LandingEmptyState';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -112,6 +113,8 @@ function HomeContent() {
   const shortcutMap = mergeShortcutMaps(getDefaultShortcutMap(), keyboardShortcuts);
   const focusedTaskId = useKeyboardNavStore(s => s.focusedTaskId);
 
+  const needsAttentionSort = useAppStore(s => s.needsAttentionSort);
+
   useGlobalShortcuts({
     onNewTask: () => {
       // Create task in the same section as the focused task (if any)
@@ -154,6 +157,7 @@ function HomeContent() {
       }
     },
     onReinsertTask: () => {
+      if (!needsAttentionSort) return; // Only works in Review Queue mode
       const taskId = useKeyboardNavStore.getState().focusedTaskId;
       if (taskId) {
         taskService.reinsertTask(taskId);

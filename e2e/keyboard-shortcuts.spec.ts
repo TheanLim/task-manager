@@ -1301,3 +1301,205 @@ test.describe('Keyboard Shortcuts: Customization Behavior', () => {
     await page.waitForTimeout(200)
   })
 })
+
+test.describe('Keyboard Shortcuts: Reinsert Task', () => {
+  test.beforeEach(async ({ page }) => {
+    await seedDatabase(page)
+    await page.goto('/?view=tasks')
+    await expect(page.locator('main').getByText('Set up CI pipeline')).toBeVisible({ timeout: 10000 })
+  })
+
+  test('r reinserts the focused task in Review Queue mode (updates lastActionAt)', async ({ page }) => {
+    // Enable Review Queue mode
+    await page.locator('main').getByRole('button', { name: /review queue/i }).click()
+    await page.waitForTimeout(300)
+
+    const table = page.locator('table[role="grid"]')
+    await table.focus()
+
+    // Navigate to first task
+    await page.keyboard.press('j')
+    await page.waitForTimeout(200)
+    const activeRow = page.locator('tr[data-kb-active="true"]')
+    await expect(activeRow).toBeVisible()
+
+    // Get the focused task's ID from the DOM
+    const taskId = await activeRow.getAttribute('data-task-id')
+    expect(taskId).toBeTruthy()
+
+    // Verify the keyboard nav store has the focused task
+    const storeTaskId = await page.evaluate(() => {
+      // Access Zustand store state directly
+      const raw = localStorage.getItem('task-management-data')
+      if (!raw) return 'no-storage'
+      return 'storage-ok'
+    })
+
+    // Get lastActionAt before reinsert
+    const beforeData = await page.evaluate((id) => {
+      const raw = localStorage.getItem('task-management-data')
+      if (!raw) return null
+      const tasks = JSON.parse(raw).state?.tasks ?? []
+      const task = tasks.find((t: any) => t.id === id)
+      return { lastActionAt: task?.lastActionAt ?? null, updatedAt: task?.updatedAt ?? null, found: !!task }
+    }, taskId)
+
+    // Small delay to ensure timestamp difference
+    await page.waitForTimeout(200)
+
+    // Press r to reinsert
+    await page.keyboard.press('r')
+    await page.waitForTimeout(1000)
+
+    // Debug: check if focusedTaskId is set in the keyboard nav store
+    const focusedId = await page.evaluate(() => {
+      // The store is a Zustand store — we can't access it directly from evaluate
+      // But we can check if the data-kb-active row exists
+      const activeRow = document.querySelector('tr[data-kb-active="true"]')
+      return activeRow?.getAttribute('data-task-id') ?? 'no-active-row'
+    })
+
+    // Verify lastActionAt was updated
+    const afterData = await page.evaluate((id) => {
+      const raw = localStorage.getItem('task-management-data')
+      if (!raw) return null
+      const tasks = JSON.parse(raw).state?.tasks ?? []
+      const task = tasks.find((t: any) => t.id === id)
+      return { lastActionAt: task?.lastActionAt ?? null, updatedAt: task?.updatedAt ?? null, found: !!task }
+    }, taskId)
+
+    expect(afterData?.found).toBe(true)
+    expect(afterData?.lastActionAt).toBeTruthy()
+    // lastActionAt should be more recent than before
+    const beforeTime = new Date(beforeData?.lastActionAt ?? beforeData?.updatedAt ?? '2000-01-01').getTime()
+    expect(new Date(afterData!.lastActionAt!).getTime()).toBeGreaterThan(beforeTime)
+  })
+
+  test('r does nothing in Review Queue mode when table has no focus', async ({ page }) => {
+    // Enable Review Queue mode
+    await page.locator('main').getByRole('button', { name: /review queue/i }).click()
+    await page.waitForTimeout(300)
+
+    // Click somewhere outside the table (e.g., the header)
+    await page.locator('header').first().click()
+    await page.waitForTimeout(200)
+
+    // Get a task's lastActionAt before
+    const firstRow = page.locator('table[role="grid"] tr[data-task-id]').first()
+    const taskId = await firstRow.getAttribute('data-task-id')
+    const beforeData = await page.evaluate((id) => {
+      const raw = localStorage.getItem('task-management-data')
+      if (!raw) return null
+      const tasks = JSON.parse(raw).state?.tasks ?? []
+      return tasks.find((t: any) => t.id === id)?.lastActionAt ?? null
+    }, taskId)
+
+    // Press r on the body (not on the table) — should be a no-op since no task is focused in the store
+    await page.keyboard.press('r')
+    await page.waitForTimeout(300)
+
+    const afterData = await page.evaluate((id) => {
+      const raw = localStorage.getItem('task-management-data')
+      if (!raw) return null
+      const tasks = JSON.parse(raw).state?.tasks ?? []
+      return tasks.find((t: any) => t.id === id)?.lastActionAt ?? null
+    }, taskId)
+    expect(afterData).toBe(beforeData)
+  })
+
+  test('r is a no-op when not in Review Queue mode', async ({ page }) => {
+    // Do NOT enable Review Queue — stay in normal mode
+    const table = page.locator('table[role="grid"]')
+    await table.focus()
+
+    // Navigate to a task
+    await page.keyboard.press('j')
+    await page.waitForTimeout(200)
+    const activeRow = page.locator('tr[data-kb-active="true"]')
+    await expect(activeRow).toBeVisible()
+    const taskId = await activeRow.getAttribute('data-task-id')
+
+    // Get lastActionAt before
+    const beforeData = await page.evaluate((id) => {
+      const raw = localStorage.getItem('task-management-data')
+      if (!raw) return null
+      const tasks = JSON.parse(raw).state?.tasks ?? []
+      return tasks.find((t: any) => t.id === id)?.lastActionAt ?? null
+    }, taskId)
+
+    // Press r — should be a no-op (not in Review Queue mode)
+    await page.keyboard.press('r')
+    await page.waitForTimeout(500)
+
+    const afterData = await page.evaluate((id) => {
+      const raw = localStorage.getItem('task-management-data')
+      if (!raw) return null
+      const tasks = JSON.parse(raw).state?.tasks ?? []
+      return tasks.find((t: any) => t.id === id)?.lastActionAt ?? null
+    }, taskId)
+    expect(afterData).toBe(beforeData)
+  })
+
+  test('reinsert shortcut is customizable (rebind r to w)', async ({ page }) => {
+    // Enable Review Queue mode
+    await page.locator('main').getByRole('button', { name: /review queue/i }).click()
+    await page.waitForTimeout(300)
+
+    const table = page.locator('table[role="grid"]')
+    await table.focus()
+
+    // Rebind "Reinsert task" from r to w
+    await page.keyboard.press('Shift+/')
+    const overlay = page.getByRole('dialog', { name: /keyboard shortcuts/i })
+    await overlay.getByText('Edit shortcuts…').click()
+    await page.waitForTimeout(300)
+    const reinsertRow = overlay.locator('li', { has: page.getByText('Reinsert task') })
+    const kbd = reinsertRow.locator('kbd[role="button"]')
+    await expect(kbd).toContainText('r')
+    await kbd.click()
+    await page.keyboard.press('w')
+    await page.waitForTimeout(200)
+    await expect(kbd).toContainText('w')
+
+    // Close overlay
+    await overlay.getByRole('button', { name: /close/i }).click()
+    await expect(overlay).not.toBeVisible()
+    await page.waitForTimeout(200)
+
+    // Navigate to first task
+    await table.focus()
+    await page.keyboard.press('j')
+    await page.waitForTimeout(200)
+    const activeRow = page.locator('tr[data-kb-active="true"]')
+    await expect(activeRow).toBeVisible()
+    const firstTaskText = await activeRow.textContent()
+
+    // Press w — should reinsert (new key) — verify via localStorage
+    const taskId = await activeRow.getAttribute('data-task-id')
+    const beforeData = await page.evaluate((id) => {
+      const raw = localStorage.getItem('task-management-data')
+      if (!raw) return null
+      const tasks = JSON.parse(raw).state?.tasks ?? []
+      return tasks.find((t: any) => t.id === id)?.lastActionAt ?? null
+    }, taskId)
+    await page.waitForTimeout(100)
+    await page.keyboard.press('w')
+    await page.waitForTimeout(500)
+    const afterData = await page.evaluate((id) => {
+      const raw = localStorage.getItem('task-management-data')
+      if (!raw) return null
+      const tasks = JSON.parse(raw).state?.tasks ?? []
+      return tasks.find((t: any) => t.id === id)?.lastActionAt ?? null
+    }, taskId)
+    expect(afterData).toBeTruthy()
+    expect(new Date(afterData!).getTime()).toBeGreaterThan(new Date(beforeData!).getTime())
+
+    // Clean up
+    await table.focus()
+    await page.keyboard.press('Shift+/')
+    await overlay.getByText('Edit shortcuts…').click()
+    await page.waitForTimeout(200)
+    await overlay.getByText('Reset to defaults').click()
+    await page.waitForTimeout(200)
+  })
+})
