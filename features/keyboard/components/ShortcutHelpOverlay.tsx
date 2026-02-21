@@ -30,15 +30,6 @@ function formatKeyForDisplay(key: string): string {
   return display;
 }
 
-/** Actions to hide on Mac (Home/End don't exist on Mac keyboards) */
-const MAC_HIDDEN_ACTIONS = new Set(['nav.home', 'nav.end', 'nav.gridHome', 'nav.gridEnd']);
-
-/** Extra entries to show on Mac as replacements for hidden actions */
-const MAC_EXTRA_ENTRIES: Array<[string, { key: string; label: string; category: 'Navigation'; description: string }]> = [
-  ['nav.macGridHome', { key: '⌘↑', label: 'First cell', category: 'Navigation', description: 'Move to the first cell of the first row' }],
-  ['nav.macGridEnd', { key: '⌘↓', label: 'Last cell', category: 'Navigation', description: 'Move to the last cell of the last row' }],
-];
-
 export function ShortcutHelpOverlay({ open, onClose }: ShortcutHelpOverlayProps) {
   const previousFocusRef = useRef<Element | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -91,24 +82,11 @@ export function ShortcutHelpOverlay({ open, onClose }: ShortcutHelpOverlayProps)
 
   if (!open) return null;
 
-  // Group shortcuts by category, filtering platform-specific entries
-  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent);
+  // Group shortcuts by category
   const grouped = CATEGORIES.map((category) => {
     const entries = (Object.entries(shortcutMap) as [string, ShortcutBinding][]).filter(
-      ([action, binding]) => {
-        if (binding.category !== category) return false;
-        if (isMac && MAC_HIDDEN_ACTIONS.has(action)) return false;
-        return true;
-      },
+      ([, binding]) => binding.category === category,
     );
-    // Add Mac-specific replacement entries
-    if (isMac) {
-      for (const [action, binding] of MAC_EXTRA_ENTRIES) {
-        if (binding.category === category) {
-          entries.push([action, binding]);
-        }
-      }
-    }
     return { category, entries };
   });
 

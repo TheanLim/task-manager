@@ -91,7 +91,6 @@ describe('findNearestRow', () => {
 
 const ALL_DIRECTIONS: MoveDirection[] = [
   'up', 'down', 'left', 'right',
-  'home', 'end', 'gridHome', 'gridEnd',
   'firstRow', 'lastRow', 'halfPageDown', 'halfPageUp',
 ];
 

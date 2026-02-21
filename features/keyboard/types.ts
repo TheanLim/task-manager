@@ -2,7 +2,6 @@
 export type ShortcutAction =
   // Navigation
   | 'nav.up' | 'nav.down' | 'nav.left' | 'nav.right'
-  | 'nav.home' | 'nav.end' | 'nav.gridHome' | 'nav.gridEnd'
   | 'nav.sectionPrev' | 'nav.sectionNext'
   | 'nav.gg' | 'nav.G' | 'nav.halfPageDown' | 'nav.halfPageUp'
   // Global
@@ -41,8 +40,6 @@ export interface GridCoord {
 /** All supported movement directions for grid navigation */
 export type MoveDirection =
   | 'up' | 'down' | 'left' | 'right'
-  | 'home' | 'end'
-  | 'gridHome' | 'gridEnd'
   | 'firstRow' | 'lastRow'
   | 'halfPageDown' | 'halfPageUp';
 

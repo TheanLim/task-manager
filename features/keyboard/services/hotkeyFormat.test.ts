@@ -66,15 +66,6 @@ describe('toHotkeyFormat', () => {
     expect(toHotkeyFormat(']')).toBe(']');
   });
 
-  // Edge cases
-  it('converts "Home" to "home"', () => {
-    expect(toHotkeyFormat('Home')).toBe('home');
-  });
-
-  it('converts "End" to "end"', () => {
-    expect(toHotkeyFormat('End')).toBe('end');
-  });
-
   // Multi-modifier
   it('converts "Ctrl+Shift+k" to "ctrl+shift+k, meta+shift+k"', () => {
     expect(toHotkeyFormat('Ctrl+Shift+k')).toBe('ctrl+shift+k, meta+shift+k');

@@ -29,20 +29,12 @@ export function resolveDirection(
   ctrl: boolean,
   shiftKey: boolean,
 ): MoveDirection | null {
-  // Ctrl/Cmd+key combos (non-customizable)
-  if (ctrl) {
-    if (key === 'Home' || key === 'ArrowUp') return 'gridHome';
-    if (key === 'End' || key === 'ArrowDown') return 'gridEnd';
-    return null;
-  }
+  // Ctrl combos are no longer mapped to directions (gridHome/gridEnd removed)
+  if (ctrl) return null;
 
   // Arrow keys (non-customizable)
   const arrowDir = ARROW_KEY_MAP[key];
   if (arrowDir) return arrowDir;
-
-  // Home/End (non-customizable)
-  if (key === 'Home') return 'home';
-  if (key === 'End') return 'end';
 
   // Vim h/j/k/l (non-customizable — secondary bindings for arrow equivalents)
   if (key in VIM_KEY_MAP) return VIM_KEY_MAP[key];

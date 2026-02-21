@@ -37,20 +37,6 @@ export function moveActiveCell(
     case 'right':
       column = Math.min(columns - 1, column + 1);
       break;
-    case 'home':
-      column = 0;
-      break;
-    case 'end':
-      column = columns - 1;
-      break;
-    case 'gridHome':
-      row = 0;
-      column = 0;
-      break;
-    case 'gridEnd':
-      row = rows - 1;
-      column = columns - 1;
-      break;
     case 'firstRow':
       row = 0;
       break;

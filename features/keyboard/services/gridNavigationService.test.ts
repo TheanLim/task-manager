@@ -29,26 +29,6 @@ describe('moveActiveCell', () => {
     expect(result).toEqual({ row: 2, column: 2, taskId: null });
   });
 
-  it('home sets column to 0', () => {
-    const result = moveActiveCell(start, 'home', bounds);
-    expect(result).toEqual({ row: 2, column: 0, taskId: null });
-  });
-
-  it('end sets column to last', () => {
-    const result = moveActiveCell(start, 'end', bounds);
-    expect(result).toEqual({ row: 2, column: 3, taskId: null });
-  });
-
-  it('gridHome sets row=0, column=0', () => {
-    const result = moveActiveCell(start, 'gridHome', bounds);
-    expect(result).toEqual({ row: 0, column: 0, taskId: null });
-  });
-
-  it('gridEnd sets row=last, column=last', () => {
-    const result = moveActiveCell(start, 'gridEnd', bounds);
-    expect(result).toEqual({ row: 4, column: 3, taskId: null });
-  });
-
   it('firstRow sets row=0, keeps column', () => {
     const result = moveActiveCell(start, 'firstRow', bounds);
     expect(result).toEqual({ row: 0, column: 1, taskId: null });
@@ -205,7 +185,6 @@ describe('computeVisibleRows', () => {
 
 const ALL_DIRECTIONS: MoveDirection[] = [
   'up', 'down', 'left', 'right',
-  'home', 'end', 'gridHome', 'gridEnd',
   'firstRow', 'lastRow', 'halfPageDown', 'halfPageUp',
 ];
 
@@ -254,22 +233,6 @@ describe('Property 1: Directional movement with boundary clamping', () => {
             case 'right':
               expect(result.column).toBe(Math.min(columns - 1, col + 1));
               expect(result.row).toBe(row);
-              break;
-            case 'home':
-              expect(result.column).toBe(0);
-              expect(result.row).toBe(row);
-              break;
-            case 'end':
-              expect(result.column).toBe(columns - 1);
-              expect(result.row).toBe(row);
-              break;
-            case 'gridHome':
-              expect(result.row).toBe(0);
-              expect(result.column).toBe(0);
-              break;
-            case 'gridEnd':
-              expect(result.row).toBe(rows - 1);
-              expect(result.column).toBe(columns - 1);
               break;
             case 'firstRow':
               expect(result.row).toBe(0);

@@ -3,20 +3,20 @@ import { resolveDirection, VIM_KEY_MAP, ARROW_KEY_MAP } from './keyMappings';
 
 describe('resolveDirection', () => {
   // Ctrl combos
-  it('Ctrl+Home → gridHome', () => {
-    expect(resolveDirection('Home', true, false)).toBe('gridHome');
+  it('Ctrl+Home → null (removed)', () => {
+    expect(resolveDirection('Home', true, false)).toBeNull();
   });
 
-  it('Ctrl+ArrowUp → gridHome', () => {
-    expect(resolveDirection('ArrowUp', true, false)).toBe('gridHome');
+  it('Ctrl+ArrowUp → null', () => {
+    expect(resolveDirection('ArrowUp', true, false)).toBeNull();
   });
 
-  it('Ctrl+End → gridEnd', () => {
-    expect(resolveDirection('End', true, false)).toBe('gridEnd');
+  it('Ctrl+End → null (removed)', () => {
+    expect(resolveDirection('End', true, false)).toBeNull();
   });
 
-  it('Ctrl+ArrowDown → gridEnd', () => {
-    expect(resolveDirection('ArrowDown', true, false)).toBe('gridEnd');
+  it('Ctrl+ArrowDown → null', () => {
+    expect(resolveDirection('ArrowDown', true, false)).toBeNull();
   });
 
   it('Ctrl+d → null (handled by shortcut map)', () => {
@@ -48,13 +48,13 @@ describe('resolveDirection', () => {
     expect(resolveDirection('ArrowRight', false, false)).toBe('right');
   });
 
-  // Home/End
-  it('Home → home', () => {
-    expect(resolveDirection('Home', false, false)).toBe('home');
+  // Home/End removed — no longer mapped
+  it('Home → null (removed)', () => {
+    expect(resolveDirection('Home', false, false)).toBeNull();
   });
 
-  it('End → end', () => {
-    expect(resolveDirection('End', false, false)).toBe('end');
+  it('End → null (removed)', () => {
+    expect(resolveDirection('End', false, false)).toBeNull();
   });
 
   // Vim keys

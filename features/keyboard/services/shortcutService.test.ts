@@ -9,17 +9,16 @@ import { isInputContext } from './inputContext';
 import type { ShortcutMap, ShortcutAction } from '../types';
 
 describe('getDefaultShortcutMap', () => {
-  it('returns all 24 actions', () => {
+  it('returns all 20 actions', () => {
     const map = getDefaultShortcutMap();
     const actions = Object.keys(map);
-    expect(actions).toHaveLength(24);
+    expect(actions).toHaveLength(20);
   });
 
   it('contains all expected action keys', () => {
     const map = getDefaultShortcutMap();
     const expectedActions: ShortcutAction[] = [
       'nav.up', 'nav.down', 'nav.left', 'nav.right',
-      'nav.home', 'nav.end', 'nav.gridHome', 'nav.gridEnd',
       'nav.sectionPrev', 'nav.sectionNext',
       'nav.gg', 'nav.G', 'nav.halfPageDown', 'nav.halfPageUp',
       'global.newTask', 'global.search', 'global.help',
@@ -66,7 +65,7 @@ describe('mergeShortcutMaps', () => {
       'global.newTask': { key: 't', label: 'New task', category: 'Global' as const, description: 'Create a new task' },
     };
     const merged = mergeShortcutMaps(defaults, override);
-    expect(Object.keys(merged)).toHaveLength(24);
+    expect(Object.keys(merged)).toHaveLength(20);
     expect(merged['global.search'].key).toBe('/');
   });
 
@@ -158,7 +157,6 @@ import fc from 'fast-check';
 
 const ALL_ACTIONS: ShortcutAction[] = [
   'nav.up', 'nav.down', 'nav.left', 'nav.right',
-  'nav.home', 'nav.end', 'nav.gridHome', 'nav.gridEnd',
   'nav.sectionPrev', 'nav.sectionNext',
   'nav.gg', 'nav.G', 'nav.halfPageDown', 'nav.halfPageUp',
   'global.newTask', 'global.search', 'global.help',
@@ -170,9 +168,9 @@ const ALL_ACTIONS: ShortcutAction[] = [
 const SAMPLE_KEYS = [
   'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
   'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-  '/', '?', '[', ']', 'Enter', 'Space', 'Escape', 'Home', 'End',
+  '/', '?', '[', ']', 'Enter', 'Space', 'Escape',
   'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
-  'Ctrl+Home', 'Ctrl+End', 'Ctrl+d', 'Ctrl+u', 'Ctrl+Enter',
+  'Ctrl+d', 'Ctrl+u', 'Ctrl+Enter',
   'G', 'gg',
 ];
 
@@ -273,7 +271,7 @@ describe('Property 7: Shortcut map merge preserves overrides and fills defaults'
 
         // Result contains exactly the same set of actions as defaults
         expect(Object.keys(merged).sort()).toEqual(Object.keys(defaults).sort());
-        expect(Object.keys(merged)).toHaveLength(24);
+        expect(Object.keys(merged)).toHaveLength(20);
 
         for (const action of ALL_ACTIONS) {
           if (action in partial && defaults[action].customizable !== false) {
