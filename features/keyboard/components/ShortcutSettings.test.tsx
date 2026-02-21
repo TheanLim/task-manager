@@ -10,6 +10,7 @@ vi.mock('@/stores/appStore', () => ({
 
 describe('ShortcutSettings', () => {
   const mockSetKeyboardShortcut = vi.fn();
+  const mockResetKeyboardShortcut = vi.fn();
   const mockResetKeyboardShortcuts = vi.fn();
 
   beforeEach(() => {
@@ -19,6 +20,7 @@ describe('ShortcutSettings', () => {
         selector({
           keyboardShortcuts: {},
           setKeyboardShortcut: mockSetKeyboardShortcut,
+          resetKeyboardShortcut: mockResetKeyboardShortcut,
           resetKeyboardShortcuts: mockResetKeyboardShortcuts,
         }),
     );
@@ -80,6 +82,7 @@ describe('ShortcutSettings', () => {
             },
           },
           setKeyboardShortcut: mockSetKeyboardShortcut,
+          resetKeyboardShortcut: mockResetKeyboardShortcut,
           resetKeyboardShortcuts: mockResetKeyboardShortcuts,
         }),
     );
@@ -87,6 +90,61 @@ describe('ShortcutSettings', () => {
     render(<ShortcutSettings />);
     const conflictBadges = screen.getAllByText('conflict');
     expect(conflictBadges.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('shows per-shortcut reset button when a shortcut is customized', () => {
+    (useAppStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+      (selector: (s: Record<string, unknown>) => unknown) =>
+        selector({
+          keyboardShortcuts: {
+            'global.newTask': {
+              key: 't',
+              label: 'New task',
+              category: 'Global',
+              description: 'Create a new task',
+            },
+          },
+          setKeyboardShortcut: mockSetKeyboardShortcut,
+          resetKeyboardShortcut: mockResetKeyboardShortcut,
+          resetKeyboardShortcuts: mockResetKeyboardShortcuts,
+        }),
+    );
+
+    render(<ShortcutSettings />);
+    const resetButton = screen.getByLabelText('Reset New task to default');
+    expect(resetButton).toBeInTheDocument();
+  });
+
+  it('calls resetKeyboardShortcut when per-shortcut reset is clicked', () => {
+    (useAppStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+      (selector: (s: Record<string, unknown>) => unknown) =>
+        selector({
+          keyboardShortcuts: {
+            'global.newTask': {
+              key: 't',
+              label: 'New task',
+              category: 'Global',
+              description: 'Create a new task',
+            },
+          },
+          setKeyboardShortcut: mockSetKeyboardShortcut,
+          resetKeyboardShortcut: mockResetKeyboardShortcut,
+          resetKeyboardShortcuts: mockResetKeyboardShortcuts,
+        }),
+    );
+
+    render(<ShortcutSettings />);
+    const resetButton = screen.getByLabelText('Reset New task to default');
+    fireEvent.click(resetButton);
+    expect(mockResetKeyboardShortcut).toHaveBeenCalledWith('global.newTask');
+  });
+
+  it('does not show per-shortcut reset when shortcut matches default', () => {
+    render(<ShortcutSettings />);
+    // No shortcuts are customized in the default mock
+    const resetButtons = screen.queryAllByTitle('Reset to default');
+    // The only "Reset to defaults" is the global button at the top
+    expect(resetButtons).toHaveLength(0);
   });
 
   it('applies custom className', () => {

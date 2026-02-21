@@ -44,6 +44,7 @@ interface AppStore {
   setAutoHideThreshold: (threshold: AutoHideThreshold) => void;
   setShowRecentlyCompleted: (show: boolean) => void;
   setKeyboardShortcut: (action: ShortcutAction, key: string) => void;
+  resetKeyboardShortcut: (action: ShortcutAction) => void;
   resetKeyboardShortcuts: () => void;
 }
 
@@ -135,6 +136,10 @@ export const useAppStore = create<AppStore>()(
         };
       }),
       
+      resetKeyboardShortcut: (action) => set((state) => {
+        const { [action]: _, ...rest } = state.keyboardShortcuts;
+        return { keyboardShortcuts: rest };
+      }),
       resetKeyboardShortcuts: () => set({ keyboardShortcuts: {} }),
     }),
     {

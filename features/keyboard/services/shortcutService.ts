@@ -108,5 +108,19 @@ export function resolveShortcut(
 
   return null;
 }
+/**
+ * Returns true if the given action has been customized (key differs from default).
+ */
+export function isShortcutCustomized(
+  action: ShortcutAction,
+  currentMap: ShortcutMap,
+): boolean {
+  const defaults = getDefaultShortcutMap();
+  const defaultBinding = defaults[action];
+  if (!defaultBinding) return false;
+  return currentMap[action].key !== defaultBinding.key;
+}
+
+
 
 

@@ -1300,6 +1300,84 @@ test.describe('Keyboard Shortcuts: Customization Behavior', () => {
     await overlay.getByText('Reset to defaults').click()
     await page.waitForTimeout(200)
   })
+
+  test('per-shortcut reset button appears on hover and restores default key', async ({ page }) => {
+    const table = page.locator('table[role="grid"]')
+    await table.focus()
+
+    // Rebind "New task" from n to m
+    await page.keyboard.press('Shift+/')
+    const overlay = page.getByRole('dialog', { name: /keyboard shortcuts/i })
+    await overlay.getByText('Edit shortcuts…').click()
+    await page.waitForTimeout(300)
+    const newTaskRow = overlay.locator('li', { has: page.getByText('New task') })
+    const kbd = newTaskRow.locator('kbd[role="button"]')
+    await kbd.click()
+    await page.keyboard.press('m')
+    await page.waitForTimeout(200)
+    await expect(kbd).toContainText('m')
+
+    // Hover over the row — per-shortcut reset button should appear
+    await newTaskRow.hover()
+    await page.waitForTimeout(200)
+    const resetBtn = newTaskRow.getByLabel('Reset New task to default')
+    await expect(resetBtn).toBeVisible()
+
+    // Click the per-shortcut reset
+    await resetBtn.click()
+    await page.waitForTimeout(300)
+
+    // Key should be back to 'n'
+    await expect(kbd).toContainText('n')
+
+    // The reset button should no longer be visible (shortcut matches default)
+    await newTaskRow.hover()
+    await page.waitForTimeout(200)
+    await expect(newTaskRow.getByLabel('Reset New task to default')).not.toBeVisible()
+
+    // Verify n works again functionally
+    await overlay.getByRole('button', { name: /close/i }).click()
+    await page.waitForTimeout(200)
+    await table.focus()
+    await page.keyboard.press('n')
+    await expect(page.getByRole('dialog', { name: /new task|add task/i })).toBeVisible({ timeout: 3000 })
+  })
+
+  test('per-shortcut reset does not affect other customized shortcuts', async ({ page }) => {
+    const table = page.locator('table[role="grid"]')
+    await table.focus()
+
+    // Rebind both "New task" (n→m) and "Edit task" (e→f)
+    await page.keyboard.press('Shift+/')
+    const overlay = page.getByRole('dialog', { name: /keyboard shortcuts/i })
+    await overlay.getByText('Edit shortcuts…').click()
+    await page.waitForTimeout(300)
+
+    const newTaskRow = overlay.locator('li', { has: page.getByText('New task') })
+    await newTaskRow.locator('kbd[role="button"]').click()
+    await page.keyboard.press('m')
+    await page.waitForTimeout(200)
+
+    const editRow = overlay.locator('li', { has: page.getByText('Edit task') })
+    await editRow.locator('kbd[role="button"]').click()
+    await page.keyboard.press('f')
+    await page.waitForTimeout(200)
+
+    // Reset only "New task" via per-shortcut reset
+    await newTaskRow.hover()
+    await page.waitForTimeout(200)
+    await newTaskRow.getByLabel('Reset New task to default').click()
+    await page.waitForTimeout(300)
+
+    // "New task" should be back to 'n'
+    await expect(newTaskRow.locator('kbd[role="button"]')).toContainText('n')
+    // "Edit task" should still be 'f'
+    await expect(editRow.locator('kbd[role="button"]')).toContainText('f')
+
+    // Clean up
+    await overlay.getByText('Reset to defaults').click()
+    await page.waitForTimeout(200)
+  })
 })
 
 test.describe('Keyboard Shortcuts: Reinsert Task', () => {

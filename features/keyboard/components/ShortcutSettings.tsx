@@ -6,6 +6,7 @@ import {
   getDefaultShortcutMap,
   mergeShortcutMaps,
   detectConflicts,
+  isShortcutCustomized,
 } from '../services/shortcutService';
 import type { ShortcutAction, ShortcutBinding, ShortcutConflict } from '../types';
 
@@ -18,6 +19,7 @@ const CATEGORIES = ['Navigation', 'Global', 'Task Actions'] as const;
 export function ShortcutSettings({ className }: ShortcutSettingsProps) {
   const keyboardShortcuts = useAppStore((s) => s.keyboardShortcuts);
   const setKeyboardShortcut = useAppStore((s) => s.setKeyboardShortcut);
+  const resetKeyboardShortcut = useAppStore((s) => s.resetKeyboardShortcut);
   const resetKeyboardShortcuts = useAppStore((s) => s.resetKeyboardShortcuts);
 
   const shortcutMap = mergeShortcutMaps(getDefaultShortcutMap(), keyboardShortcuts);
@@ -99,13 +101,23 @@ export function ShortcutSettings({ className }: ShortcutSettingsProps) {
                 const isCustomizable = binding.customizable !== false;
 
                 return (
-                  <li key={action} className="flex items-center justify-between py-1.5">
+                  <li key={action} className="group flex items-center justify-between py-1.5">
                     <span className={`text-sm ${isCustomizable ? 'text-foreground' : 'text-muted-foreground'}`}>{binding.label}</span>
                     <div className="flex items-center gap-2">
                       {conflict && !isRecording && isCustomizable && (
                         <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400">
                           conflict
                         </span>
+                      )}
+                      {isCustomizable && isShortcutCustomized(action, shortcutMap) && !isRecording && (
+                        <button
+                          onClick={() => resetKeyboardShortcut(action)}
+                          className="opacity-0 group-hover:opacity-100 focus:opacity-100 text-xs text-muted-foreground hover:text-foreground transition-opacity px-1 py-0.5 rounded hover:bg-muted"
+                          title="Reset to default"
+                          aria-label={`Reset ${binding.label} to default`}
+                        >
+                          ↺
+                        </button>
                       )}
                       <kbd
                         role={isCustomizable ? 'button' : undefined}

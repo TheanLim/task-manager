@@ -1,6 +1,6 @@
 // Barrel for keyboard services
 
-export { getDefaultShortcutMap, mergeShortcutMaps, detectConflicts, resolveShortcut } from './shortcutService';
+export { getDefaultShortcutMap, mergeShortcutMaps, detectConflicts, resolveShortcut, isShortcutCustomized } from './shortcutService';
 export { isInputContext } from './inputContext';
 export { moveActiveCell, computeVisibleRows } from './gridNavigationService';
 export type { VisibleRowDescriptor } from './gridNavigationService';

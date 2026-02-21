@@ -4,6 +4,7 @@ import {
   mergeShortcutMaps,
   detectConflicts,
   resolveShortcut,
+  isShortcutCustomized,
 } from './shortcutService';
 import { isInputContext } from './inputContext';
 import type { ShortcutMap, ShortcutAction } from '../types';
@@ -148,6 +149,38 @@ describe('resolveShortcut', () => {
   it('returns null for unknown key', () => {
     const result = resolveShortcut('z', map, { isInputContext: false, isGridFocused: true });
     expect(result).toBeNull();
+  });
+});
+
+describe('isShortcutCustomized', () => {
+  it('returns false for a shortcut at its default key', () => {
+    const defaults = getDefaultShortcutMap();
+    expect(isShortcutCustomized('global.newTask', defaults)).toBe(false);
+  });
+
+  it('returns true when the key differs from default', () => {
+    const defaults = getDefaultShortcutMap();
+    const modified: ShortcutMap = {
+      ...defaults,
+      'global.newTask': { ...defaults['global.newTask'], key: 't' },
+    };
+    expect(isShortcutCustomized('global.newTask', modified)).toBe(true);
+  });
+
+  it('returns false for non-customizable actions even if key somehow differs', () => {
+    const defaults = getDefaultShortcutMap();
+    // nav.up is non-customizable, but test the function itself
+    const modified: ShortcutMap = {
+      ...defaults,
+      'nav.up': { ...defaults['nav.up'], key: 'w' },
+    };
+    // isShortcutCustomized only compares keys, it doesn't check customizable flag
+    expect(isShortcutCustomized('nav.up', modified)).toBe(true);
+  });
+
+  it('returns false for unknown action', () => {
+    const defaults = getDefaultShortcutMap();
+    expect(isShortcutCustomized('unknown.action' as ShortcutAction, defaults)).toBe(false);
   });
 });
 

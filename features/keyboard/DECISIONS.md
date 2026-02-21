@@ -29,3 +29,6 @@ Previously 6 of 10 customizable actions were hardcoded (/, ?, Ctrl+Enter, Escape
 
 ## #10 Chord shortcuts (kk, dd) not supported — by design
 Only `gg` is supported as a chord, hardcoded with a 300ms timeout. Generalizing chords would add 300ms input lag to every single-key shortcut while the system waits for a potential second key. Modifier combos (Ctrl+K) cover the "more key space" use case without latency.
+
+## #11 Per-shortcut reset uses hover-reveal ↺ button
+Individual shortcut reset appears as a "↺" text button between the conflict badge and the kbd element. It's hidden by default (`opacity-0`) and revealed on row hover via Tailwind `group`/`group-hover:opacity-100`, plus `focus:opacity-100` for keyboard accessibility. Only rendered when `isShortcutCustomized()` returns true (key differs from default). The store method `resetKeyboardShortcut(action)` simply deletes the action key from the persisted overrides object, letting `mergeShortcutMaps` fall back to the default.
