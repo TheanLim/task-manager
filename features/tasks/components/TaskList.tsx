@@ -476,6 +476,9 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
         acc[section.id] = sortTasks(sectionTasks);
       } else if (showReinsertButton) {
         acc[section.id] = sortByLastAction(sectionTasks);
+      } else if (initialSortByProject && !userHasReordered) {
+        // Preserve the pre-sorted order from the parent (sorted by project name)
+        acc[section.id] = sectionTasks;
       } else {
         acc[section.id] = sectionTasks;
       }

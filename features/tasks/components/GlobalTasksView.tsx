@@ -118,11 +118,19 @@ export function GlobalTasksView({
       
       const orderedTasks: TaskWithMetadata[] = [];
       
+      // Build a project-name lookup for sorting (mirrors nested mode's pre-sort)
+      const projectNameMap = new Map(projects.map(p => [p.id, p.name]));
+
       // Process sectioned tasks
       allSections.forEach(section => {
         const sectionParents = allTasks
           .filter(t => t.sectionId === section.id && !t.parentTaskId)
-          .sort((a, b) => a.order - b.order);
+          .sort((a, b) => {
+            const nameA = a.projectId ? (projectNameMap.get(a.projectId) || '') : '';
+            const nameB = b.projectId ? (projectNameMap.get(b.projectId) || '') : '';
+            const cmp = nameA.localeCompare(nameB);
+            return cmp !== 0 ? cmp : a.order - b.order;
+          });
         
         sectionParents.forEach(parentTask => {
           const subtasks = subtasksByParent.get(parentTask.id) || [];
@@ -149,7 +157,12 @@ export function GlobalTasksView({
       // Process unsectioned tasks
       const unsectionedParents = allTasks
         .filter(t => !t.sectionId && !t.parentTaskId)
-        .sort((a, b) => a.order - b.order);
+        .sort((a, b) => {
+          const nameA = a.projectId ? (projectNameMap.get(a.projectId) || '') : '';
+          const nameB = b.projectId ? (projectNameMap.get(b.projectId) || '') : '';
+          const cmp = nameA.localeCompare(nameB);
+          return cmp !== 0 ? cmp : a.order - b.order;
+        });
       
       unsectionedParents.forEach(parentTask => {
         const subtasks = subtasksByParent.get(parentTask.id) || [];
@@ -177,7 +190,7 @@ export function GlobalTasksView({
     
     // Nested mode: Show tasks with their natural hierarchy
     return { displayTasks: allTasks, displaySections: allSections };
-  }, [projectTasks, unlinkedTasks, unlinkedSections, virtualFromProjectsSection, globalTasksDisplayMode]);
+  }, [projectTasks, unlinkedTasks, unlinkedSections, virtualFromProjectsSection, globalTasksDisplayMode, projects]);
 
   // Filter completed tasks based on mode
   // Priority: Review Queue / Hide Completed → hide ALL completed
