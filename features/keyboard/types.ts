@@ -10,7 +10,9 @@ export type ShortcutAction =
   | 'task.edit' | 'task.open' | 'task.toggleComplete'
   | 'task.delete' | 'task.addSubtask'
   | 'task.reinsert'
-  | 'task.saveEdit' | 'task.cancelEdit';
+  | 'task.saveEdit' | 'task.cancelEdit'
+  // TMS-specific
+  | 'tms.moveToToday' | 'tms.moveToTomorrow' | 'tms.moveToInbox';
 
 /** A single shortcut binding */
 export interface ShortcutBinding {

@@ -31,6 +31,12 @@ interface UseKeyboardNavigationOptions {
   onSpacePress?: (taskId: string) => void;
   /** Called when Enter is pressed on a focused task row (for open detail) */
   onEnterPress?: (taskId: string) => void;
+  /** Called when tms.moveToToday shortcut is pressed (DIT) */
+  onMoveToToday?: (taskId: string) => void;
+  /** Called when tms.moveToTomorrow shortcut is pressed (DIT) */
+  onMoveToTomorrow?: (taskId: string) => void;
+  /** Called when tms.moveToInbox shortcut is pressed (DIT) */
+  onMoveToInbox?: (taskId: string) => void;
 }
 
 export interface UseKeyboardNavigationReturn {
@@ -115,6 +121,9 @@ export function useKeyboardNavigation(
     sectionStartIndices = [],
     onSpacePress,
     onEnterPress,
+    onMoveToToday,
+    onMoveToTomorrow,
+    onMoveToInbox,
   } = options;
 
   const [activeCell, setActiveCellState] = useState<GridCoord | null>(null);
@@ -124,8 +133,14 @@ export function useKeyboardNavigation(
   const lastGPressTime = useRef<number>(0);
   const onSpacePressRef = useRef(onSpacePress);
   const onEnterPressRef = useRef(onEnterPress);
+  const onMoveToTodayRef = useRef(onMoveToToday);
+  const onMoveToTomorrowRef = useRef(onMoveToTomorrow);
+  const onMoveToInboxRef = useRef(onMoveToInbox);
   onSpacePressRef.current = onSpacePress;
   onEnterPressRef.current = onEnterPress;
+  onMoveToTodayRef.current = onMoveToToday;
+  onMoveToTomorrowRef.current = onMoveToTomorrow;
+  onMoveToInboxRef.current = onMoveToInbox;
   // Keep refs for values that change frequently to avoid stale closures
   const visibleRowTaskIdsRef = useRef(visibleRowTaskIds);
   visibleRowTaskIdsRef.current = visibleRowTaskIds;
@@ -292,6 +307,35 @@ export function useKeyboardNavigation(
         const taskId = activeCell.taskId ?? visibleRowTaskIdsRef.current[activeCell.row];
         if (taskId) onEnterPressRef.current?.(taskId);
         return;
+      }
+
+      // TMS — DIT move shortcuts
+      if (matchesKey(eventMods, shortcutMap['tms.moveToToday'].key)) {
+        const taskId = activeCell.taskId ?? visibleRowTaskIdsRef.current[activeCell.row];
+        if (taskId && onMoveToTodayRef.current) {
+          e.preventDefault();
+          e.stopPropagation();
+          onMoveToTodayRef.current(taskId);
+          return;
+        }
+      }
+      if (matchesKey(eventMods, shortcutMap['tms.moveToTomorrow'].key)) {
+        const taskId = activeCell.taskId ?? visibleRowTaskIdsRef.current[activeCell.row];
+        if (taskId && onMoveToTomorrowRef.current) {
+          e.preventDefault();
+          e.stopPropagation();
+          onMoveToTomorrowRef.current(taskId);
+          return;
+        }
+      }
+      if (matchesKey(eventMods, shortcutMap['tms.moveToInbox'].key)) {
+        const taskId = activeCell.taskId ?? visibleRowTaskIdsRef.current[activeCell.row];
+        if (taskId && onMoveToInboxRef.current) {
+          e.preventDefault();
+          e.stopPropagation();
+          onMoveToInboxRef.current(taskId);
+          return;
+        }
       }
 
       // gg chord — must be checked before resolveDirection (stateful, needs early return)

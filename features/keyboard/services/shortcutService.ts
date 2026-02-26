@@ -28,6 +28,10 @@ export function getDefaultShortcutMap(): ShortcutMap {
     'task.reinsert': { key: 'r', label: 'Reinsert task', category: 'Task Actions', description: 'Push the focused task to the bottom of the review queue' },
     'task.saveEdit': { key: 'Ctrl+Enter', label: 'Save & close edit', category: 'Task Actions', description: 'Save the current edit and close the editor' },
     'task.cancelEdit': { key: 'Escape', label: 'Cancel edit', category: 'Task Actions', description: 'Cancel the inline edit and restore previous value' },
+    // TMS — DIT move shortcuts
+    'tms.moveToToday': { key: 't', label: 'Move to Today', category: 'Task Actions', description: 'Move the focused task to the Today list (DIT)' },
+    'tms.moveToTomorrow': { key: 'w', label: 'Move to Tomorrow', category: 'Task Actions', description: 'Move the focused task to the Tomorrow list (DIT)' },
+    'tms.moveToInbox': { key: 'i', label: 'Move to Inbox', category: 'Task Actions', description: 'Move the focused task back to the Inbox (DIT)' },
   };
 }
 

@@ -59,6 +59,14 @@ interface TaskRowProps {
   onToggleSubtasks?: (taskId: string) => void;
   /** Index for staggered fade-in animation. When provided, applies animate-fade-in-up with delay. */
   animationIndex?: number;
+  /** TMS visual variant — applies system-specific CSS classes to the row. */
+  tmsVariant?: 'default' | 'current' | 'dotted' | 'flagged' | 'attention';
+  /** Slot rendered before the checkbox in the name cell (e.g. FVP dot indicator, AF4 warning icon). */
+  leadingSlot?: React.ReactNode;
+  /** Slot rendered as an extra row below the task row (e.g. AF4 Made Progress/Done/Skip buttons). */
+  actionsSlot?: React.ReactNode;
+  /** Slot rendered inline in the name cell before the view-details button (e.g. DIT move buttons). Shows on hover. */
+  trailingSlot?: React.ReactNode;
 }
 
 export function TaskRow({
@@ -69,6 +77,7 @@ export function TaskRow({
   projectName, onProjectClick, flatMode = false, columnOrder,
   showReinsertButton = false, onReinsert, hideCompletedSubtasks = false,
   subtasksExpanded: controlledExpanded, onToggleSubtasks, animationIndex,
+  tmsVariant, leadingSlot, actionsSlot, trailingSlot,
 }: TaskRowProps) {
   const [localExpanded, setLocalExpanded] = useState(false);
   // Use controlled state if provided, otherwise fall back to local state
@@ -103,6 +112,15 @@ export function TaskRow({
 
   const isDragging = draggedTaskId === task.id;
   const isDragOver = dragOverTaskId === task.id;
+
+  // TMS variant → CSS class mapping
+  const tmsVariantClass = tmsVariant ? ({
+    default: '',
+    current: 'tms-af4-current',
+    dotted: 'tms-fvp-dotted-row',
+    flagged: 'tms-af4-dismissed',
+    attention: 'tms-std-attention',
+  } as Record<string, string>)[tmsVariant] ?? '' : '';
 
   // Render a single column cell by ID
   const renderCell = (colId: TaskColumnId, idx: number) => {
@@ -187,7 +205,7 @@ export function TaskRow({
       <tr
         data-task-id={task.id}
         role="row"
-        className={cn("border-b hover:bg-accent hover:shadow-elevation-base group transition-colors", task.completed && "opacity-60", isDragging && "opacity-50", isDragOver && "ring-2 ring-primary", animationIndex !== undefined && "animate-fade-in-up")}
+        className={cn("border-b hover:bg-accent hover:shadow-elevation-base group transition-colors", task.completed && "opacity-60", isDragging && "opacity-50", isDragOver && "ring-2 ring-primary", animationIndex !== undefined && "animate-fade-in-up", tmsVariantClass)}
         style={animationIndex !== undefined ? { animationDelay: `${Math.min(animationIndex * 30, 300)}ms` } : undefined}
         draggable={draggable}
         onDragStart={onDragStart ? (e) => { if (hasSubtasks && subtasksExpanded) { onSetTaskWasExpanded?.(true); setSubtasksExpanded(false); } onDragStart(e, task.id); } : undefined}
@@ -218,6 +236,8 @@ export function TaskRow({
                 ) : (<div className="w-4 flex-shrink-0" />)
               )}
 
+              {leadingSlot}
+
               <button onClick={(e) => { e.stopPropagation(); if (!task.completed) { setJustCompleted(true); setTimeout(() => setJustCompleted(false), 400); } onComplete(task.id); }} className={cn("flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors", task.completed ? "bg-green-500 border-green-500 hover:bg-green-600 hover:border-green-600" : "border-gray-300 hover:border-gray-400 dark:border-gray-600 dark:hover:border-gray-500", justCompleted && "animate-check-pop")} aria-label={task.completed ? 'Mark as incomplete' : 'Mark as complete'}>
                 {task.completed && <Check className="h-3 w-3 text-white" />}
               </button>
@@ -239,6 +259,12 @@ export function TaskRow({
                 )}
               </div>
 
+              {trailingSlot && (
+                <div data-slot="trailing" className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex-shrink-0 flex items-center gap-1 mr-10">
+                  {trailingSlot}
+                </div>
+              )}
+
               {showReinsertButton && (
                 <Tooltip><TooltipTrigger asChild>
                   <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onReinsert?.(task.id); }}
@@ -259,6 +285,15 @@ export function TaskRow({
         {/* Data columns - rendered in the order specified by columnOrder */}
         {columnOrder.map((colId, idx) => renderCell(colId, idx))}
       </tr>
+
+      {/* TMS actions slot — extra row below the task row */}
+      {actionsSlot && (
+        <tr className="border-b" onClick={(e) => e.stopPropagation()}>
+          <td colSpan={1 + columnOrder.length} className="px-3 py-2">
+            {actionsSlot}
+          </td>
+        </tr>
+      )}
 
       {/* Subtasks (if expanded) */}
       {hasVisibleSubtasks && subtasksExpanded && (
