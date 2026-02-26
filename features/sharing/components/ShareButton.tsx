@@ -53,29 +53,13 @@ export function ShareButton({
     onShowToast?.(message, type);
   };
   
-  const filterTMSForProject = (tmsState: TMSState, projectTasks: Task[]) => {
-    const taskIds = new Set(projectTasks.map((t: Task) => t.id));
-    
+  const filterTMSForProject = (tmsState: TMSState, _projectTasks: Task[]) => {
+    // systemStates is an open record — pass through as-is.
+    // Per-system task filtering will be handled by the host in Phase 5.
     return {
       activeSystem: tmsState.activeSystem,
-      dit: {
-        todayTasks: tmsState.dit.todayTasks.filter((id: string) => taskIds.has(id)),
-        tomorrowTasks: tmsState.dit.tomorrowTasks.filter((id: string) => taskIds.has(id)),
-        lastDayChange: tmsState.dit.lastDayChange
-      },
-      af4: {
-        backlogTaskIds: tmsState.af4.backlogTaskIds.filter((id: string) => taskIds.has(id)),
-        activeListTaskIds: tmsState.af4.activeListTaskIds.filter((id: string) => taskIds.has(id)),
-        currentPosition: 0,
-        lastPassHadWork: false,
-        passStartPosition: 0,
-        dismissedTaskIds: tmsState.af4.dismissedTaskIds.filter((id: string) => taskIds.has(id)),
-        phase: tmsState.af4.phase,
-      },
-      fvp: {
-        dottedTasks: tmsState.fvp.dottedTasks.filter((id: string) => taskIds.has(id)),
-        scanPosition: tmsState.fvp.scanPosition,
-      }
+      systemStates: tmsState.systemStates,
+      systemStateVersions: tmsState.systemStateVersions,
     };
   };
 

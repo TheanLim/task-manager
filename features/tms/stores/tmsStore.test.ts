@@ -1,184 +1,218 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useTMSStore } from './tmsStore';
-import { TimeManagementSystem } from '@/types';
+import { useTMSStore, migrateTMSState } from './tmsStore';
 
 describe('useTMSStore', () => {
   beforeEach(() => {
-    const store = useTMSStore.getState();
-    store.clearSystemMetadata();
-    store.setActiveSystem(TimeManagementSystem.NONE);
+    // Reset to clean default state before each test
+    useTMSStore.setState({
+      state: {
+        activeSystem: 'none',
+        systemStates: {},
+        systemStateVersions: {},
+      },
+    });
   });
+
+  // ─── setActiveSystem ────────────────────────────────────────────────────────
 
   describe('setActiveSystem', () => {
-    it('should set the active time management system', () => {
-      const store = useTMSStore.getState();
+    it('updates activeSystem', () => {
+      useTMSStore.getState().setActiveSystem('dit');
+      expect(useTMSStore.getState().state.activeSystem).toBe('dit');
+    });
 
-      store.setActiveSystem(TimeManagementSystem.DIT);
-      expect(useTMSStore.getState().state.activeSystem).toBe(TimeManagementSystem.DIT);
-
-      store.setActiveSystem(TimeManagementSystem.AF4);
-      expect(useTMSStore.getState().state.activeSystem).toBe(TimeManagementSystem.AF4);
+    it('does not affect systemStates', () => {
+      useTMSStore.getState().applySystemStateDelta('fvp', { dottedTasks: ['t1'] });
+      useTMSStore.getState().setActiveSystem('af4');
+      expect((useTMSStore.getState().state.systemStates['fvp'] as any).dottedTasks).toEqual(['t1']);
     });
   });
 
-  describe('DIT actions', () => {
-    it('should add task to today list', () => {
-      useTMSStore.getState().addToToday('task-1');
-      expect(useTMSStore.getState().state.dit.todayTasks).toContain('task-1');
-    });
+  // ─── applySystemStateDelta ──────────────────────────────────────────────────
 
-    it('should add task to tomorrow list', () => {
-      useTMSStore.getState().addToTomorrow('task-1');
-      expect(useTMSStore.getState().state.dit.tomorrowTasks).toContain('task-1');
-    });
-
-    it('should move task from tomorrow to today', () => {
-      const store = useTMSStore.getState();
-      store.addToTomorrow('task-1');
-      store.moveToToday('task-1');
-      const dit = useTMSStore.getState().state.dit;
-      expect(dit.todayTasks).toContain('task-1');
-      expect(dit.tomorrowTasks).not.toContain('task-1');
-    });
-
-    it('should move task from today to tomorrow', () => {
-      const store = useTMSStore.getState();
-      store.addToToday('task-1');
-      store.moveToTomorrow('task-1');
-      const dit = useTMSStore.getState().state.dit;
-      expect(dit.tomorrowTasks).toContain('task-1');
-      expect(dit.todayTasks).not.toContain('task-1');
-    });
-
-    it('should remove task from schedule', () => {
-      const store = useTMSStore.getState();
-      store.addToToday('task-1');
-      store.addToTomorrow('task-2');
-      store.removeFromSchedule('task-1');
-      store.removeFromSchedule('task-2');
-      const dit = useTMSStore.getState().state.dit;
-      expect(dit.todayTasks).not.toContain('task-1');
-      expect(dit.tomorrowTasks).not.toContain('task-2');
-    });
-
-    it('should perform day rollover', () => {
-      const store = useTMSStore.getState();
-      store.addToTomorrow('task-1');
-      store.addToTomorrow('task-2');
-      store.performDayRollover();
-      const dit = useTMSStore.getState().state.dit;
-      expect(dit.todayTasks).toContain('task-1');
-      expect(dit.todayTasks).toContain('task-2');
-      expect(dit.tomorrowTasks).toHaveLength(0);
-    });
-  });
-
-  describe('AF4 state via updateState', () => {
-    it('should update af4 backlog via updateState', () => {
-      useTMSStore.getState().updateState({
-        af4: {
-          backlogTaskIds: ['task-1', 'task-2'],
-          activeListTaskIds: [],
-          currentPosition: 0,
-          lastPassHadWork: false,
-          passStartPosition: 0,
-          dismissedTaskIds: [],
-          phase: 'backlog',
-        },
-      });
-      const af4 = useTMSStore.getState().state.af4;
-      expect(af4.backlogTaskIds).toEqual(['task-1', 'task-2']);
-      expect(af4.activeListTaskIds).toEqual([]);
-    });
-
-    it('should update af4 phase to active via updateState', () => {
-      useTMSStore.getState().updateState({
-        af4: {
-          backlogTaskIds: ['task-1'],
-          activeListTaskIds: ['task-2'],
-          currentPosition: 0,
-          lastPassHadWork: false,
-          passStartPosition: 0,
-          dismissedTaskIds: [],
-          phase: 'active',
-        },
-      });
-      expect(useTMSStore.getState().state.af4.phase).toBe('active');
-    });
-  });
-
-  describe('FVP state via updateState', () => {
-    it('should update fvp dottedTasks via updateState', () => {
-      useTMSStore.getState().updateState({
-        fvp: { dottedTasks: ['task-1', 'task-2'], scanPosition: 2 },
-      });
-      const fvp = useTMSStore.getState().state.fvp;
-      expect(fvp.dottedTasks).toEqual(['task-1', 'task-2']);
+  describe('applySystemStateDelta', () => {
+    it('shallow-merges delta into systemStates[id], creating key if absent', () => {
+      useTMSStore.getState().applySystemStateDelta('fvp', { dottedTasks: ['t1'], scanPosition: 2 });
+      const fvp = useTMSStore.getState().state.systemStates['fvp'] as any;
+      expect(fvp.dottedTasks).toEqual(['t1']);
       expect(fvp.scanPosition).toBe(2);
     });
 
-    it('should reset fvp via updateState', () => {
-      useTMSStore.getState().updateState({
-        fvp: { dottedTasks: ['task-1'], scanPosition: 3 },
-      });
-      useTMSStore.getState().updateState({
-        fvp: { dottedTasks: [], scanPosition: 1 },
-      });
-      const fvp = useTMSStore.getState().state.fvp;
-      expect(fvp.dottedTasks).toHaveLength(0);
-      expect(fvp.scanPosition).toBe(1);
+    it('preserves existing keys not in delta', () => {
+      useTMSStore.getState().applySystemStateDelta('fvp', { dottedTasks: ['t1'], scanPosition: 1 });
+      useTMSStore.getState().applySystemStateDelta('fvp', { scanPosition: 3 });
+      const fvp = useTMSStore.getState().state.systemStates['fvp'] as any;
+      expect(fvp.dottedTasks).toEqual(['t1']); // preserved
+      expect(fvp.scanPosition).toBe(3);        // updated
+    });
+
+    it('updates systemStateVersions when newVersion is provided', () => {
+      useTMSStore.getState().applySystemStateDelta('fvp', { scanPosition: 1 }, 2);
+      expect(useTMSStore.getState().state.systemStateVersions['fvp']).toBe(2);
+    });
+
+    it('does not touch systemStateVersions when newVersion is omitted', () => {
+      useTMSStore.getState().applySystemStateDelta('fvp', { scanPosition: 1 });
+      expect(useTMSStore.getState().state.systemStateVersions['fvp']).toBeUndefined();
+    });
+
+    it('does not affect other system states', () => {
+      useTMSStore.getState().applySystemStateDelta('af4', { currentPosition: 5 });
+      useTMSStore.getState().applySystemStateDelta('fvp', { scanPosition: 2 });
+      expect((useTMSStore.getState().state.systemStates['af4'] as any).currentPosition).toBe(5);
     });
   });
 
-  describe('clearSystemMetadata', () => {
-    it('should reset all TMS sub-state to defaults', () => {
-      const store = useTMSStore.getState();
-      store.addToToday('task-1');
-      store.addToTomorrow('task-2');
-      store.updateState({
-        af4: {
-          backlogTaskIds: ['task-3'],
-          activeListTaskIds: ['task-4'],
-          currentPosition: 1,
-          lastPassHadWork: true,
-          passStartPosition: 0,
-          dismissedTaskIds: ['task-3'],
-          phase: 'active',
-        },
-        fvp: { dottedTasks: ['task-5'], scanPosition: 3 },
-      });
+  // ─── setSystemState ─────────────────────────────────────────────────────────
 
-      store.clearSystemMetadata();
+  describe('setSystemState', () => {
+    it('replaces the entire slice for the given id', () => {
+      useTMSStore.getState().applySystemStateDelta('dit', { todayTasks: ['t1'], tomorrowTasks: [] });
+      useTMSStore.getState().setSystemState('dit', { todayTasks: [], tomorrowTasks: ['t2'], lastDayChange: 'x' });
+      const dit = useTMSStore.getState().state.systemStates['dit'] as any;
+      expect(dit.todayTasks).toEqual([]);
+      expect(dit.tomorrowTasks).toEqual(['t2']);
+    });
 
-      const state = useTMSStore.getState().state;
-      expect(state.dit.todayTasks).toHaveLength(0);
-      expect(state.dit.tomorrowTasks).toHaveLength(0);
-      expect(state.af4.backlogTaskIds).toHaveLength(0);
-      expect(state.af4.activeListTaskIds).toHaveLength(0);
-      expect(state.af4.currentPosition).toBe(0);
-      expect(state.af4.phase).toBe('backlog');
-      expect(state.fvp.dottedTasks).toHaveLength(0);
-      expect(state.fvp.scanPosition).toBe(1);
+    it('sets version when provided', () => {
+      useTMSStore.getState().setSystemState('dit', {}, 3);
+      expect(useTMSStore.getState().state.systemStateVersions['dit']).toBe(3);
+    });
+
+    it('does not affect other system states', () => {
+      useTMSStore.getState().applySystemStateDelta('fvp', { scanPosition: 7 });
+      useTMSStore.getState().setSystemState('dit', { todayTasks: [] });
+      expect((useTMSStore.getState().state.systemStates['fvp'] as any).scanPosition).toBe(7);
     });
   });
 
-  describe('initial state', () => {
-    it('should have correct default state after clear', () => {
-      const store = useTMSStore.getState();
-      store.clearSystemMetadata();
-      store.setActiveSystem(TimeManagementSystem.NONE);
+  // ─── clearSystemState ───────────────────────────────────────────────────────
 
-      const state = useTMSStore.getState().state;
-      expect(state.activeSystem).toBe(TimeManagementSystem.NONE);
-      expect(state.dit.todayTasks).toEqual([]);
-      expect(state.dit.tomorrowTasks).toEqual([]);
-      expect(state.dit.lastDayChange).toBeDefined();
-      expect(state.af4.backlogTaskIds).toEqual([]);
-      expect(state.af4.activeListTaskIds).toEqual([]);
-      expect(state.af4.currentPosition).toBe(0);
-      expect(state.af4.phase).toBe('backlog');
-      expect(state.fvp.dottedTasks).toEqual([]);
-      expect(state.fvp.scanPosition).toBe(1);
+  describe('clearSystemState', () => {
+    it('removes the key from systemStates', () => {
+      useTMSStore.getState().applySystemStateDelta('fvp', { dottedTasks: ['t1'] });
+      useTMSStore.getState().clearSystemState('fvp');
+      expect(useTMSStore.getState().state.systemStates['fvp']).toBeUndefined();
     });
+
+    it('removes the key from systemStateVersions', () => {
+      useTMSStore.getState().applySystemStateDelta('fvp', {}, 2);
+      useTMSStore.getState().clearSystemState('fvp');
+      expect(useTMSStore.getState().state.systemStateVersions['fvp']).toBeUndefined();
+    });
+
+    it('does not affect other system states', () => {
+      useTMSStore.getState().applySystemStateDelta('af4', { currentPosition: 1 });
+      useTMSStore.getState().applySystemStateDelta('fvp', { scanPosition: 2 });
+      useTMSStore.getState().clearSystemState('fvp');
+      expect((useTMSStore.getState().state.systemStates['af4'] as any).currentPosition).toBe(1);
+    });
+
+    it('is a no-op when key does not exist', () => {
+      expect(() => useTMSStore.getState().clearSystemState('nonexistent')).not.toThrow();
+    });
+  });
+
+  // ─── systemStateVersions tracking ──────────────────────────────────────────
+
+  describe('systemStateVersions tracking', () => {
+    it('starts empty', () => {
+      expect(useTMSStore.getState().state.systemStateVersions).toEqual({});
+    });
+
+    it('is updated by applySystemStateDelta with version', () => {
+      useTMSStore.getState().applySystemStateDelta('fvp', {}, 1);
+      useTMSStore.getState().applySystemStateDelta('af4', {}, 2);
+      expect(useTMSStore.getState().state.systemStateVersions).toEqual({ fvp: 1, af4: 2 });
+    });
+
+    it('is cleared by clearSystemState', () => {
+      useTMSStore.getState().applySystemStateDelta('fvp', {}, 1);
+      useTMSStore.getState().clearSystemState('fvp');
+      expect(useTMSStore.getState().state.systemStateVersions['fvp']).toBeUndefined();
+    });
+  });
+});
+
+// ─── migrateTMSState — v1 → v2 ─────────────────────────────────────────────
+
+describe('migrateTMSState', () => {
+  // Validates: Requirements 2.2
+
+  const v1DIT = { todayTasks: ['t1'], tomorrowTasks: ['t2'], lastDayChange: '2024-01-01T00:00:00.000Z' };
+  const v1AF4 = {
+    backlogTaskIds: ['t3'],
+    activeListTaskIds: ['t4'],
+    currentPosition: 0,
+    lastPassHadWork: false,
+    passStartPosition: 0,
+    dismissedTaskIds: [],
+    phase: 'backlog',
+  };
+  const v1FVP = { dottedTasks: ['t5'], scanPosition: 1 };
+
+  it('v1 with all three systems populated: lifts dit/af4/fvp into systemStates, sets versions to 1', () => {
+    const persistedState = {
+      activeSystem: 'dit',
+      dit: v1DIT,
+      af4: v1AF4,
+      fvp: v1FVP,
+    };
+    const result = migrateTMSState(persistedState, 1);
+    expect(result.activeSystem).toBe('dit');
+    expect(result.systemStates).toHaveProperty('dit');
+    expect(result.systemStates).toHaveProperty('af4');
+    expect(result.systemStates).toHaveProperty('fvp');
+    expect(result.systemStateVersions).toEqual({ dit: 1, af4: 1, fvp: 1 });
+  });
+
+  it('v1 with only dit populated: only dit key appears in systemStates', () => {
+    const persistedState = {
+      activeSystem: 'dit',
+      dit: v1DIT,
+      af4: null,
+      fvp: undefined,
+    };
+    const result = migrateTMSState(persistedState, 1);
+    expect(result.systemStates).toHaveProperty('dit');
+    expect(result.systemStates).not.toHaveProperty('af4');
+    expect(result.systemStates).not.toHaveProperty('fvp');
+    expect(result.systemStateVersions).toEqual({ dit: 1 });
+  });
+
+  it('v1 with activeSystem none: activeSystem is none, systemStates is {}', () => {
+    const persistedState = {
+      activeSystem: 'none',
+      dit: null,
+      af4: null,
+      fvp: null,
+    };
+    const result = migrateTMSState(persistedState, 1);
+    expect(result.activeSystem).toBe('none');
+    expect(result.systemStates).toEqual({});
+    expect(result.systemStateVersions).toEqual({});
+  });
+
+  it('null/missing persisted state: returns safe default without crashing', () => {
+    const result = migrateTMSState(null, 1);
+    expect(result).toEqual({ activeSystem: 'none', systemStates: {}, systemStateVersions: {} });
+  });
+
+  it('unknown version number: returns safe default', () => {
+    const result = migrateTMSState({ activeSystem: 'dit', dit: v1DIT }, 99);
+    expect(result).toEqual({ activeSystem: 'none', systemStates: {}, systemStateVersions: {} });
+  });
+
+  it('v1 AF4 state: passStartPosition is NOT present in the migrated systemStates.af4', () => {
+    const persistedState = {
+      activeSystem: 'af4',
+      dit: null,
+      af4: v1AF4,
+      fvp: null,
+    };
+    const result = migrateTMSState(persistedState, 1);
+    const migratedAF4 = result.systemStates['af4'] as Record<string, unknown>;
+    expect(migratedAF4).toBeDefined();
+    expect(migratedAF4).not.toHaveProperty('passStartPosition');
   });
 });

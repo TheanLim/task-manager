@@ -1,72 +1,124 @@
-import { Task, TMSState } from '@/types';
+import { z } from 'zod';
+import { Task } from '@/types';
+import { TimeManagementSystemHandler } from './index';
+import { DITView } from '../components/DITView';
 
 /**
- * Do It Tomorrow (DIT) Handler — Pure Functions
- * 
+ * Do It Tomorrow (DIT) Handler
+ *
  * DIT is a time management system where:
  * - New tasks go to "Tomorrow"
- * - Each day, tomorrow's tasks become today's tasks
+ * - Each day, tomorrow's tasks become today's tasks (day rollover on activate)
  * - Focus on completing today's tasks
+ *
+ * Ref: EXTENSIBILITY-ARCHITECTURE.md §8 "DIT Handler"
  */
 
-/**
- * Initialize DIT system - check if day has changed and return rollover state delta if needed
- */
-export function initialize(tasks: Task[], tmsState: TMSState): Partial<TMSState> {
-  const lastDayChange = tmsState.dit.lastDayChange.split('T')[0];
-  const today = new Date().toISOString().split('T')[0];
-  
-  if (lastDayChange !== today) {
-    return {
-      dit: {
-        todayTasks: [...tmsState.dit.tomorrowTasks],
+// ── State schema ──────────────────────────────────────────────────────────────
+
+const DITStateSchema = z.object({
+  todayTasks:    z.array(z.string().min(1)),
+  tomorrowTasks: z.array(z.string().min(1)),
+  lastDayChange: z.string().datetime(),
+});
+
+export type DITState = z.infer<typeof DITStateSchema>;
+
+// ── Action union ──────────────────────────────────────────────────────────────
+
+export type DITAction =
+  | { type: 'MOVE_TO_TODAY';        taskId: string }
+  | { type: 'MOVE_TO_TOMORROW';     taskId: string }
+  | { type: 'REMOVE_FROM_SCHEDULE'; taskId: string };
+
+// ── Handler object ────────────────────────────────────────────────────────────
+
+export const DITHandler: TimeManagementSystemHandler<DITState, DITAction> = {
+  id: 'dit',
+  displayName: 'DIT',
+  description: 'Do It Tomorrow',
+  stateSchema: DITStateSchema,
+  stateVersion: 1,
+
+  getInitialState() {
+    return { todayTasks: [], tomorrowTasks: [], lastDayChange: new Date().toISOString() };
+  },
+
+  validateState(raw) {
+    const result = DITStateSchema.safeParse(raw);
+    return result.success ? result.data : this.getInitialState();
+  },
+
+  migrateState(_fromVersion, raw) {
+    return this.validateState(raw);
+  },
+
+  onActivate(_tasks, currentState) {
+    const lastDay = currentState.lastDayChange.split('T')[0];
+    const today   = new Date().toISOString().split('T')[0];
+    if (lastDay !== today) {
+      return {
+        todayTasks:    [...currentState.tomorrowTasks],
         tomorrowTasks: [],
         lastDayChange: new Date().toISOString(),
-      },
+      };
+    }
+    return {};
+  },
+
+  onDeactivate(_state) {
+    return {};
+  },
+
+  getOrderedTasks(tasks, state) {
+    const todaySet    = new Set(state.todayTasks);
+    const tomorrowSet = new Set(state.tomorrowTasks);
+    return [
+      ...tasks.filter(t => todaySet.has(t.id)),
+      ...tasks.filter(t => tomorrowSet.has(t.id) && !todaySet.has(t.id)),
+      ...tasks.filter(t => !todaySet.has(t.id) && !tomorrowSet.has(t.id)),
+    ];
+  },
+
+  onTaskCreated(task, state) {
+    return { tomorrowTasks: [...state.tomorrowTasks, task.id] };
+  },
+
+  onTaskCompleted(task, state) {
+    return {
+      todayTasks:    state.todayTasks.filter(id => id !== task.id),
+      tomorrowTasks: state.tomorrowTasks.filter(id => id !== task.id),
     };
-  }
-  
-  return {};
-}
+  },
 
-/**
- * Get tasks ordered by DIT priority: today's tasks first, then tomorrow's tasks, then others
- */
-export function getOrderedTasks(tasks: Task[], tmsState: TMSState): Task[] {
-  const todayIds = new Set(tmsState.dit.todayTasks);
-  const tomorrowIds = new Set(tmsState.dit.tomorrowTasks);
-  
-  const todayTasks = tasks.filter(t => todayIds.has(t.id));
-  const tomorrowTasks = tasks.filter(t => tomorrowIds.has(t.id));
-  const otherTasks = tasks.filter(t => !todayIds.has(t.id) && !tomorrowIds.has(t.id));
-  
-  return [...todayTasks, ...tomorrowTasks, ...otherTasks];
-}
+  onTaskDeleted(taskId, state) {
+    return {
+      todayTasks:    state.todayTasks.filter(id => id !== taskId),
+      tomorrowTasks: state.tomorrowTasks.filter(id => id !== taskId),
+    };
+  },
 
-/**
- * When a task is created, add it to tomorrow's list — returns state delta
- */
-export function onTaskCreated(task: Task, tmsState: TMSState): Partial<TMSState> {
-  return {
-    dit: {
-      ...tmsState.dit,
-      tomorrowTasks: [...tmsState.dit.tomorrowTasks, task.id],
-    },
-  };
-}
+  reduce(state, action) {
+    switch (action.type) {
+      case 'MOVE_TO_TODAY':
+        return {
+          todayTasks:    [...state.todayTasks.filter(x => x !== action.taskId), action.taskId],
+          tomorrowTasks: state.tomorrowTasks.filter(x => x !== action.taskId),
+        };
+      case 'MOVE_TO_TOMORROW':
+        return {
+          tomorrowTasks: [...state.tomorrowTasks.filter(x => x !== action.taskId), action.taskId],
+          todayTasks:    state.todayTasks.filter(x => x !== action.taskId),
+        };
+      case 'REMOVE_FROM_SCHEDULE':
+        return {
+          todayTasks:    state.todayTasks.filter(x => x !== action.taskId),
+          tomorrowTasks: state.tomorrowTasks.filter(x => x !== action.taskId),
+        };
+    }
+  },
 
-/**
- * When a task is completed, remove it from today's and tomorrow's lists — returns state delta
- */
-export function onTaskCompleted(task: Task, tmsState: TMSState): Partial<TMSState> {
-  const todayTasks = tmsState.dit.todayTasks.filter(id => id !== task.id);
-  const tomorrowTasks = tmsState.dit.tomorrowTasks.filter(id => id !== task.id);
-  
-  return {
-    dit: {
-      ...tmsState.dit,
-      todayTasks,
-      tomorrowTasks,
-    },
-  };
-}
+  getViewComponent() {
+    return DITView;
+  },
+};

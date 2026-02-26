@@ -1,158 +1,101 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { TMSState, TimeManagementSystem, UUID } from '@/types';
+import { TMSState } from '@/types';
+
+export function migrateTMSState(persistedState: unknown, version: number): TMSState {
+  if (version === 1) {
+    const s = (persistedState as any) ?? {};
+    // Drop passStartPosition from af4 during migration
+    const af4Raw = s.af4 ? { ...s.af4 } : null;
+    if (af4Raw && 'passStartPosition' in af4Raw) {
+      delete af4Raw.passStartPosition;
+    }
+    return {
+      activeSystem: (s.activeSystem as string) ?? 'none',
+      systemStates: {
+        ...(s.dit  ? { dit:  s.dit  } : {}),
+        ...(af4Raw ? { af4:  af4Raw } : {}),
+        ...(s.fvp  ? { fvp:  s.fvp  } : {}),
+      },
+      systemStateVersions: {
+        ...(s.dit  ? { dit:  1 } : {}),
+        ...(af4Raw ? { af4:  1 } : {}),
+        ...(s.fvp  ? { fvp:  1 } : {}),
+      },
+    };
+  }
+  // Unknown/corrupt version — safe default, no crash
+  return { activeSystem: 'none', systemStates: {}, systemStateVersions: {} };
+}
 
 interface TMSStore {
   state: TMSState;
-  
-  setActiveSystem: (system: TimeManagementSystem) => void;
-  
-  // DIT actions
-  addToToday: (taskId: UUID) => void;
-  addToTomorrow: (taskId: UUID) => void;
-  moveToToday: (taskId: UUID) => void;
-  moveToTomorrow: (taskId: UUID) => void;
-  removeFromSchedule: (taskId: UUID) => void;
-  performDayRollover: () => void;
-  
-  // Generic state update — apply a partial TMSState delta (used by pure TMS handlers)
-  updateState: (delta: Partial<TMSState>) => void;
-  
-  // Cleanup
-  clearSystemMetadata: () => void;
+
+  setActiveSystem: (system: string) => void;
+  applySystemStateDelta: (systemId: string, delta: Record<string, unknown>, newVersion?: number) => void;
+  setSystemState: (systemId: string, state: unknown, version?: number) => void;
+  clearSystemState: (systemId: string) => void;
 }
+
+const DEFAULT_STATE: TMSState = {
+  activeSystem: 'none',
+  systemStates: {},
+  systemStateVersions: {},
+};
 
 export const useTMSStore = create<TMSStore>()(
   persist(
-    (set, get) => ({
-      state: {
-        activeSystem: TimeManagementSystem.NONE,
-        dit: {
-          todayTasks: [],
-          tomorrowTasks: [],
-          lastDayChange: new Date().toISOString()
-        },
-        af4: {
-          backlogTaskIds: [],
-          activeListTaskIds: [],
-          currentPosition: 0,
-          lastPassHadWork: false,
-          passStartPosition: 0,
-          dismissedTaskIds: [],
-          phase: 'backlog' as const,
-        },
-        fvp: {
-          dottedTasks: [],
-          scanPosition: 1,
-        }
-      },
-      
-      setActiveSystem: (system) => set((state) => ({
-        state: { ...state.state, activeSystem: system }
+    (set) => ({
+      state: DEFAULT_STATE,
+
+      setActiveSystem: (system) => set((store) => ({
+        state: { ...store.state, activeSystem: system },
       })),
-      
-      addToToday: (taskId) => set((state) => ({
-        state: {
-          ...state.state,
-          dit: {
-            ...state.state.dit,
-            todayTasks: [...state.state.dit.todayTasks, taskId]
-          }
-        }
-      })),
-      
-      addToTomorrow: (taskId) => set((state) => ({
-        state: {
-          ...state.state,
-          dit: {
-            ...state.state.dit,
-            tomorrowTasks: [...state.state.dit.tomorrowTasks, taskId]
-          }
-        }
-      })),
-      
-      moveToToday: (taskId) => set((state) => ({
-        state: {
-          ...state.state,
-          dit: {
-            ...state.state.dit,
-            todayTasks: [...state.state.dit.todayTasks, taskId],
-            tomorrowTasks: state.state.dit.tomorrowTasks.filter(id => id !== taskId)
-          }
-        }
-      })),
-      
-      moveToTomorrow: (taskId) => set((state) => ({
-        state: {
-          ...state.state,
-          dit: {
-            ...state.state.dit,
-            tomorrowTasks: [...state.state.dit.tomorrowTasks, taskId],
-            todayTasks: state.state.dit.todayTasks.filter(id => id !== taskId)
-          }
-        }
-      })),
-      
-      removeFromSchedule: (taskId) => set((state) => ({
-        state: {
-          ...state.state,
-          dit: {
-            ...state.state.dit,
-            todayTasks: state.state.dit.todayTasks.filter(id => id !== taskId),
-            tomorrowTasks: state.state.dit.tomorrowTasks.filter(id => id !== taskId)
-          }
-        }
-      })),
-      
-      performDayRollover: () => set((state) => ({
-        state: {
-          ...state.state,
-          dit: {
-            todayTasks: [...state.state.dit.tomorrowTasks],
-            tomorrowTasks: [],
-            lastDayChange: new Date().toISOString()
-          }
-        }
-      })),
-      
-      
-      updateState: (delta) => set((store) => ({
-        state: {
-          ...store.state,
-          ...delta,
-          dit: delta.dit ? { ...store.state.dit, ...delta.dit } : store.state.dit,
-          af4: delta.af4 ? { ...store.state.af4, ...delta.af4 } : store.state.af4,
-          fvp: delta.fvp ? { ...store.state.fvp, ...delta.fvp } : store.state.fvp,
-        },
-      })),
-      
-      clearSystemMetadata: () => set((state) => ({
-        state: {
-          ...state.state,
-          dit: {
-            todayTasks: [],
-            tomorrowTasks: [],
-            lastDayChange: new Date().toISOString()
+
+      applySystemStateDelta: (systemId, delta, newVersion) => set((store) => {
+        const existing = (store.state.systemStates[systemId] ?? {}) as Record<string, unknown>;
+        const merged = { ...existing, ...delta };
+        const versions = newVersion !== undefined
+          ? { ...store.state.systemStateVersions, [systemId]: newVersion }
+          : store.state.systemStateVersions;
+        return {
+          state: {
+            ...store.state,
+            systemStates: { ...store.state.systemStates, [systemId]: merged },
+            systemStateVersions: versions,
           },
-          af4: {
-            backlogTaskIds: [],
-            activeListTaskIds: [],
-            currentPosition: 0,
-            lastPassHadWork: false,
-            passStartPosition: 0,
-            dismissedTaskIds: [],
-            phase: 'backlog' as const,
+        };
+      }),
+
+      setSystemState: (systemId, state, version) => set((store) => {
+        const versions = version !== undefined
+          ? { ...store.state.systemStateVersions, [systemId]: version }
+          : store.state.systemStateVersions;
+        return {
+          state: {
+            ...store.state,
+            systemStates: { ...store.state.systemStates, [systemId]: state },
+            systemStateVersions: versions,
           },
-          fvp: {
-            dottedTasks: [],
-            scanPosition: 1,
-          }
-        }
-      }))
+        };
+      }),
+
+      clearSystemState: (systemId) => set((store) => {
+        const { [systemId]: _s, ...remainingStates } = store.state.systemStates;
+        const { [systemId]: _v, ...remainingVersions } = store.state.systemStateVersions;
+        return {
+          state: {
+            ...store.state,
+            systemStates: remainingStates,
+            systemStateVersions: remainingVersions,
+          },
+        };
+      }),
     }),
     {
       name: 'task-management-tms',
-      version: 1
+      version: 2,
+      migrate: migrateTMSState,
     }
   )
 );

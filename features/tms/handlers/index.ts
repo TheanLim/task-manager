@@ -1,70 +1,76 @@
-import { Task, TMSState, TimeManagementSystem } from '@/types';
-import * as DITHandler from './DITHandler';
-import * as AF4Handler from './AF4Handler';
-import * as FVPHandler from './FVPHandler';
-import * as StandardHandler from './StandardHandler';
+import { z } from 'zod';
+import { ComponentType } from 'react';
+import { Task } from '@/types';
 
-/**
- * Interface for Time Management System handlers.
- * Each handler is a set of pure functions that accept state and return results/deltas.
- * No store access — call sites read state, pass it in, and apply returned updates.
- */
-export interface TimeManagementSystemHandler {
-  /** The name/type of this TMS */
-  name: TimeManagementSystem;
+// ── Shared prop/dispatch types ────────────────────────────────────────────────
 
-  /** Initialize system state when activated — returns state delta */
-  initialize(tasks: Task[], tmsState: TMSState): Partial<TMSState>;
-
-  /** Get tasks in the order they should be displayed for this TMS */
-  getOrderedTasks(tasks: Task[], tmsState: TMSState): Task[];
-
-  /** Handle task creation lifecycle event — returns state delta */
-  onTaskCreated(task: Task, tmsState: TMSState): Partial<TMSState>;
-
-  /** Handle task completion lifecycle event — returns state delta */
-  onTaskCompleted(task: Task, tmsState: TMSState): Partial<TMSState>;
+/** Props passed to every TMS view component */
+export interface TMSViewProps<S = unknown> {
+  tasks: Task[];
+  systemState: S;
+  dispatch: TMSDispatch<unknown>;
+  onTaskClick: (taskId: string) => void;
+  onTaskComplete: (taskId: string, completed: boolean) => void;
 }
 
 /**
- * Factory function to get the appropriate TMS handler.
- * Returns a handler object wrapping pure functions — no store dependencies.
+ * Semantic action dispatch — views emit named actions, not raw state deltas.
+ * Each handler defines its own action union type.
  */
-export function getTMSHandler(system: TimeManagementSystem): TimeManagementSystemHandler {
-  switch (system) {
-    case TimeManagementSystem.DIT:
-      return {
-        name: TimeManagementSystem.DIT,
-        initialize: DITHandler.initialize,
-        getOrderedTasks: DITHandler.getOrderedTasks,
-        onTaskCreated: DITHandler.onTaskCreated,
-        onTaskCompleted: DITHandler.onTaskCompleted,
-      };
-    case TimeManagementSystem.AF4:
-      return {
-        name: TimeManagementSystem.AF4,
-        initialize: AF4Handler.initialize,
-        getOrderedTasks: AF4Handler.getOrderedTasks,
-        onTaskCreated: AF4Handler.onTaskCreated,
-        onTaskCompleted: AF4Handler.onTaskCompleted,
-      };
-    case TimeManagementSystem.FVP:
-      return {
-        name: TimeManagementSystem.FVP,
-        initialize: FVPHandler.initialize,
-        getOrderedTasks: FVPHandler.getOrderedTasks,
-        onTaskCreated: FVPHandler.onTaskCreated,
-        onTaskCompleted: FVPHandler.onTaskCompleted,
-      };
-    case TimeManagementSystem.NONE:
-      return {
-        name: TimeManagementSystem.NONE,
-        initialize: StandardHandler.initialize,
-        getOrderedTasks: StandardHandler.getOrderedTasks,
-        onTaskCreated: StandardHandler.onTaskCreated,
-        onTaskCompleted: StandardHandler.onTaskCompleted,
-      };
-    default:
-      throw new Error(`Unknown time management system: ${system}`);
-  }
+export type TMSDispatch<A> = (action: A) => void;
+
+// ── Handler interface ─────────────────────────────────────────────────────────
+
+/**
+ * Full handler contract. Pure functions only — no store imports.
+ *
+ * State is typed generically; each concrete handler uses its own specific
+ * state type. The host (Phase 4) casts via handler.validateState().
+ */
+export interface TimeManagementSystemHandler<S = unknown, A = unknown> {
+  // ── Identity ──────────────────────────────────────────────────────────────
+  readonly id: string;
+  readonly displayName: string;
+  readonly description: string;
+
+  // ── State contract ────────────────────────────────────────────────────────
+  readonly stateSchema: z.ZodType<S>;
+  readonly stateVersion: number;
+
+  getInitialState(): S;
+  /** Falls back to getInitialState() on failure — never throws */
+  validateState(raw: unknown): S;
+  migrateState(fromVersion: number, raw: unknown): S;
+
+  // ── Lifecycle hooks (pure — return deltas, never mutate) ──────────────────
+  /**
+   * Called when the user switches TO this system.
+   * Return value is merged with getInitialState() — {} means "use defaults".
+   */
+  onActivate(tasks: Task[], currentState: S): Partial<S>;
+
+  /**
+   * Called when the user switches AWAY from this system.
+   * Use to reset transient UI state (e.g. selectionInProgress).
+   */
+  onDeactivate(currentState: S): Partial<S>;
+
+  getOrderedTasks(tasks: Task[], systemState: S): Task[];
+  onTaskCreated(task: Task, systemState: S): Partial<S>;
+  onTaskCompleted(task: Task, systemState: S): Partial<S>;
+  onTaskDeleted(taskId: string, systemState: S): Partial<S>;
+
+  // ── Action reducer ────────────────────────────────────────────────────────
+  /**
+   * Pure reducer: given the current state and a semantic action, return a
+   * partial state delta. Views dispatch actions; this function applies them.
+   */
+  reduce(state: S, action: A): Partial<S>;
+
+  // ── View binding ──────────────────────────────────────────────────────────
+  /**
+   * Returns the React component type for this system's view.
+   * The component receives TMSViewProps<S> — no store access inside.
+   */
+  getViewComponent(): ComponentType<TMSViewProps<S>>;
 }

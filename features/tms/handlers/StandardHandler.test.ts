@@ -1,35 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import * as StandardHandler from './StandardHandler';
-import { Task, TMSState, Priority, TimeManagementSystem } from '@/types';
+import { StandardHandler } from './StandardHandler';
+import { Task, Priority } from '@/types';
 
-const createDefaultTMSState = (): TMSState => ({
-  activeSystem: TimeManagementSystem.NONE,
-  dit: {
-    todayTasks: [],
-    tomorrowTasks: [],
-    lastDayChange: new Date().toISOString(),
-  },
-  af4: {
-    backlogTaskIds: [],
-    activeListTaskIds: [],
-    currentPosition: 0,
-    lastPassHadWork: false,
-    passStartPosition: 0,
-    dismissedTaskIds: [],
-    phase: 'backlog' as const,
-  },
-  fvp: {
-    dottedTasks: [],
-    scanPosition: 1,
-  },
-});
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const createTask = (id: string, description: string, order: number): Task => ({
+const makeTask = (id: string, order = 0): Task => ({
   id,
-  projectId: 'project-1',
+  projectId: 'p1',
   parentTaskId: null,
   sectionId: null,
-  description,
+  description: `Task ${id}`,
   notes: '',
   assignee: '',
   priority: Priority.NONE,
@@ -42,90 +22,37 @@ const createTask = (id: string, description: string, order: number): Task => ({
   updatedAt: new Date().toISOString(),
 });
 
+// ─── getOrderedTasks ─────────────────────────────────────────────────────────
+
 describe('StandardHandler', () => {
-  describe('initialize', () => {
-    it('should not modify state', () => {
-      const tmsState = createDefaultTMSState();
-      const delta = StandardHandler.initialize([], tmsState);
-      expect(delta).toEqual({});
-    });
-  });
-
   describe('getOrderedTasks', () => {
-    it('should return tasks sorted by order field', () => {
-      const task1 = createTask('task-1', 'Third task', 3);
-      const task2 = createTask('task-2', 'First task', 1);
-      const task3 = createTask('task-3', 'Second task', 2);
-      const tmsState = createDefaultTMSState();
-
-      const ordered = StandardHandler.getOrderedTasks([task1, task2, task3], tmsState);
-
-      expect(ordered).toHaveLength(3);
-      expect(ordered[0].id).toBe('task-2');
-      expect(ordered[1].id).toBe('task-3');
-      expect(ordered[2].id).toBe('task-1');
+    it('returns tasks in the order provided (natural order — host applies sorting)', () => {
+      const tasks = [makeTask('t3'), makeTask('t1'), makeTask('t2')];
+      const result = StandardHandler.getOrderedTasks(tasks, {});
+      expect(result.map(t => t.id)).toEqual(['t3', 't1', 't2']);
     });
 
-    it('should handle tasks with same order', () => {
-      const task1 = createTask('task-1', 'Task 1', 1);
-      const task2 = createTask('task-2', 'Task 2', 1);
-      const task3 = createTask('task-3', 'Task 3', 2);
-      const tmsState = createDefaultTMSState();
-
-      const ordered = StandardHandler.getOrderedTasks([task1, task2, task3], tmsState);
-
-      expect(ordered).toHaveLength(3);
-      expect(ordered[2].id).toBe('task-3');
-      expect([ordered[0].id, ordered[1].id]).toContain('task-1');
-      expect([ordered[0].id, ordered[1].id]).toContain('task-2');
-    });
-
-    it('should handle empty task list', () => {
-      const tmsState = createDefaultTMSState();
-      const ordered = StandardHandler.getOrderedTasks([], tmsState);
-      expect(ordered).toEqual([]);
-    });
-
-    it('should handle single task', () => {
-      const task = createTask('task-1', 'Only task', 1);
-      const tmsState = createDefaultTMSState();
-
-      const ordered = StandardHandler.getOrderedTasks([task], tmsState);
-
-      expect(ordered).toHaveLength(1);
-      expect(ordered[0]).toEqual(task);
-    });
-
-    it('should not mutate original array', () => {
-      const task1 = createTask('task-1', 'Task 1', 2);
-      const task2 = createTask('task-2', 'Task 2', 1);
-      const original = [task1, task2];
-      const tmsState = createDefaultTMSState();
-
-      StandardHandler.getOrderedTasks(original, tmsState);
-
-      expect(original[0]).toBe(task1);
-      expect(original[1]).toBe(task2);
+    it('returns empty array for empty input', () => {
+      expect(StandardHandler.getOrderedTasks([], {})).toEqual([]);
     });
   });
 
-  describe('onTaskCreated', () => {
-    it('should not modify state', () => {
-      const task = createTask('task-1', 'New task', 1);
-      const tmsState = createDefaultTMSState();
+  describe('onActivate / onDeactivate', () => {
+    it('onActivate returns {} (no state to initialize)', () => {
+      expect(StandardHandler.onActivate([makeTask('t1')], {})).toEqual({});
+    });
 
-      const delta = StandardHandler.onTaskCreated(task, tmsState);
-      expect(delta).toEqual({});
+    it('onDeactivate returns {} (no transient state to reset)', () => {
+      expect(StandardHandler.onDeactivate({})).toEqual({});
     });
   });
 
-  describe('onTaskCompleted', () => {
-    it('should not modify state', () => {
-      const task = createTask('task-1', 'Completed task', 1);
-      const tmsState = createDefaultTMSState();
-
-      const delta = StandardHandler.onTaskCompleted(task, tmsState);
-      expect(delta).toEqual({});
+  describe('onTaskDeleted / onTaskCompleted / onTaskCreated', () => {
+    it('all return {} — StandardHandler has no state to maintain', () => {
+      const task = makeTask('t1');
+      expect(StandardHandler.onTaskCreated(task, {})).toEqual({});
+      expect(StandardHandler.onTaskCompleted(task, {})).toEqual({});
+      expect(StandardHandler.onTaskDeleted('t1', {})).toEqual({});
     });
   });
 });

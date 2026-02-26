@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Plus, FolderOpen, ListTodo } from 'lucide-react';
+import { Plus, FolderOpen, ListTodo, Brain } from 'lucide-react';
 import { EmptyState } from '@/components/EmptyState';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -36,6 +36,7 @@ export function ProjectList({
   const searchParams = useSearchParams();
   const viewFromUrl = searchParams.get('view');
   const isGlobalTasksActive = viewFromUrl === 'tasks';
+  const isTMSActive = viewFromUrl === 'tms';
 
   const tasks = useDataStore((s) => s.tasks);
 
@@ -64,6 +65,10 @@ export function ProjectList({
     router.push('/?view=tasks');
   };
 
+  const handleTMSClick = () => {
+    router.push('/?view=tms');
+  };
+
   return (
     <TooltipProvider>
       <div className="space-y-4">
@@ -85,6 +90,23 @@ export function ProjectList({
             <div className="flex items-center gap-2">
               <ListTodo className="h-5 w-5" />
               <h3 className="font-semibold text-sm">All Tasks</h3>
+            </div>
+          </div>
+          <div
+            role="button"
+            tabIndex={0}
+            className={cn(
+              "cursor-pointer px-2 py-1.5 transition-colors rounded-md border-l-[3px] outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              isTMSActive
+                ? "border-l-primary bg-primary/10"
+                : "border-l-transparent hover:bg-accent"
+            )}
+            onClick={handleTMSClick}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleTMSClick(); } }}
+          >
+            <div className="flex items-center gap-2">
+              <Brain className="h-5 w-5" />
+              <h3 className="font-semibold text-sm">Focus</h3>
             </div>
           </div>
         </div>

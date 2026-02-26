@@ -47,3 +47,16 @@ FVP tracks a `currentX` pointer (the reference task for pairwise comparison) and
 `onTaskCreated` and `onTaskCompleted` return `Partial<TMSState>` instead of mutating state directly. An empty object `{}` means "no change."
 
 **Why:** Keeps handlers pure. The call site decides when and how to apply the delta (e.g., batching with other updates). Also makes it trivial to test: assert on the returned object without store setup.
+
+## 9. FVPHandler.onTaskDeleted Cannot Recalculate scanPosition
+
+The `TimeManagementSystemHandler.onTaskDeleted(taskId, systemState)` interface does not pass the full task list. The standalone `onTaskDeleted(taskId, tasks, state)` pure function handles `scanPosition` recalculation correctly, but the handler object method can only remove the `taskId` from `dottedTasks`.
+
+**Impact:** If a dotted task before `scanPosition` is deleted while FVP is active, the cursor may be off by one. This is a rare edge case — the user would need to delete a task mid-preselection.
+
+**Alternatives considered:**
+1. Extend the interface to pass `tasks` — rejected because it's a breaking change to all handlers.
+2. Store the task list in FVP state — rejected because it duplicates data.
+3. Accept the limitation — chosen.
+
+**Resolution:** Accepted. The host layer (`TMSHost`) calls the standalone `onTaskDeleted(taskId, tasks, state)` when it has access to the task list, bypassing the handler interface method.

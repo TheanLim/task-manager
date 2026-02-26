@@ -120,30 +120,17 @@ describe('Core Type Definitions', () => {
 
     it('should create a valid TMSState object', () => {
       const tmsState: TMSState = {
-        activeSystem: TimeManagementSystem.DIT,
-        dit: {
-          todayTasks: ['task-1', 'task-2'],
-          tomorrowTasks: ['task-3'],
-          lastDayChange: new Date().toISOString()
+        activeSystem: 'dit',
+        systemStates: {
+          dit: { todayTasks: ['task-1', 'task-2'], tomorrowTasks: ['task-3'], lastDayChange: new Date().toISOString() },
+          af4: { backlogTaskIds: [], activeListTaskIds: [], currentPosition: 0, lastPassHadWork: false, dismissedTaskIds: [], phase: 'backlog' },
         },
-        af4: {
-          backlogTaskIds: [],
-          activeListTaskIds: [],
-          currentPosition: 0,
-          lastPassHadWork: false,
-          passStartPosition: 0,
-          dismissedTaskIds: [],
-          phase: 'backlog',
-        },
-        fvp: {
-          dottedTasks: [],
-          scanPosition: 1,
-        }
+        systemStateVersions: { dit: 1, af4: 1 },
       };
 
-      expect(tmsState.activeSystem).toBe(TimeManagementSystem.DIT);
-      expect(tmsState.dit.todayTasks).toHaveLength(2);
-      expect(tmsState.af4.backlogTaskIds).toHaveLength(0);
+      expect(tmsState.activeSystem).toBe('dit');
+      expect((tmsState.systemStates['dit'] as any).todayTasks).toHaveLength(2);
+      expect((tmsState.systemStates['af4'] as any).backlogTaskIds).toHaveLength(0);
     });
 
     it('should create a valid AppSettings object', () => {
@@ -165,25 +152,9 @@ describe('Core Type Definitions', () => {
         sections: [],
         dependencies: [],
         tmsState: {
-          activeSystem: TimeManagementSystem.NONE,
-          dit: {
-            todayTasks: [],
-            tomorrowTasks: [],
-            lastDayChange: new Date().toISOString()
-          },
-          af4: {
-            backlogTaskIds: [],
-            activeListTaskIds: [],
-            currentPosition: 0,
-            lastPassHadWork: false,
-            passStartPosition: 0,
-            dismissedTaskIds: [],
-            phase: 'backlog',
-          },
-          fvp: {
-            dottedTasks: [],
-            scanPosition: 1,
-          }
+          activeSystem: 'none',
+          systemStates: {},
+          systemStateVersions: {},
         },
         settings: {
           activeProjectId: null,
@@ -324,29 +295,15 @@ describe('Core Type Definitions', () => {
 
     it('should allow fvp state with empty dotted tasks', () => {
       const tmsState: TMSState = {
-        activeSystem: TimeManagementSystem.FVP,
-        dit: {
-          todayTasks: [],
-          tomorrowTasks: [],
-          lastDayChange: new Date().toISOString()
+        activeSystem: 'fvp',
+        systemStates: {
+          fvp: { dottedTasks: [], scanPosition: 1 },
         },
-        af4: {
-          backlogTaskIds: [],
-          activeListTaskIds: [],
-          currentPosition: 0,
-          lastPassHadWork: false,
-          passStartPosition: 0,
-          dismissedTaskIds: [],
-          phase: 'backlog',
-        },
-        fvp: {
-          dottedTasks: [],
-          scanPosition: 1,
-        }
+        systemStateVersions: {},
       };
 
-      expect(tmsState.fvp.dottedTasks).toHaveLength(0);
-      expect(tmsState.fvp.scanPosition).toBe(1);
+      expect((tmsState.systemStates['fvp'] as any).dottedTasks).toHaveLength(0);
+      expect((tmsState.systemStates['fvp'] as any).scanPosition).toBe(1);
     });
   });
 });

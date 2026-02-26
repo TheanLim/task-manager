@@ -60,25 +60,9 @@ export const TaskDependencySchema = z.object({
 
 // Composite schemas
 export const TMSStateSchema = z.object({
-  activeSystem: TimeManagementSystemSchema,
-  dit: z.object({
-    todayTasks: z.array(z.string()),
-    tomorrowTasks: z.array(z.string()),
-    lastDayChange: z.string().datetime(),
-  }),
-  af4: z.object({
-    backlogTaskIds: z.array(z.string()),
-    activeListTaskIds: z.array(z.string()),
-    currentPosition: z.number(),
-    lastPassHadWork: z.boolean(),
-    passStartPosition: z.number(),
-    dismissedTaskIds: z.array(z.string()),
-    phase: z.enum(['backlog', 'active']),
-  }),
-  fvp: z.object({
-    dottedTasks: z.array(z.string()),
-    scanPosition: z.number(),
-  }),
+  activeSystem: z.string().min(1),
+  systemStates: z.record(z.string(), z.unknown()),
+  systemStateVersions: z.record(z.string(), z.number()).default({}),
 });
 
 export const AppSettingsSchema = z.object({

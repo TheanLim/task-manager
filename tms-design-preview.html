@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TMS Design Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0A0A0A;
+  --card: #111111;
+  --elevated: #1A1A1A;
+  --border: #1E1E1E;
+  --border-subtle: #161616;
+  --teal: #0D9488;
+  --teal-light: #14B8A6;
+  --teal-dim: rgba(13,148,136,0.12);
+  --teal-glow: rgba(13,148,136,0.25);
+  --orange: #F97316;
+  --orange-dim: rgba(249,115,22,0.12);
+  --red: #EF4444;
+  --red-dim: rgba(239,68,68,0.12);
+  --amber: #F59E0B;
+  --amber-dim: rgba(245,158,11,0.12);
+  --slate: #64748B;
+  --text: #F8FAFC;
+  --muted: #94A3B8;
+  --dimmer: #475569;
+  --font: 'Plus Jakarta Sans', sans-serif;
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Layout ── */
+.app {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 24px 16px 64px;
+}
+
+/* ── Header ── */
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 32px;
+}
+.app-logo {
+  width: 36px; height: 36px;
+  background: linear-gradient(135deg, var(--teal), var(--teal-light));
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.app-logo svg { color: #fff; }
+.app-title { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+.app-subtitle { font-size: 12px; color: var(--muted); margin-top: 1px; }
+
+/* ── Tab Bar ── */
+.tab-bar {
+  display: flex;
+  gap: 4px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 5px;
+  margin-bottom: 24px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tab-bar::-webkit-scrollbar { display: none; }
+
+.tab-btn {
+  flex: 1;
+  min-width: 120px;
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 150ms ease;
+  white-space: nowrap;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.tab-btn:hover { color: var(--text); background: var(--elevated); }
+.tab-btn.active {
+  background: var(--teal);
+  color: #fff;
+  box-shadow: 0 2px 12px var(--teal-glow);
+}
+.tab-btn .tab-name { font-size: 13px; font-weight: 700; }
+.tab-btn .tab-desc { font-size: 10px; opacity: 0.7; font-weight: 400; }
+.tab-btn.active .tab-desc { opacity: 0.85; }
+
+/* ── Tab Panels ── */
+.tab-panel { display: none; animation: fadeIn 200ms ease; }
+.tab-panel.active { display: block; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Section Headers ── */
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+  line-height: 1.6;
+}
+.badge-teal   { background: var(--teal-dim); color: var(--teal-light); border: 1px solid rgba(13,148,136,0.2); }
+.badge-amber  { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(245,158,11,0.2); }
+.badge-slate  { background: rgba(100,116,139,0.12); color: var(--slate); border: 1px solid rgba(100,116,139,0.2); }
+.badge-red    { background: var(--red-dim); color: var(--red); border: 1px solid rgba(239,68,68,0.2); }
+.badge-orange { background: var(--orange-dim); color: var(--orange); border: 1px solid rgba(249,115,22,0.2); }
+
+/* ── Task Cards ── */
+.task-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+  transition: all 150ms ease;
+  cursor: default;
+  position: relative;
+  overflow: hidden;
+}
+.task-card:hover {
+  border-color: #2a2a2a;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  transform: translateY(-1px);
+}
+.task-card.current {
+  background: #131a19;
+  border-color: var(--teal);
+  box-shadow: 0 0 0 1px rgba(13,148,136,0.15), 0 4px 20px rgba(13,148,136,0.08);
+}
+.task-card.current::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--teal);
+  border-radius: 12px 0 0 12px;
+}
+.task-card.flagged {
+  background: #1a1510;
+  border-color: var(--amber);
+}
+.task-card.flagged::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--amber);
+  border-radius: 12px 0 0 12px;
+}
+.task-card.attention {
+  background: #0f1a19;
+  border-color: rgba(13,148,136,0.4);
+}
+.task-card.attention::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--teal);
+  border-radius: 12px 0 0 12px;
+}
+
+/* Checkbox */
+.checkbox {
+  width: 18px; height: 18px;
+  border: 2px solid #2E2E2E;
+  border-radius: 5px;
+  flex-shrink: 0;
+  transition: border-color 150ms;
+  cursor: pointer;
+}
+.checkbox:hover { border-color: var(--teal); }
+
+/* Dot indicator */
+.dot-indicator {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--teal);
+  flex-shrink: 0;
+  box-shadow: 0 0 6px var(--teal-glow);
+}
+
+/* Drag handle */
+.drag-handle {
+  color: var(--dimmer);
+  flex-shrink: 0;
+  cursor: grab;
+}
+
+/* Task text */
+.task-text {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1.4;
+}
+.task-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* Priority badges */
+.priority {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.priority-high   { background: rgba(239,68,68,0.15); color: #F87171; border: 1px solid rgba(239,68,68,0.25); }
+.priority-medium { background: rgba(245,158,11,0.15); color: #FCD34D; border: 1px solid rgba(245,158,11,0.25); }
+.priority-low    { background: rgba(100,116,139,0.15); color: #94A3B8; border: 1px solid rgba(100,116,139,0.25); }
+.priority-none   { display: none; }
+
+/* Due date */
+.due-date {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 500;
+}
+.due-date.overdue { color: var(--red); }
+.due-date.today   { color: var(--amber); }
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 14px;
+  height: 34px;
+  min-width: 44px;
+  border-radius: 8px;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 150ms ease;
+  border: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.btn-teal {
+  background: var(--teal);
+  color: #fff;
+  box-shadow: 0 2px 8px var(--teal-glow);
+}
+.btn-teal:hover { background: var(--teal-light); box-shadow: 0 4px 16px var(--teal-glow); transform: translateY(-1px); }
+.btn-orange {
+  background: var(--orange);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(249,115,22,0.25);
+}
+.btn-orange:hover { background: #fb923c; box-shadow: 0 4px 16px rgba(249,115,22,0.35); transform: translateY(-1px); }
+.btn-outline {
+  background: transparent;
+  color: var(--teal-light);
+  border: 1px solid rgba(13,148,136,0.35);
+}
+.btn-outline:hover { background: var(--teal-dim); border-color: var(--teal); }
+.btn-ghost {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+.btn-ghost:hover { background: var(--elevated); color: var(--text); }
+.btn-ghost-amber {
+  background: transparent;
+  color: var(--amber);
+  border: 1px solid rgba(245,158,11,0.2);
+}
+.btn-ghost-amber:hover { background: var(--amber-dim); }
+.btn-sm { height: 30px; padding: 0 10px; font-size: 11px; border-radius: 7px; }
+.btn-xs { height: 26px; padding: 0 8px; font-size: 11px; border-radius: 6px; }
+
+/* ── Divider ── */
+.divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+.divider-dashed {
+  border: none;
+  border-top: 2px dashed #252525;
+  margin: 20px 0;
+  position: relative;
+}
+.divider-dashed .divider-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--bg);
+  padding: 0 12px;
+  font-size: 11px;
+  color: var(--dimmer);
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+/* ── Section spacing ── */
+.section { margin-bottom: 24px; }
+
+/* ── Review Queue specific ── */
+.queue-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.queue-title { font-size: 20px; font-weight: 800; letter-spacing: -0.4px; }
+.queue-controls { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+
+.toggle-group {
+  display: flex;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.toggle-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font);
+  transition: all 150ms;
+}
+.toggle-btn.active { background: var(--elevated); color: var(--text); }
+.toggle-btn:hover:not(.active) { color: var(--text); }
+
+/* ── FVP specific ── */
+.fvp-preselection {
+  background: var(--card);
+  border: 1px solid rgba(13,148,136,0.3);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 20px;
+  box-shadow: 0 0 0 1px rgba(13,148,136,0.05), inset 0 1px 0 rgba(255,255,255,0.02);
+}
+.fvp-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-bottom: 8px;
+}
+.fvp-task-ref {
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 14px;
+}
+.fvp-question {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.fvp-candidate {
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 14px;
+}
+.fvp-actions { display: flex; gap: 8px; }
+
+/* ── AF4 specific ── */
+.af4-phase {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.task-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+/* ── DIT specific ── */
+.dit-zone {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+.dit-zone.today-zone { border-color: rgba(13,148,136,0.25); }
+.dit-zone.tomorrow-zone { border-color: rgba(100,116,139,0.2); }
+.dit-zone-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.dit-zone-title {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+.dit-zone-title.today-title { color: var(--teal-light); }
+.dit-zone-title.tomorrow-title { color: var(--muted); }
+.dit-zone-title.unsched-title { color: var(--dimmer); }
+
+/* ── Responsive ── */
+@media (max-width: 480px) {
+  .queue-controls { width: 100%; }
+  .tab-btn .tab-desc { display: none; }
+  .task-meta { gap: 4px; }
+  .due-date { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- App Header -->
+  <div class="app-header">
+    <div class="app-logo">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    </div>
+    <div>
+      <div class="app-title">Time Management System</div>
+      <div class="app-subtitle">Design Preview · 4 Views</div>
+    </div>
+  </div>
+
+  <!-- Tab Bar -->
+  <div class="tab-bar" role="tablist">
+    <button class="tab-btn active" onclick="switchTab('review')" role="tab">
+      <span class="tab-name">Review Queue</span>
+      <span class="tab-desc">Standard mode</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('fvp')" role="tab">
+      <span class="tab-name">FVP</span>
+      <span class="tab-desc">Final Version Perfected</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('af4')" role="tab">
+      <span class="tab-name">AF4</span>
+      <span class="tab-desc">Autofocus 4</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('dit')" role="tab">
+      <span class="tab-name">DIT</span>
+      <span class="tab-desc">Do It Tomorrow</span>
+    </button>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- TAB 1: REVIEW QUEUE                                     -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <div id="tab-review" class="tab-panel active">
+
+    <!-- Header bar -->
+    <div class="queue-header">
+      <div class="queue-title">All Tasks</div>
+      <div class="queue-controls">
+        <button class="btn btn-teal btn-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/></svg>
+          Review Queue
+        </button>
+        <div class="toggle-group">
+          <button class="toggle-btn active">Flat</button>
+          <button class="toggle-btn">Nested</button>
+        </div>
+        <button class="btn btn-ghost btn-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          Completed · 24h
+        </button>
+      </div>
+    </div>
+
+    <!-- Task 1 — needs attention (oldest reviewed) -->
+    <div class="task-card attention">
+      <div class="checkbox"></div>
+      <div style="flex:1">
+        <div class="task-text">Fix login bug</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:4px;">
+          <span style="font-size:10px;color:var(--teal);font-weight:600;letter-spacing:0.3px;">↑ NEEDS ATTENTION</span>
+        </div>
+      </div>
+      <div class="task-meta">
+        <span class="priority priority-high">High</span>
+        <span class="due-date overdue">Feb 18 · overdue</span>
+        <button class="btn btn-outline btn-xs">↺ Reinsert</button>
+      </div>
+    </div>
+
+    <!-- Task 2 -->
+    <div class="task-card">
+      <div class="checkbox"></div>
+      <div class="task-text">Review PR #247</div>
+      <div class="task-meta">
+        <span class="priority priority-high">High</span>
+        <span class="due-date today">Today</span>
+        <button class="btn btn-outline btn-xs">↺ Reinsert</button>
+      </div>
+    </div>
+
+    <!-- Task 3 -->
+    <div class="task-card">
+      <div class="checkbox"></div>
+      <div class="task-text">Write quarterly report</div>
+      <div class="task-meta">
+        <span class="priority priority-high">High</span>
+        <span class="due-date">Mar 15</span>
+        <button class="btn btn-outline btn-xs">↺ Reinsert</button>
+      </div>
+    </div>
+
+    <!-- Task 4 -->
+    <div class="task-card">
+      <div class="checkbox"></div>
+      <div class="task-text">Call dentist for appointment</div>
+      <div class="task-meta">
+        <span class="priority priority-medium">Medium</span>
+        <span class="due-date">Feb 28</span>
+        <button class="btn btn-outline btn-xs">↺ Reinsert</button>
+      </div>
+    </div>
+
+    <!-- Task 5 -->
+    <div class="task-card">
+      <div class="checkbox"></div>
+      <div class="task-text">Update project roadmap</div>
+      <div class="task-meta">
+        <span class="priority priority-medium">Medium</span>
+        <span class="due-date">Mar 1</span>
+        <button class="btn btn-outline btn-xs">↺ Reinsert</button>
+      </div>
+    </div>
+
+    <!-- Task 6 -->
+    <div class="task-card">
+      <div class="checkbox"></div>
+      <div class="task-text">Prepare team standup notes</div>
+      <div class="task-meta">
+        <span class="priority priority-low">Low</span>
+        <span class="due-date">—</span>
+        <button class="btn btn-outline btn-xs">↺ Reinsert</button>
+      </div>
+    </div>
+
+    <!-- Task 7 -->
+    <div class="task-card">
+      <div class="checkbox"></div>
+      <div class="task-text">Tidy desk</div>
+      <div class="task-meta">
+        <span class="priority priority-low">Low</span>
+        <span class="due-date">—</span>
+        <button class="btn btn-outline btn-xs">↺ Reinsert</button>
+      </div>
+    </div>
+
+    <!-- Task 8 -->
+    <div class="task-card">
+      <div class="checkbox"></div>
+      <div class="task-text">Check emails</div>
+      <div class="task-meta">
+        <span class="due-date">—</span>
+        <button class="btn btn-outline btn-xs">↺ Reinsert</button>
+      </div>
+    </div>
+
+  </div><!-- /tab-review -->
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- TAB 2: FVP                                              -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <div id="tab-fvp" class="tab-panel">
+
+    <!-- Preselection Panel -->
+    <div class="fvp-preselection">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--teal-light)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span style="font-size:14px;font-weight:700;color:var(--teal-light);">FVP Preselection</span>
+      </div>
+
+      <div class="fvp-label">Current X (reference):</div>
+      <div class="fvp-task-ref">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:18px;color:var(--teal);font-weight:800;line-height:1;">X</span>
+          <span>Write quarterly report</span>
+          <span class="priority priority-high" style="margin-left:auto;">High</span>
+        </div>
+      </div>
+
+      <div class="fvp-question">Do you want to do this more than X?</div>
+      <div class="fvp-candidate">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:18px;color:var(--muted);font-weight:800;line-height:1;">?</span>
+          <span>Check emails</span>
+        </div>
+      </div>
+
+      <div class="fvp-actions">
+        <button class="btn btn-teal" style="flex:1;">
+          <span style="font-size:14px;">●</span> Yes — dot it
+        </button>
+        <button class="btn btn-outline" style="flex:1;">No — skip</button>
+      </div>
+    </div>
+
+    <!-- Do Now -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-title">Do Now</span>
+        <span class="badge badge-teal">current</span>
+      </div>
+      <div class="task-card current">
+        <div class="dot-indicator"></div>
+        <div style="flex:1;">
+          <div class="task-text">Tidy desk</div>
+          <div class="task-actions">
+            <button class="btn btn-teal btn-sm">✓ Done</button>
+          </div>
+        </div>
+        <span class="priority priority-low">Low</span>
+      </div>
+    </div>
+
+    <!-- Dotted Queue -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-title">Dotted Queue</span>
+        <span class="badge badge-teal">2 waiting</span>
+      </div>
+      <div class="task-card">
+        <div class="dot-indicator"></div>
+        <div class="task-text">Write quarterly report</div>
+        <div class="task-meta">
+          <span class="priority priority-high">High</span>
+          <span class="due-date">Mar 15</span>
+        </div>
+      </div>
+      <div class="task-card">
+        <div class="dot-indicator"></div>
+        <div class="task-text">Check emails</div>
+        <div class="task-meta">
+          <span class="due-date">—</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Undotted Tasks -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-title">Undotted Tasks</span>
+        <span class="badge badge-slate">4 tasks</span>
+      </div>
+      <div class="task-card">
+        <div class="checkbox"></div>
+        <div class="task-text">Fix login bug</div>
+        <div class="task-meta">
+          <span class="priority priority-high">High</span>
+          <span class="due-date overdue">Feb 18 · overdue</span>
+        </div>
+      </div>
+      <div class="task-card">
+        <div class="checkbox"></div>
+        <div class="task-text">Review PR #247</div>
+        <div class="task-meta">
+          <span class="priority priority-high">High</span>
+          <span class="due-date today">Today</span>
+        </div>
+      </div>
+      <div class="task-card">
+        <div class="checkbox"></div>
+        <div class="task-text">Call dentist for appointment</div>
+        <div class="task-meta">
+          <span class="priority priority-medium">Medium</span>
+          <span class="due-date">Feb 28</span>
+        </div>
+      </div>
+      <div class="task-card">
+        <div class="checkbox"></div>
+        <div class="task-text">Update project roadmap</div>
+        <div class="task-meta">
+          <span class="priority priority-medium">Medium</span>
+          <span class="due-date">Mar 1</span>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /tab-fvp -->
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- TAB 3: AF4                                              -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <div id="tab-af4" class="tab-panel">
+
+    <!-- Phase indicator -->
+    <div class="af4-phase">
+      <span class="badge badge-teal" style="font-size:12px;padding:4px 12px;">Working Backlog</span>
+      <span class="badge badge-amber" style="font-size:12px;padding:4px 12px;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:3px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Pass complete — no work done
+      </span>
+    </div>
+
+    <!-- Backlog section -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-title">Backlog</span>
+        <span class="badge badge-slate">5 tasks</span>
+      </div>
+
+      <!-- Current task (index 0) — highlighted -->
+      <div class="task-card current">
+        <div style="flex:1;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div class="checkbox"></div>
+            <div class="task-text">Fix login bug</div>
+            <div class="task-meta">
+              <span class="priority priority-high">High</span>
+              <span class="due-date overdue">Feb 18 · overdue</span>
+            </div>
+          </div>
+          <div class="task-actions">
+            <button class="btn btn-teal btn-sm">✓ Did work</button>
+            <button class="btn btn-outline btn-sm">→ Skip</button>
+            <button class="btn btn-ghost-amber btn-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              Flag
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Remaining backlog tasks -->
+      <div class="task-card">
+        <div class="checkbox"></div>
+        <div class="task-text">Review PR #247</div>
+        <div class="task-meta">
+          <span class="priority priority-high">High</span>
+          <span class="due-date today">Today</span>
+        </div>
+      </div>
+      <div class="task-card">
+        <div class="checkbox"></div>
+        <div class="task-text">Write quarterly report</div>
+        <div class="task-meta">
+          <span class="priority priority-high">High</span>
+          <span class="due-date">Mar 15</span>
+        </div>
+      </div>
+      <div class="task-card">
+        <div class="checkbox"></div>
+        <div class="task-text">Call dentist for appointment</div>
+        <div class="task-meta">
+          <span class="priority priority-medium">Medium</span>
+          <span class="due-date">Feb 28</span>
+        </div>
+      </div>
+      <div class="task-card">
+        <div class="checkbox"></div>
+        <div class="task-text">Update project roadmap</div>
+        <div class="task-meta">
+          <span class="priority priority-medium">Medium</span>
+          <span class="due-date">Mar 1</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dashed divider — the "line" -->
+    <div class="divider-dashed">
+      <span class="divider-label">— line —</span>
+    </div>
+
+    <!-- Active List section -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-title">Active List</span>
+        <span class="badge badge-teal">3 tasks</span>
+      </div>
+      <div class="task-card">
+        <div class="checkbox"></div>
+        <div class="task-text">Tidy desk</div>
+        <div class="task-meta">
+          <span class="priority priority-low">Low</span>
+        </div>
+      </div>
+      <div class="task-card">
+        <div class="checkbox"></div>
+        <div class="task-text">Prepare team standup notes</div>
+        <div class="task-meta">
+          <span class="priority priority-low">Low</span>
+        </div>
+      </div>
+      <div class="task-card">
+        <div class="checkbox"></div>
+        <div class="task-text">Check emails</div>
+        <div class="task-meta">
+          <span class="due-date">—</span>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /tab-af4 -->
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- TAB 4: DIT                                              -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <div id="tab-dit" class="tab-panel">
+
+    <!-- Today zone -->
+    <div class="dit-zone today-zone">
+      <div class="dit-zone-header">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--teal-light)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span class="dit-zone-title today-title">Today</span>
+        <span class="badge badge-teal">3 tasks</span>
+      </div>
+
+      <div class="task-card">
+        <div class="checkbox"></div>
+        <div class="task-text">Fix login bug</div>
+        <div class="task-meta">
+          <span class="priority priority-high">High</span>
+          <span class="due-date overdue">Feb 18 · overdue</span>
+          <button class="btn btn-ghost btn-xs">→ Tomorrow</button>
+        </div>
+      </div>
+      <div class="task-card">
+        <div class="checkbox"></div>
+        <div class="task-text">Review PR #247</div>
+        <div class="task-meta">
+          <span class="priority priority-high">High</span>
+          <span class="due-date today">Today</span>
+          <button class="btn btn-ghost btn-xs">→ Tomorrow</button>
+        </div>
+      </div>
+      <div class="task-card">
+        <div class="checkbox"></div>
+        <div class="task-text">Call dentist for appointment</div>
+        <div class="task-meta">
+          <span class="priority priority-medium">Medium</span>
+          <span class="due-date">Feb 28</span>
+          <button class="btn btn-ghost btn-xs">→ Tomorrow</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tomorrow zone -->
+    <div class="dit-zone tomorrow-zone">
+      <div class="dit-zone-header">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--slate)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <span class="dit-zone-title tomorrow-title">Tomorrow</span>
+        <span class="badge badge-slate">4 tasks</span>
+      </div>
+
+      <div class="task-card">
+        <div class="checkbox"></div>
+        <div class="task-text">Write quarterly report</div>
+        <div class="task-meta">
+          <span class="priority priority-high">High</span>
+          <span class="due-date">Mar 15</span>
+          <button class="btn btn-ghost btn-xs">← Today</button>
+        </div>
+      </div>
+      <div class="task-card">
+        <div class="checkbox"></div>
+        <div class="task-text">Update project roadmap</div>
+        <div class="task-meta">
+          <span class="priority priority-medium">Medium</span>
+          <span class="due-date">Mar 1</span>
+          <button class="btn btn-ghost btn-xs">← Today</button>
+        </div>
+      </div>
+      <div class="task-card">
+        <div class="checkbox"></div>
+        <div class="task-text">Prepare team standup notes</div>
+        <div class="task-meta">
+          <span class="priority priority-low">Low</span>
+          <button class="btn btn-ghost btn-xs">← Today</button>
+        </div>
+      </div>
+      <div class="task-card">
+        <div class="checkbox"></div>
+        <div class="task-text">Check emails</div>
+        <div class="task-meta">
+          <button class="btn btn-ghost btn-xs">← Today</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Unscheduled zone -->
+    <div class="dit-zone">
+      <div class="dit-zone-header">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--dimmer)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        <span class="dit-zone-title unsched-title">Unscheduled</span>
+        <span class="badge badge-slate">2 tasks</span>
+      </div>
+
+      <div class="task-card">
+        <div class="drag-handle">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>
+        </div>
+        <div class="task-text">Tidy desk</div>
+        <div class="task-meta">
+          <span class="priority priority-low">Low</span>
+          <button class="btn btn-ghost btn-xs">→ Today</button>
+        </div>
+      </div>
+      <div class="task-card">
+        <div class="drag-handle">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>
+        </div>
+        <div class="task-text">Prepare team standup notes</div>
+        <div class="task-meta">
+          <span class="priority priority-low">Low</span>
+          <button class="btn btn-ghost btn-xs">→ Today</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /tab-dit -->
+
+</div><!-- /app -->
+
+<script>
+function switchTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+</script>
+</body>
+</html>

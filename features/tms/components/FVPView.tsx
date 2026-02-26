@@ -1,227 +1,233 @@
 'use client';
 
-import { Task } from '@/types';
-import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { ListTodo, PartyPopper } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Circle, Dot, RotateCcw, Calendar } from 'lucide-react';
-import { useTMSStore } from '@/features/tms/stores/tmsStore';
-import { format } from 'date-fns';
-import { InlineEditable } from '@/components/InlineEditable';
-import { validateTaskDescription } from '@/lib/validation';
-import { useDataStore } from '@/stores/dataStore';
+import { TaskCard } from './shared/TaskCard';
+import { TMSEmptyState } from './shared/TMSEmptyState';
+import type { TMSViewProps } from '../handlers';
+import type { FVPState, FVPAction } from '../handlers/fvp';
 import {
   getCurrentTask,
   getCurrentX,
   getScanCandidate,
+  getOrderedTasks,
   isPreselectionComplete,
-  dotTask,
-  skipTask,
-  completeCurrentTask,
-  resetFVP,
-} from '@/features/tms/handlers/FVPHandler';
+} from '../handlers/fvp';
 
-interface FVPViewProps {
-  tasks: Task[];
-  onTaskClick: (taskId: string) => void;
-  onTaskComplete: (taskId: string, completed: boolean) => void;
-}
+/**
+ * FVP (Final Version Perfected) View
+ *
+ * Pure presentational component — no store access.
+ * Accepts TMSViewProps<FVPState> and dispatches FVPAction.
+ *
+ * Three states:
+ *   A — No dotted tasks: "Start Preselection" full-width teal button
+ *   B — Preselection in progress: preselection panel ONLY (no Do Now) + unified task list
+ *   C — Preselection complete: Do Now + optional "Resume Preselection" outline button
+ *
+ * Ref: UI-UX-DESIGN.md §5
+ */
 
-export function FVPView({ tasks, onTaskClick, onTaskComplete }: FVPViewProps) {
-  const { state, updateState } = useTMSStore();
-  const { updateTask } = useDataStore();
+export function FVPView({
+  tasks,
+  systemState,
+  dispatch,
+  onTaskClick,
+  onTaskComplete,
+}: TMSViewProps<FVPState>) {
+  const fvpDispatch = dispatch as (action: FVPAction) => void;
 
   const incompleteTasks = tasks.filter(t => !t.completed);
-  const dottedSet = new Set(state.fvp.dottedTasks);
+  const dottedSet = new Set(systemState.dottedTasks);
 
   // Derived state via pure handler helpers
-  const currentTask = getCurrentTask(tasks, state);
-  const currentX = getCurrentX(tasks, state);
-  const scanCandidate = getScanCandidate(tasks, state);
-  const preselectionDone = isPreselectionComplete(tasks, state);
+  const currentTask = getCurrentTask(tasks, systemState);
+  const currentX = getCurrentX(tasks, systemState);
+  const scanCandidate = getScanCandidate(tasks, systemState);
+  const preselectionDone = isPreselectionComplete(tasks, systemState);
+  const orderedTasks = getOrderedTasks(tasks, systemState);
 
-  // Display: dotted tasks in order (last = do now), then undotted
-  const dottedTasks = state.fvp.dottedTasks
-    .map(id => tasks.find(t => t.id === id))
-    .filter((t): t is Task => t !== undefined);
   const undottedTasks = incompleteTasks.filter(t => !dottedSet.has(t.id));
+
+  // State A: no dotted tasks at all
+  const isStateA = systemState.dottedTasks.length === 0;
+  // State B: preselection in progress (has candidate)
+  const isStateB = !preselectionDone && scanCandidate !== null;
+  // State C: preselection complete (no more candidates, but has dotted tasks)
+  const isStateC = preselectionDone && systemState.dottedTasks.length > 0;
+
+  const handleStartPreselection = () => {
+    fvpDispatch({ type: 'START_PRESELECTION' });
+  };
 
   const handleDot = () => {
     if (!scanCandidate) return;
-    updateState(dotTask(scanCandidate, tasks, state));
+    fvpDispatch({ type: 'DOT_TASK', task: scanCandidate, tasks });
   };
 
   const handleSkip = () => {
     if (!scanCandidate) return;
-    updateState(skipTask(scanCandidate, tasks, state));
+    fvpDispatch({ type: 'SKIP_CANDIDATE', task: scanCandidate, tasks });
   };
 
-  const handleCompleteCurrentTask = () => {
+  const handleCompleteCurrent = () => {
     if (!currentTask) return;
     onTaskComplete(currentTask.id, true);
-    updateState(completeCurrentTask(tasks, state));
+    fvpDispatch({ type: 'COMPLETE_CURRENT', tasks });
+  };
+
+  const handleReenterCurrent = () => {
+    if (!currentTask) return;
+    // Don't mark complete — just remove from dotted chain. Task stays in the list.
+    fvpDispatch({ type: 'REENTER_CURRENT', tasks });
   };
 
   const handleReset = () => {
-    updateState(resetFVP(state));
+    fvpDispatch({ type: 'RESET_FVP' });
   };
 
-  const renderTask = (task: Task, isDotted: boolean, isCurrentTask: boolean) => (
-    <Card
-      key={task.id}
-      className={`p-3 cursor-pointer transition-colors hover:bg-accent ${isCurrentTask ? 'border-primary bg-primary/5' : ''}`}
-    >
-      <div className="flex items-start gap-3">
-        <Checkbox
-          checked={task.completed}
-          onCheckedChange={(checked) => onTaskComplete(task.id, checked === true)}
-          onClick={(e) => e.stopPropagation()}
-        />
-
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            {isDotted && <Dot className="h-5 w-5 text-primary shrink-0" />}
-            <div className="flex-1 min-w-0" onClick={() => onTaskClick(task.id)}>
-              <InlineEditable
-                value={task.description}
-                onSave={(newDescription) => updateTask(task.id, { description: newDescription })}
-                validate={validateTaskDescription}
-                placeholder="Task description"
-                displayClassName={task.completed ? 'line-through text-muted-foreground' : ''}
-                inputClassName="w-full"
-              />
-            </div>
-            {task.priority !== 'none' && (
-              <Badge variant={task.priority === 'high' ? 'destructive' : 'secondary'}>
-                {task.priority}
-              </Badge>
-            )}
-          </div>
-
-          {task.dueDate && (
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Calendar className="h-3 w-3" />
-              <span>{format(new Date(task.dueDate), 'MMM d')}</span>
-            </div>
-          )}
-        </div>
-
-        {isCurrentTask && (
-          <Button size="sm" onClick={handleCompleteCurrentTask}>
-            Done
-          </Button>
-        )}
-      </div>
-    </Card>
-  );
-
-  // ── Preselection UI ──────────────────────────────────────────────────────────
-  const showPreselection = !preselectionDone && scanCandidate !== null;
+  // ── Empty state (no tasks at all) ─────────────────────────────────────────
+  if (incompleteTasks.length === 0) {
+    return (
+      <TMSEmptyState
+        icon={<ListTodo className="h-6 w-6" />}
+        title="No tasks yet"
+        description="Add some tasks to get started with FVP."
+      />
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Preselection comparison panel */}
-      {showPreselection && currentX && scanCandidate ? (
-        <Card className="p-6 bg-primary/5 border-primary">
-          <h3 className="text-lg font-semibold mb-4">FVP Preselection</h3>
+    <div className="space-y-4">
+      {/* ── State A: Start Preselection ──────────────────────────────────── */}
+      {isStateA && (
+        <Button className="w-full" onClick={handleStartPreselection}>
+          Start Preselection
+        </Button>
+      )}
 
-          <div className="space-y-4">
-            <div>
-              <p className="text-sm text-muted-foreground mb-2">Current X (reference):</p>
-              <Card className="p-3 bg-background">
-                <p className="font-medium">{currentX.description}</p>
-              </Card>
+      {/* ── Do Now section (State C only — preselection complete) ─────── */}
+      {isStateC && currentTask && (
+        <div className="mb-4">
+          <p className="text-xs font-semibold tracking-widest text-primary uppercase mb-2">
+            Do Now
+          </p>
+          <div className="bg-primary/5 border border-primary rounded-xl p-3">
+            <div className="flex items-start gap-3">
+              <Checkbox
+                checked={false}
+                onCheckedChange={() => handleCompleteCurrent()}
+                onClick={(e) => e.stopPropagation()}
+                className="mt-0.5 shrink-0"
+              />
+              <span
+                className="flex-1 text-sm font-medium text-foreground cursor-pointer"
+                onClick={() => onTaskClick(currentTask.id)}
+              >
+                {currentTask.description}
+              </span>
             </div>
-
-            <div>
-              <p className="text-sm text-muted-foreground mb-2">
-                Do you want to do this more than X?
-              </p>
-              <Card className="p-3 bg-background">
-                <p className="font-medium">{scanCandidate.description}</p>
-              </Card>
-            </div>
-
-            <div className="flex gap-2">
-              <Button className="flex-1" onClick={handleDot}>
-                <Circle className="mr-2 h-4 w-4" />
-                Yes — dot it
+            <div className="border-t border-border mt-3 pt-3 flex items-center gap-2">
+              <Button
+                size="sm"
+                className="bg-primary hover:bg-primary/90 text-white"
+                onClick={(e) => { e.stopPropagation(); handleCompleteCurrent(); }}
+              >
+                ✓ Done
               </Button>
-              <Button variant="outline" className="flex-1" onClick={handleSkip}>
-                No — skip
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-primary text-primary hover:bg-primary/10"
+                onClick={(e) => { e.stopPropagation(); handleReenterCurrent(); }}
+              >
+                ↺ Re-enter
               </Button>
             </div>
           </div>
-        </Card>
-      ) : (
-        <div className="flex gap-2">
-          <Button
-            onClick={() => {
-              // Resume preselection — scanPosition is already set correctly
-              // Just trigger a re-render; the panel appears when candidate exists
-              if (undottedTasks.length === 0 && dottedTasks.length === 0) return;
-              // If preselection is complete, reset to start fresh
-              if (preselectionDone && dottedTasks.length === 0) {
-                updateState(resetFVP(state));
-              }
-            }}
-            disabled={incompleteTasks.length === 0}
-            className="flex-1"
-          >
-            <Circle className="mr-2 h-4 w-4" />
-            {preselectionDone ? 'Preselection complete' : 'Resume Preselection'}
-          </Button>
-          {dottedTasks.length > 0 && (
-            <Button variant="outline" onClick={handleReset}>
-              <RotateCcw className="mr-2 h-4 w-4" />
-              Reset
+        </div>
+      )}
+
+      {/* ── State B: Preselection panel ──────────────────────────────────── */}
+      {isStateB && currentX && scanCandidate && (
+        <div
+          key={scanCandidate.id}
+          className="bg-card border border-primary/30 rounded-xl p-4 mb-4"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          <p className="text-sm text-muted-foreground mb-3">
+            Do you want to do{' '}
+            <button
+              className="text-foreground font-semibold underline decoration-primary/40 underline-offset-2 hover:text-primary transition-colors cursor-pointer"
+              onClick={() => onTaskClick(scanCandidate.id)}
+            >
+              {scanCandidate.description}
+            </button>
+            {' '}more than{' '}
+            <button
+              className="text-foreground font-semibold underline decoration-primary/40 underline-offset-2 hover:text-primary transition-colors cursor-pointer"
+              onClick={() => onTaskClick(currentX.id)}
+            >
+              {currentX.description}
+            </button>
+            ?
+          </p>
+
+          <div className="flex gap-2">
+            <Button
+              className="flex-1 bg-primary hover:bg-primary/90 text-white"
+              onClick={handleDot}
+            >
+              ● Yes — dot it
             </Button>
-          )}
-        </div>
-      )}
-
-      {/* Current task to do (last dotted) */}
-      {currentTask && (
-        <div>
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Do Now</h3>
-            <Badge variant="default">current</Badge>
-          </div>
-          {renderTask(currentTask, true, true)}
-        </div>
-      )}
-
-      {/* Dotted tasks queue (all except the last one shown above) */}
-      {dottedTasks.length > 1 && (
-        <div>
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Dotted Queue</h3>
-            <Badge variant="secondary">{dottedTasks.length - 1} waiting</Badge>
-          </div>
-          <div className="space-y-2">
-            {dottedTasks.slice(0, -1).map(task => renderTask(task, true, false))}
+            <Button variant="outline" className="flex-1" onClick={handleSkip}>
+              No — skip
+            </Button>
           </div>
         </div>
       )}
 
-      {/* Undotted tasks */}
-      {undottedTasks.length > 0 && (
-        <div>
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Undotted Tasks</h3>
-            <Badge variant="secondary">{undottedTasks.length} tasks</Badge>
-          </div>
-          <div className="space-y-2">
-            {undottedTasks.map(task => renderTask(task, false, false))}
-          </div>
-        </div>
+      {/* ── State C: Resume Preselection button ──────────────────────────── */}
+      {isStateC && undottedTasks.length > 0 && (
+        <Button
+          variant="outline"
+          className="w-full mb-4"
+          onClick={handleStartPreselection}
+        >
+          Resume Preselection
+        </Button>
       )}
 
-      {incompleteTasks.length === 0 && (
-        <Card className="p-6 text-center">
-          <p className="text-muted-foreground">No tasks to work on.</p>
-        </Card>
+      {/* ── State C: All done empty state ────────────────────────────────── */}
+      {isStateC && undottedTasks.length === 0 && !currentTask && (
+        <TMSEmptyState
+          icon={<PartyPopper className="h-6 w-6" />}
+          title="All done!"
+          description="Add more tasks or reset to start fresh."
+          action={{ label: 'Reset FVP', onClick: handleReset }}
+        />
+      )}
+
+      {/* ── Unified task list ─────────────────────────────────────────────── */}
+      {orderedTasks.length > 0 && (
+        <div className="space-y-2">
+          {orderedTasks.map(task => {
+            const isDotted = dottedSet.has(task.id);
+            const isCurrentTask = currentTask?.id === task.id;
+            return (
+              <TaskCard
+                key={task.id}
+                task={task}
+                variant={isCurrentTask ? 'current' : 'default'}
+                dotted={isDotted}
+                onClick={() => onTaskClick(task.id)}
+                onComplete={(completed) => onTaskComplete(task.id, completed)}
+              />
+            );
+          })}
+        </div>
       )}
     </div>
   );

@@ -1,0 +1,20 @@
+import { z } from 'zod';
+import { Task } from '@/types';
+
+export const FVPStateSchema = z.object({
+  dottedTasks: z.array(z.string().min(1)),
+  scanPosition: z.number(),
+});
+
+export interface FVPState {
+  dottedTasks: string[];
+  scanPosition: number;
+}
+
+export type FVPAction =
+  | { type: 'START_PRESELECTION' }
+  | { type: 'DOT_TASK'; task: Task; tasks: Task[] }
+  | { type: 'SKIP_CANDIDATE'; task: Task; tasks: Task[] }
+  | { type: 'COMPLETE_CURRENT'; tasks: Task[] }
+  | { type: 'REENTER_CURRENT'; tasks: Task[] }
+  | { type: 'RESET_FVP' };

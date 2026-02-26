@@ -10,24 +10,8 @@ const VERSION = '1.0.0';
 function getDefaultTMSState(): AppState['tmsState'] {
   return {
     activeSystem: 'none',
-    dit: {
-      todayTasks: [],
-      tomorrowTasks: [],
-      lastDayChange: new Date().toISOString(),
-    },
-    af4: {
-      backlogTaskIds: [],
-      activeListTaskIds: [],
-      currentPosition: 0,
-      lastPassHadWork: false,
-      passStartPosition: 0,
-      dismissedTaskIds: [],
-      phase: 'backlog',
-    },
-    fvp: {
-      dottedTasks: [],
-      scanPosition: 1,
-    },
+    systemStates: {},
+    systemStateVersions: {},
   };
 }
 
@@ -152,7 +136,7 @@ export class LocalStorageBackend {
         TMS_KEY,
         JSON.stringify({
           state: { state: this.state.tmsState },
-          version: 1,
+          version: 2,
         }),
       );
 

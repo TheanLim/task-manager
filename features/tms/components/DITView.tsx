@@ -1,305 +1,183 @@
 'use client';
 
-import { Task } from '@/types';
-import { Card } from '@/components/ui/card';
+import { Sun, CalendarDays, Inbox, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
-import { ArrowRight, ArrowLeft, GripVertical, Calendar } from 'lucide-react';
-import { useTMSStore } from '@/features/tms/stores/tmsStore';
-import { format } from 'date-fns';
-import {
-  DndContext,
-  DragEndEvent,
-  DragOverlay,
-  DragStartEvent,
-  PointerSensor,
-  KeyboardSensor,
-  useSensor,
-  useSensors,
-  closestCenter,
-  useDroppable,
-  useDraggable,
-} from '@dnd-kit/core';
-import { useState } from 'react';
-import { InlineEditable } from '@/components/InlineEditable';
-import { validateTaskDescription } from '@/lib/validation';
-import { useDataStore } from '@/stores/dataStore';
+import { TaskCard } from './shared/TaskCard';
+import { TaskListView } from './shared/TaskListView';
+import { SectionHeader } from './shared/SectionHeader';
+import { TMSEmptyState } from './shared/TMSEmptyState';
+import type { TMSViewProps } from '../handlers';
+import type { DITState, DITAction } from '../handlers/DITHandler';
 
-interface DITViewProps {
-  tasks: Task[];
-  onTaskClick: (taskId: string) => void;
-  onTaskComplete: (taskId: string, completed: boolean) => void;
-}
+/**
+ * DIT (Do It Tomorrow) View
+ *
+ * Pure presentational component — no store access.
+ * Accepts TMSViewProps<DITState> and dispatches DITAction.
+ *
+ * Three zones stacked vertically:
+ *   Today    — border-l-2 border-l-primary
+ *   Tomorrow — border-l-2 border-l-slate-600
+ *   Inbox    — border-l-amber-500 when non-empty, border-l-border when empty
+ *
+ * Ref: UI-UX-DESIGN.md §7
+ */
 
-// Droppable zone component
-function DroppableZone({ id, children }: { id: string; children: React.ReactNode }) {
-  const { setNodeRef, isOver } = useDroppable({ id });
-  
-  return (
-    <div
-      ref={setNodeRef}
-      className={`transition-colors rounded-lg p-4 ${
-        isOver ? 'bg-accent/50 ring-2 ring-primary' : ''
-      }`}
-    >
-      {children}
-    </div>
+export function DITView({
+  tasks,
+  systemState,
+  dispatch,
+  onTaskClick,
+  onTaskComplete,
+}: TMSViewProps<DITState>) {
+  const todayTasks    = tasks.filter(t => systemState.todayTasks.includes(t.id));
+  const tomorrowTasks = tasks.filter(t => systemState.tomorrowTasks.includes(t.id));
+  const inboxTasks    = tasks.filter(
+    t => !systemState.todayTasks.includes(t.id) && !systemState.tomorrowTasks.includes(t.id),
   );
-}
 
-// Draggable task component
-function DraggableTask({ task, children }: { task: Task; children: React.ReactNode }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: task.id,
-  });
-
-  const style = transform
-    ? {
-        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-        opacity: isDragging ? 0.5 : 1,
-      }
-    : undefined;
+  const hasInbox = inboxTasks.length > 0;
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      {children}
-    </div>
-  );
-}
+    <div className="space-y-4">
+      {/* ── Today Zone ──────────────────────────────────────────────────── */}
+      <section
+        aria-label="Today"
+        className="rounded-[14px] border-l-2 border-l-primary border-t border-r border-b border-border p-4"
+      >
+        <SectionHeader title="Today" count={todayTasks.length} countVariant="default" icon={<Clock className="h-4 w-4 text-teal-400" />} titleClassName="text-teal-400" />
 
-export function DITView({ tasks, onTaskClick, onTaskComplete }: DITViewProps) {
-  const { state, moveToToday, moveToTomorrow, removeFromSchedule } = useTMSStore();
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const { updateTask } = useDataStore();
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(KeyboardSensor)
-  );
-
-  const todayTasks = tasks.filter(t => state.dit.todayTasks.includes(t.id));
-  const tomorrowTasks = tasks.filter(t => state.dit.tomorrowTasks.includes(t.id));
-  const unscheduledTasks = tasks.filter(
-    t => !state.dit.todayTasks.includes(t.id) && !state.dit.tomorrowTasks.includes(t.id)
-  );
-
-  const handleDragStart = (event: DragStartEvent) => {
-    setActiveId(event.active.id as string);
-  };
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    
-    if (!over) {
-      setActiveId(null);
-      return;
-    }
-
-    const taskId = active.id as string;
-    const dropZone = over.id as string;
-
-    // Determine current location of the task
-    const isInToday = state.dit.todayTasks.includes(taskId);
-    const isInTomorrow = state.dit.tomorrowTasks.includes(taskId);
-
-    // Handle drop based on zone
-    if (dropZone === 'today' && !isInToday) {
-      moveToToday(taskId);
-    } else if (dropZone === 'tomorrow' && !isInTomorrow) {
-      moveToTomorrow(taskId);
-    } else if (dropZone === 'unscheduled' && (isInToday || isInTomorrow)) {
-      removeFromSchedule(taskId);
-    }
-
-    setActiveId(null);
-  };
-
-  const handleDragCancel = () => {
-    setActiveId(null);
-  };
-
-  const renderTask = (task: Task, showMoveToTodayButton = false, showMoveToTomorrowButton = false) => (
-    <Card
-      key={task.id}
-      id={task.id}
-      className="p-3 cursor-pointer transition-colors hover:bg-accent"
-    >
-      <div className="flex items-start gap-3">
-        <div
-          className="cursor-grab active:cursor-grabbing mt-1"
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          <GripVertical className="h-4 w-4 text-muted-foreground" />
-        </div>
-        
-        <Checkbox
-          checked={task.completed}
-          onCheckedChange={(checked) => {
-            onTaskComplete(task.id, checked === true);
-          }}
-          onClick={(e) => e.stopPropagation()}
+        <TaskListView
+          tasks={todayTasks}
+          emptyState={
+            <TMSEmptyState
+              icon={<Sun className="h-5 w-5" />}
+              title="Nothing scheduled for today"
+              description="Move tasks from Tomorrow or Inbox."
+            />
+          }
+          renderTask={(task) => (
+            <TaskCard
+              task={task}
+              onClick={() => onTaskClick(task.id)}
+              onComplete={(completed) => onTaskComplete(task.id, completed)}
+              actions={
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    (dispatch as (a: DITAction) => void)({ type: 'MOVE_TO_TOMORROW', taskId: task.id });
+                  }}
+                >
+                  → Tomorrow
+                </Button>
+              }
+            />
+          )}
         />
-        
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="flex-1 min-w-0" onClick={() => onTaskClick(task.id)}>
-              <InlineEditable
-                value={task.description}
-                onSave={(newDescription) => updateTask(task.id, { description: newDescription })}
-                validate={validateTaskDescription}
-                placeholder="Task description"
-                displayClassName={task.completed ? 'line-through text-muted-foreground' : ''}
-                inputClassName="w-full"
-              />
-            </div>
-            {task.priority !== 'none' && (
-              <Badge variant={task.priority === 'high' ? 'destructive' : 'secondary'}>
-                {task.priority}
-              </Badge>
-            )}
-          </div>
-          
-          {task.dueDate && (
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Calendar className="h-3 w-3" />
-              <span>{format(new Date(task.dueDate), 'MMM d')}</span>
-            </div>
+      </section>
+
+      {/* ── Tomorrow Zone ───────────────────────────────────────────────── */}
+      <section
+        aria-label="Tomorrow"
+        className="rounded-[14px] border-l-2 border-l-slate-600 border-t border-r border-b border-border p-4"
+      >
+        <SectionHeader title="Tomorrow" count={tomorrowTasks.length} countVariant="slate" icon={<CalendarDays className="h-4 w-4 text-slate-500" />} />
+
+        <TaskListView
+          tasks={tomorrowTasks}
+          emptyState={
+            <TMSEmptyState
+              icon={<CalendarDays className="h-5 w-5" />}
+              title="Nothing for tomorrow yet"
+              description="New tasks you create will appear here."
+            />
+          }
+          renderTask={(task) => (
+            <TaskCard
+              task={task}
+              onClick={() => onTaskClick(task.id)}
+              onComplete={(completed) => onTaskComplete(task.id, completed)}
+              actions={
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    (dispatch as (a: DITAction) => void)({ type: 'MOVE_TO_TODAY', taskId: task.id });
+                  }}
+                >
+                  ← Today
+                </Button>
+              }
+            />
           )}
-        </div>
+        />
+      </section>
 
-        {showMoveToTodayButton && !task.completed && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={(e) => {
-              e.stopPropagation();
-              moveToToday(task.id);
-            }}
-            aria-label="Move to Today"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        )}
-        
-        {showMoveToTomorrowButton && !task.completed && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={(e) => {
-              e.stopPropagation();
-              moveToTomorrow(task.id);
-            }}
-            aria-label="Move to Tomorrow"
-          >
-            <ArrowRight className="h-4 w-4" />
-          </Button>
-        )}
-      </div>
-    </Card>
-  );
+      {/* ── Inbox Zone ──────────────────────────────────────────────────── */}
+      <section
+        aria-label="Inbox"
+        className={`rounded-[14px] border-l-2 p-4 ${
+          hasInbox
+            ? 'border-l-amber-500 border-t border-r border-b border-amber-500/30'
+            : 'border-l-border border-t border-r border-b border-border'
+        }`}
+      >
+        <SectionHeader
+          title="Inbox"
+          count={inboxTasks.length}
+          countVariant={hasInbox ? 'amber' : 'secondary'}
+          icon={<Inbox className="h-4 w-4 text-slate-500" />}
+          titleClassName="text-slate-500"
+        />
 
-  const activeTask = activeId ? tasks.find(t => t.id === activeId) : null;
-
-  return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-      onDragCancel={handleDragCancel}
-    >
-      <div className="space-y-6">
-        {/* Today Section */}
-        <DroppableZone id="today">
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Today</h3>
-            <Badge variant="default">{todayTasks.length} tasks</Badge>
-          </div>
-          
-          {todayTasks.length === 0 ? (
-            <Card className="p-6 text-center">
-              <p className="text-muted-foreground">
-                No tasks scheduled for today. Move tasks from tomorrow or add new ones.
-              </p>
-            </Card>
-          ) : (
-            <div 
-              className={`space-y-2 ${todayTasks.length > 10 ? 'max-h-[400px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 dark:scrollbar-thumb-gray-700 dark:scrollbar-track-gray-900' : ''}`}
-            >
-              {todayTasks.map(task => (
-                <DraggableTask key={task.id} task={task}>
-                  {renderTask(task, false, true)}
-                </DraggableTask>
-              ))}
-            </div>
+        <TaskListView
+          tasks={inboxTasks}
+          emptyState={
+            <TMSEmptyState
+              icon={<Inbox className="h-5 w-5" />}
+              title="All tasks are scheduled"
+            />
+          }
+          renderTask={(task) => (
+            <TaskCard
+              task={task}
+              onClick={() => onTaskClick(task.id)}
+              onComplete={(completed) => onTaskComplete(task.id, completed)}
+              actions={
+                <div className="flex gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      (dispatch as (a: DITAction) => void)({ type: 'MOVE_TO_TODAY', taskId: task.id });
+                    }}
+                  >
+                    → Today
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      (dispatch as (a: DITAction) => void)({ type: 'MOVE_TO_TOMORROW', taskId: task.id });
+                    }}
+                  >
+                    → Tomorrow
+                  </Button>
+                </div>
+              }
+            />
           )}
-        </DroppableZone>
-
-        {/* Tomorrow Section */}
-        <DroppableZone id="tomorrow">
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Tomorrow</h3>
-            <Badge variant="secondary">{tomorrowTasks.length} tasks</Badge>
-          </div>
-          
-          {tomorrowTasks.length === 0 ? (
-            <Card className="p-6 text-center">
-              <p className="text-muted-foreground">
-                No tasks scheduled for tomorrow. New tasks are automatically added here.
-              </p>
-            </Card>
-          ) : (
-            <div 
-              className={`space-y-2 ${tomorrowTasks.length > 10 ? 'max-h-[400px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 dark:scrollbar-thumb-gray-700 dark:scrollbar-track-gray-900' : ''}`}
-            >
-              {tomorrowTasks.map(task => (
-                <DraggableTask key={task.id} task={task}>
-                  {renderTask(task, true, false)}
-                </DraggableTask>
-              ))}
-            </div>
-          )}
-        </DroppableZone>
-
-        {/* Unscheduled Section */}
-        {unscheduledTasks.length > 0 && (
-          <DroppableZone id="unscheduled">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Unscheduled</h3>
-              <Badge variant="outline">{unscheduledTasks.length} tasks</Badge>
-            </div>
-            
-            <div className="space-y-2">
-              {unscheduledTasks.map(task => (
-                <DraggableTask key={task.id} task={task}>
-                  {renderTask(task, false, false)}
-                </DraggableTask>
-              ))}
-            </div>
-          </DroppableZone>
-        )}
-      </div>
-
-      <DragOverlay>
-        {activeTask ? (
-          <Card className="p-3 opacity-90 shadow-lg rotate-3">
-            <div className="flex items-start gap-3">
-              <GripVertical className="h-4 w-4 text-muted-foreground mt-1" />
-              <Checkbox checked={activeTask.completed} disabled />
-              <div className="flex-1 min-w-0">
-                <span className={activeTask.completed ? 'line-through text-muted-foreground' : ''}>
-                  {activeTask.description}
-                </span>
-              </div>
-            </div>
-          </Card>
-        ) : null}
-      </DragOverlay>
-    </DndContext>
+        />
+      </section>
+    </div>
   );
 }

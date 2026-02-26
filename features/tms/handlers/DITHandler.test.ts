@@ -1,31 +1,16 @@
 import { describe, it, expect } from 'vitest';
-import * as DITHandler from './DITHandler';
-import { Task, TMSState, Priority, TimeManagementSystem } from '@/types';
+import { DITHandler } from './DITHandler';
+import type { DITState } from './DITHandler';
+import { Task, Priority } from '@/types';
 
-const createDefaultTMSState = (overrides?: Partial<TMSState['dit']>): TMSState => ({
-  activeSystem: TimeManagementSystem.DIT,
-  dit: {
-    todayTasks: [],
-    tomorrowTasks: [],
-    lastDayChange: new Date().toISOString(),
-    ...overrides,
-  },
-  af4: {
-    backlogTaskIds: [],
-    activeListTaskIds: [],
-    currentPosition: 0,
-    lastPassHadWork: false,
-    passStartPosition: 0,
-    dismissedTaskIds: [],
-    phase: 'backlog' as const,
-  },
-  fvp: {
-    dottedTasks: [],
-    scanPosition: 1,
-  },
+const makeState = (overrides?: Partial<DITState>): DITState => ({
+  todayTasks: [],
+  tomorrowTasks: [],
+  lastDayChange: new Date().toISOString(),
+  ...overrides,
 });
 
-const createTask = (id: string, description: string): Task => ({
+const makeTask = (id: string, description = `Task ${id}`): Task => ({
   id,
   projectId: 'project-1',
   parentTaskId: null,
@@ -43,145 +28,218 @@ const createTask = (id: string, description: string): Task => ({
   updatedAt: new Date().toISOString(),
 });
 
-describe('DITHandler', () => {
-  describe('initialize', () => {
-    it('should perform day rollover if day has changed', () => {
+// ── Handler object interface tests (task 3.5) ─────────────────────────────────
+
+describe('DITHandler (handler object interface)', () => {
+  const handler = DITHandler;
+
+  describe('onActivate — day rollover', () => {
+    it('moves tomorrowTasks to todayTasks when lastDayChange is a previous day', () => {
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
-
-      const tmsState = createDefaultTMSState({
-        todayTasks: ['task-1'],
-        tomorrowTasks: ['task-2', 'task-3'],
+      const state = makeState({
+        todayTasks: ['t1'],
+        tomorrowTasks: ['t2', 't3'],
         lastDayChange: yesterday.toISOString(),
       });
-
-      const delta = DITHandler.initialize([], tmsState);
-
-      expect(delta.dit).toBeDefined();
-      expect(delta.dit!.todayTasks).toEqual(['task-2', 'task-3']);
-      expect(delta.dit!.tomorrowTasks).toEqual([]);
+      const delta = handler.onActivate([], state);
+      expect(delta.todayTasks).toEqual(['t2', 't3']);
     });
 
-    it('should not perform rollover if day has not changed', () => {
-      const tmsState = createDefaultTMSState({
-        todayTasks: ['task-1'],
-        tomorrowTasks: ['task-2'],
-        lastDayChange: new Date().toISOString(),
+    it('clears tomorrowTasks after rollover', () => {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const state = makeState({
+        tomorrowTasks: ['t2', 't3'],
+        lastDayChange: yesterday.toISOString(),
       });
+      const delta = handler.onActivate([], state);
+      expect(delta.tomorrowTasks).toEqual([]);
+    });
 
-      const delta = DITHandler.initialize([], tmsState);
+    it('updates lastDayChange to today after rollover', () => {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const state = makeState({ lastDayChange: yesterday.toISOString() });
+      const delta = handler.onActivate([], state);
+      const today = new Date().toISOString().split('T')[0];
+      expect(delta.lastDayChange?.split('T')[0]).toBe(today);
+    });
 
-      // Empty delta means no changes
+    it('returns {} (no change) when lastDayChange is already today', () => {
+      const state = makeState({ lastDayChange: new Date().toISOString() });
+      const delta = handler.onActivate([], state);
       expect(delta).toEqual({});
+    });
+
+    it('handles empty tomorrowTasks on rollover — todayTasks becomes []', () => {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const state = makeState({
+        tomorrowTasks: [],
+        lastDayChange: yesterday.toISOString(),
+      });
+      const delta = handler.onActivate([], state);
+      expect(delta.todayTasks).toEqual([]);
     });
   });
 
   describe('getOrderedTasks', () => {
-    it('should return today tasks first, then tomorrow tasks', () => {
-      const task1 = createTask('task-1', 'Today task');
-      const task2 = createTask('task-2', 'Tomorrow task');
-      const task3 = createTask('task-3', 'Another today task');
-
-      const tmsState = createDefaultTMSState({
-        todayTasks: ['task-1', 'task-3'],
-        tomorrowTasks: ['task-2'],
-      });
-
-      const ordered = DITHandler.getOrderedTasks([task1, task2, task3], tmsState);
-
-      expect(ordered).toHaveLength(3);
-      expect(ordered[0].id).toBe('task-1');
-      expect(ordered[1].id).toBe('task-3');
-      expect(ordered[2].id).toBe('task-2');
+    it('returns today tasks first in todayTasks order', () => {
+      const t1 = makeTask('t1');
+      const t2 = makeTask('t2');
+      const t3 = makeTask('t3');
+      const state = makeState({ todayTasks: ['t1', 't3'], tomorrowTasks: ['t2'] });
+      const ordered = handler.getOrderedTasks([t1, t2, t3], state);
+      expect(ordered[0].id).toBe('t1');
+      expect(ordered[1].id).toBe('t3');
     });
 
-    it('should include tasks not in DIT lists at the end', () => {
-      const task1 = createTask('task-1', 'Today task');
-      const task2 = createTask('task-2', 'Untracked task');
-
-      const tmsState = createDefaultTMSState({
-        todayTasks: ['task-1'],
-      });
-
-      const ordered = DITHandler.getOrderedTasks([task1, task2], tmsState);
-
-      expect(ordered).toHaveLength(2);
-      expect(ordered[0].id).toBe('task-1');
-      expect(ordered[1].id).toBe('task-2');
+    it('returns tomorrow tasks after today tasks', () => {
+      const t1 = makeTask('t1');
+      const t2 = makeTask('t2');
+      const state = makeState({ todayTasks: ['t1'], tomorrowTasks: ['t2'] });
+      const ordered = handler.getOrderedTasks([t1, t2], state);
+      expect(ordered[0].id).toBe('t1');
+      expect(ordered[1].id).toBe('t2');
     });
 
-    it('should return empty array for empty task list', () => {
-      const tmsState = createDefaultTMSState();
-      const ordered = DITHandler.getOrderedTasks([], tmsState);
-      expect(ordered).toEqual([]);
+    it('returns unscheduled tasks (not in either list) last', () => {
+      const t1 = makeTask('t1');
+      const t2 = makeTask('t2');
+      const t3 = makeTask('t3');
+      const state = makeState({ todayTasks: ['t1'], tomorrowTasks: [] });
+      const ordered = handler.getOrderedTasks([t1, t2, t3], state);
+      expect(ordered[0].id).toBe('t1');
+      // t2 and t3 are unscheduled — come last
+      expect(ordered.slice(1).map((t: Task) => t.id)).toContain('t2');
+      expect(ordered.slice(1).map((t: Task) => t.id)).toContain('t3');
+    });
+
+    it('handles tasks that appear in both lists (edge case — today wins)', () => {
+      const t1 = makeTask('t1');
+      const state = makeState({ todayTasks: ['t1'], tomorrowTasks: ['t1'] });
+      const ordered = handler.getOrderedTasks([t1], state);
+      // t1 should appear only once (in today section)
+      expect(ordered.filter((t: Task) => t.id === 't1')).toHaveLength(1);
+      expect(ordered[0].id).toBe('t1');
     });
   });
 
   describe('onTaskCreated', () => {
-    it('should add new task to tomorrow list', () => {
-      const task = createTask('task-1', 'New task');
-      const tmsState = createDefaultTMSState();
-
-      const delta = DITHandler.onTaskCreated(task, tmsState);
-
-      expect(delta.dit).toBeDefined();
-      expect(delta.dit!.tomorrowTasks).toContain('task-1');
+    it('appends new task to end of tomorrowTasks', () => {
+      const state = makeState({ tomorrowTasks: ['existing'] });
+      const task = makeTask('new-task');
+      const delta = handler.onTaskCreated(task, state);
+      expect(delta.tomorrowTasks).toEqual(['existing', 'new-task']);
     });
 
-    it('should not duplicate task in tomorrow list', () => {
-      const task = createTask('task-1', 'New task');
-      const tmsState = createDefaultTMSState();
-
-      const delta1 = DITHandler.onTaskCreated(task, tmsState);
-      // Apply first delta and call again
-      const updatedState: TMSState = { ...tmsState, dit: { ...tmsState.dit, ...delta1.dit } };
-      const delta2 = DITHandler.onTaskCreated(task, updatedState);
-
-      // The handler appends without dedup — same as original behavior
-      const finalTomorrowTasks = delta2.dit!.tomorrowTasks;
-      expect(finalTomorrowTasks.filter(id => id === 'task-1')).toHaveLength(2);
+    it('does not modify todayTasks', () => {
+      const state = makeState({ todayTasks: ['t1'] });
+      const task = makeTask('new-task');
+      const delta = handler.onTaskCreated(task, state);
+      expect(delta.todayTasks).toBeUndefined();
     });
   });
 
   describe('onTaskCompleted', () => {
-    it('should remove task from today list', () => {
-      const tmsState = createDefaultTMSState({
-        todayTasks: ['task-1', 'task-2'],
-      });
-
-      const task = createTask('task-1', 'Completed task');
-      const delta = DITHandler.onTaskCompleted(task, tmsState);
-
-      expect(delta.dit).toBeDefined();
-      expect(delta.dit!.todayTasks).not.toContain('task-1');
-      expect(delta.dit!.todayTasks).toContain('task-2');
+    it('removes task from todayTasks', () => {
+      const state = makeState({ todayTasks: ['t1', 't2'] });
+      const delta = handler.onTaskCompleted(makeTask('t1'), state);
+      expect(delta.todayTasks).not.toContain('t1');
+      expect(delta.todayTasks).toContain('t2');
     });
 
-    it('should remove task from tomorrow list', () => {
-      const tmsState = createDefaultTMSState({
-        tomorrowTasks: ['task-1', 'task-2'],
-      });
-
-      const task = createTask('task-1', 'Completed task');
-      const delta = DITHandler.onTaskCompleted(task, tmsState);
-
-      expect(delta.dit).toBeDefined();
-      expect(delta.dit!.tomorrowTasks).not.toContain('task-1');
-      expect(delta.dit!.tomorrowTasks).toContain('task-2');
+    it('removes task from tomorrowTasks', () => {
+      const state = makeState({ tomorrowTasks: ['t1', 't2'] });
+      const delta = handler.onTaskCompleted(makeTask('t1'), state);
+      expect(delta.tomorrowTasks).not.toContain('t1');
+      expect(delta.tomorrowTasks).toContain('t2');
     });
 
-    it('should handle completing task not in any list', () => {
-      const tmsState = createDefaultTMSState({
-        todayTasks: ['task-2'],
-        tomorrowTasks: ['task-3'],
+    it('returns empty delta when task is in neither list', () => {
+      const state = makeState({ todayTasks: ['t2'], tomorrowTasks: ['t3'] });
+      const delta = handler.onTaskCompleted(makeTask('t1'), state);
+      // delta should not contain t1 in any list
+      expect(delta.todayTasks).not.toContain('t1');
+      expect(delta.tomorrowTasks).not.toContain('t1');
+    });
+  });
+
+  describe('onTaskDeleted', () => {
+    it('removes taskId from todayTasks', () => {
+      const state = makeState({ todayTasks: ['t1', 't2'] });
+      const delta = handler.onTaskDeleted('t1', state);
+      expect(delta.todayTasks).not.toContain('t1');
+      expect(delta.todayTasks).toContain('t2');
+    });
+
+    it('removes taskId from tomorrowTasks', () => {
+      const state = makeState({ tomorrowTasks: ['t1', 't2'] });
+      const delta = handler.onTaskDeleted('t1', state);
+      expect(delta.tomorrowTasks).not.toContain('t1');
+      expect(delta.tomorrowTasks).toContain('t2');
+    });
+
+    it('returns empty delta when taskId is in neither list', () => {
+      const state = makeState({ todayTasks: ['t2'], tomorrowTasks: ['t3'] });
+      const delta = handler.onTaskDeleted('t1', state);
+      expect(delta.todayTasks).not.toContain('t1');
+      expect(delta.tomorrowTasks).not.toContain('t1');
+    });
+  });
+
+  describe('reduce', () => {
+    describe('MOVE_TO_TODAY', () => {
+      it('adds taskId to todayTasks', () => {
+        const state = makeState({ todayTasks: [], tomorrowTasks: ['t1'] });
+        const delta = handler.reduce(state, { type: 'MOVE_TO_TODAY', taskId: 't1' });
+        expect(delta.todayTasks).toContain('t1');
       });
 
-      const task = createTask('task-1', 'Untracked task');
-      const delta = DITHandler.onTaskCompleted(task, tmsState);
+      it('removes taskId from tomorrowTasks if present', () => {
+        const state = makeState({ todayTasks: [], tomorrowTasks: ['t1', 't2'] });
+        const delta = handler.reduce(state, { type: 'MOVE_TO_TODAY', taskId: 't1' });
+        expect(delta.tomorrowTasks).not.toContain('t1');
+        expect(delta.tomorrowTasks).toContain('t2');
+      });
 
-      expect(delta.dit).toBeDefined();
-      expect(delta.dit!.todayTasks).toEqual(['task-2']);
-      expect(delta.dit!.tomorrowTasks).toEqual(['task-3']);
+      it('does not duplicate if already in todayTasks', () => {
+        const state = makeState({ todayTasks: ['t1'], tomorrowTasks: [] });
+        const delta = handler.reduce(state, { type: 'MOVE_TO_TODAY', taskId: 't1' });
+        expect(delta.todayTasks!.filter((id: string) => id === 't1')).toHaveLength(1);
+      });
+    });
+
+    describe('MOVE_TO_TOMORROW', () => {
+      it('adds taskId to tomorrowTasks', () => {
+        const state = makeState({ todayTasks: ['t1'], tomorrowTasks: [] });
+        const delta = handler.reduce(state, { type: 'MOVE_TO_TOMORROW', taskId: 't1' });
+        expect(delta.tomorrowTasks).toContain('t1');
+      });
+
+      it('removes taskId from todayTasks if present', () => {
+        const state = makeState({ todayTasks: ['t1', 't2'], tomorrowTasks: [] });
+        const delta = handler.reduce(state, { type: 'MOVE_TO_TOMORROW', taskId: 't1' });
+        expect(delta.todayTasks).not.toContain('t1');
+        expect(delta.todayTasks).toContain('t2');
+      });
+    });
+
+    describe('REMOVE_FROM_SCHEDULE', () => {
+      it('removes taskId from both todayTasks and tomorrowTasks', () => {
+        const state = makeState({ todayTasks: ['t1'], tomorrowTasks: ['t1'] });
+        const delta = handler.reduce(state, { type: 'REMOVE_FROM_SCHEDULE', taskId: 't1' });
+        expect(delta.todayTasks).not.toContain('t1');
+        expect(delta.tomorrowTasks).not.toContain('t1');
+      });
+
+      it('returns empty-ish delta when task is in neither list', () => {
+        const state = makeState({ todayTasks: ['t2'], tomorrowTasks: ['t3'] });
+        const delta = handler.reduce(state, { type: 'REMOVE_FROM_SCHEDULE', taskId: 't1' });
+        expect(delta.todayTasks).not.toContain('t1');
+        expect(delta.tomorrowTasks).not.toContain('t1');
+      });
     });
   });
 });

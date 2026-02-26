@@ -39,9 +39,8 @@ const createValidAppState = (): AppState => ({
   dependencies: [],
   tmsState: {
     activeSystem: TimeManagementSystem.NONE,
-    dit: { todayTasks: [], tomorrowTasks: [], lastDayChange: new Date().toISOString() },
-    af4: { backlogTaskIds: [], activeListTaskIds: [], currentPosition: 0, lastPassHadWork: false, passStartPosition: 0, dismissedTaskIds: [], phase: 'backlog' as const },
-    fvp: { dottedTasks: [], scanPosition: 1 },
+    systemStates: {},
+    systemStateVersions: {},
   },
   settings: {
     activeProjectId: null,

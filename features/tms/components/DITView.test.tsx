@@ -1,235 +1,207 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { DITView } from './DITView';
-import { useTMSStore } from '@/features/tms/stores/tmsStore';
-import { Task, Priority, TimeManagementSystem } from '@/types';
+/**
+ * DITView unit tests (Task 5.1 — TDD, written before DITView migration)
+ *
+ * Validates: Requirements 5.1, 5.4
+ *
+ * These tests MUST FAIL before task 5.2 is implemented.
+ * They verify the migrated DITView accepts TMSViewProps<DITState> and
+ * does NOT call useTMSStore().
+ */
 
-// Mock the TMS store
-vi.mock('@/features/tms/stores/tmsStore', () => ({
-  useTMSStore: vi.fn(),
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import type { Task, Priority } from '@/types';
+import type { DITState } from '../handlers/DITHandler';
+
+// ── Mock useTMSStore to detect if it's called ─────────────────────────────────
+// If DITView still imports useTMSStore, this mock will record the call.
+// The "does NOT call useTMSStore" test asserts the mock was never invoked.
+// vi.mock is hoisted, so we use vi.hoisted() to create the spy first.
+
+const { useTMSStoreMock } = vi.hoisted(() => ({
+  useTMSStoreMock: vi.fn(),
 }));
 
+vi.mock('../stores/tmsStore', () => ({
+  useTMSStore: useTMSStoreMock,
+}));
+
+// Import AFTER mocking
+import { DITView } from './DITView';
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function makeTask(overrides: Partial<Task> & { id: string }): Task {
+  return {
+    projectId: null,
+    parentTaskId: null,
+    sectionId: null,
+    description: `Task ${overrides.id}`,
+    notes: '',
+    assignee: '',
+    priority: 'none' as Priority,
+    tags: [],
+    dueDate: null,
+    completed: false,
+    completedAt: null,
+    order: 0,
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z',
+    lastActionAt: null,
+    ...overrides,
+  };
+}
+
+function makeDITState(overrides: Partial<DITState> = {}): DITState {
+  return {
+    todayTasks: [],
+    tomorrowTasks: [],
+    lastDayChange: '2024-01-01T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
+const defaultDispatch = vi.fn();
+const defaultOnTaskClick = vi.fn();
+const defaultOnTaskComplete = vi.fn();
+
+function renderDITView(
+  tasks: Task[],
+  systemState: DITState,
+  dispatch = defaultDispatch,
+) {
+  return render(
+    <DITView
+      tasks={tasks}
+      systemState={systemState}
+      dispatch={dispatch}
+      onTaskClick={defaultOnTaskClick}
+      onTaskComplete={defaultOnTaskComplete}
+    />,
+  );
+}
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
 describe('DITView', () => {
-  const mockTasks: Task[] = [
-    {
-      id: 'task-1',
-      projectId: 'project-1',
-      description: 'Task in Today',
-      completed: false,
-      priority: Priority.HIGH,
-      tags: [],
-      order: 0,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: 'task-2',
-      projectId: 'project-1',
-      description: 'Task in Tomorrow',
-      completed: false,
-      priority: Priority.MEDIUM,
-      tags: [],
-      order: 1,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: 'task-3',
-      projectId: 'project-1',
-      description: 'Unscheduled Task',
-      completed: false,
-      priority: Priority.LOW,
-      tags: [],
-      order: 2,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-  ];
+  // ── Zone border colors ─────────────────────────────────────────────────────
 
-  const mockOnTaskClick = vi.fn();
-  const mockOnTaskComplete = vi.fn();
-  const mockMoveToToday = vi.fn();
-  const mockMoveToTomorrow = vi.fn();
-  const mockRemoveFromSchedule = vi.fn();
+  describe('zone border colors', () => {
+    it('Today zone renders border-l-2 border-l-primary', () => {
+      const { container } = renderDITView([], makeDITState());
+      // Find the Today section container — it should have the teal left border classes
+      const todaySection = container.querySelector('.border-l-primary');
+      expect(todaySection).not.toBeNull();
+      expect(todaySection!.className).toContain('border-l-2');
+    });
 
-  beforeEach(() => {
-    vi.clearAllMocks();
-    
-    (useTMSStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
-      state: {
-        activeSystem: TimeManagementSystem.DIT,
-        dit: {
-          todayTasks: ['task-1'],
-          tomorrowTasks: ['task-2'],
-          lastDayChange: new Date().toISOString(),
-        },
-        af4: {
-          backlogTaskIds: [],
-          activeListTaskIds: [],
-          currentPosition: 0,
-          lastPassHadWork: false,
-          passStartPosition: 0,
-          dismissedTaskIds: [],
-          phase: 'backlog',
-        },
-        fvp: {
-          dottedTasks: [],
-          scanPosition: 1,
-        },
-      },
-      moveToToday: mockMoveToToday,
-      moveToTomorrow: mockMoveToTomorrow,
-      removeFromSchedule: mockRemoveFromSchedule,
+    it('Tomorrow zone renders border-l-2 border-l-slate-600', () => {
+      const { container } = renderDITView([], makeDITState());
+      const tomorrowSection = container.querySelector('.border-l-slate-600');
+      expect(tomorrowSection).not.toBeNull();
+      expect(tomorrowSection!.className).toContain('border-l-2');
+    });
+
+    it('Inbox zone renders border-l-amber-500 when tasks are present', () => {
+      const task = makeTask({ id: 'inbox-1' });
+      // Task not in today or tomorrow → goes to inbox
+      const state = makeDITState({ todayTasks: [], tomorrowTasks: [] });
+      const { container } = renderDITView([task], state);
+      const inboxSection = container.querySelector('.border-l-amber-500');
+      expect(inboxSection).not.toBeNull();
+    });
+
+    it('Inbox zone renders border-l-border when empty', () => {
+      // No tasks at all → inbox is empty
+      const { container } = renderDITView([], makeDITState());
+      const inboxSection = container.querySelector('.border-l-border');
+      expect(inboxSection).not.toBeNull();
     });
   });
 
-  it('should render Today, Tomorrow, and Unscheduled sections', () => {
-    render(
-      <DITView
-        tasks={mockTasks}
-        onTaskClick={mockOnTaskClick}
-        onTaskComplete={mockOnTaskComplete}
-      />
-    );
+  // ── Today zone actions ─────────────────────────────────────────────────────
 
-    expect(screen.getByText('Today')).toBeInTheDocument();
-    expect(screen.getByText('Tomorrow')).toBeInTheDocument();
-    expect(screen.getByText('Unscheduled')).toBeInTheDocument();
+  describe('Today zone task actions', () => {
+    it('"→ Tomorrow" button dispatches { type: MOVE_TO_TOMORROW, taskId }', () => {
+      const dispatch = vi.fn();
+      const task = makeTask({ id: 'today-1' });
+      const state = makeDITState({ todayTasks: ['today-1'] });
+
+      renderDITView([task], state, dispatch);
+
+      const btn = screen.getByRole('button', { name: /→ Tomorrow/i });
+      fireEvent.click(btn);
+
+      expect(dispatch).toHaveBeenCalledWith({ type: 'MOVE_TO_TOMORROW', taskId: 'today-1' });
+    });
   });
 
-  it('should display tasks in correct sections', () => {
-    render(
-      <DITView
-        tasks={mockTasks}
-        onTaskClick={mockOnTaskClick}
-        onTaskComplete={mockOnTaskComplete}
-      />
-    );
+  // ── Tomorrow zone actions ──────────────────────────────────────────────────
 
-    expect(screen.getByText('Task in Today')).toBeInTheDocument();
-    expect(screen.getByText('Task in Tomorrow')).toBeInTheDocument();
-    expect(screen.getByText('Unscheduled Task')).toBeInTheDocument();
+  describe('Tomorrow zone task actions', () => {
+    it('"← Today" button dispatches { type: MOVE_TO_TODAY, taskId }', () => {
+      const dispatch = vi.fn();
+      const task = makeTask({ id: 'tomorrow-1' });
+      const state = makeDITState({ tomorrowTasks: ['tomorrow-1'] });
+
+      renderDITView([task], state, dispatch);
+
+      const btn = screen.getByRole('button', { name: /← Today/i });
+      fireEvent.click(btn);
+
+      expect(dispatch).toHaveBeenCalledWith({ type: 'MOVE_TO_TODAY', taskId: 'tomorrow-1' });
+    });
   });
 
-  it('should show correct task counts', () => {
-    render(
-      <DITView
-        tasks={mockTasks}
-        onTaskClick={mockOnTaskClick}
-        onTaskComplete={mockOnTaskComplete}
-      />
-    );
+  // ── Inbox zone actions ─────────────────────────────────────────────────────
 
-    // Use getAllByText since there are multiple "1 tasks" badges
-    const taskCounts = screen.getAllByText('1 tasks');
-    expect(taskCounts).toHaveLength(3); // Today, Tomorrow, Unscheduled
-  });
+  describe('Inbox zone task actions', () => {
+    it('Inbox tasks show both "→ Today" and "→ Tomorrow" buttons', () => {
+      const task = makeTask({ id: 'inbox-1' });
+      // Not in today or tomorrow → inbox
+      const state = makeDITState({ todayTasks: [], tomorrowTasks: [] });
 
-  it('should render drag handles for all tasks', () => {
-    render(
-      <DITView
-        tasks={mockTasks}
-        onTaskClick={mockOnTaskClick}
-        onTaskComplete={mockOnTaskComplete}
-      />
-    );
+      renderDITView([task], state);
 
-    // Check for draggable elements (they have role="button" with aria-roledescription="draggable")
-    const draggableElements = screen.getAllByRole('button', { name: /Task/i });
-    expect(draggableElements.length).toBeGreaterThan(0);
-  });
-
-  it('should show empty state when no tasks in Today', () => {
-    (useTMSStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
-      state: {
-        activeSystem: TimeManagementSystem.DIT,
-        dit: {
-          todayTasks: [],
-          tomorrowTasks: ['task-2'],
-          lastDayChange: new Date().toISOString(),
-        },
-        af4: {
-          backlogTaskIds: [],
-          activeListTaskIds: [],
-          currentPosition: 0,
-          lastPassHadWork: false,
-          passStartPosition: 0,
-          dismissedTaskIds: [],
-          phase: 'backlog',
-        },
-        fvp: { dottedTasks: [], scanPosition: 1 },
-      },
-      moveToToday: mockMoveToToday,
-      moveToTomorrow: mockMoveToTomorrow,
-      removeFromSchedule: mockRemoveFromSchedule,
+      expect(screen.getByRole('button', { name: /→ Today/i })).toBeTruthy();
+      expect(screen.getByRole('button', { name: /→ Tomorrow/i })).toBeTruthy();
     });
 
-    render(
-      <DITView
-        tasks={mockTasks}
-        onTaskClick={mockOnTaskClick}
-        onTaskComplete={mockOnTaskComplete}
-      />
-    );
+    it('"→ Today" in Inbox dispatches MOVE_TO_TODAY', () => {
+      const dispatch = vi.fn();
+      const task = makeTask({ id: 'inbox-1' });
+      const state = makeDITState({ todayTasks: [], tomorrowTasks: [] });
 
-    expect(
-      screen.getByText(/No tasks scheduled for today/i)
-    ).toBeInTheDocument();
-  });
+      renderDITView([task], state, dispatch);
 
-  it('should show empty state when no tasks in Tomorrow', () => {
-    (useTMSStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
-      state: {
-        activeSystem: TimeManagementSystem.DIT,
-        dit: {
-          todayTasks: ['task-1'],
-          tomorrowTasks: [],
-          lastDayChange: new Date().toISOString(),
-        },
-        af4: {
-          backlogTaskIds: [],
-          activeListTaskIds: [],
-          currentPosition: 0,
-          lastPassHadWork: false,
-          passStartPosition: 0,
-          dismissedTaskIds: [],
-          phase: 'backlog',
-        },
-        fvp: { dottedTasks: [], scanPosition: 1 },
-      },
-      moveToToday: mockMoveToToday,
-      moveToTomorrow: mockMoveToTomorrow,
-      removeFromSchedule: mockRemoveFromSchedule,
+      fireEvent.click(screen.getByRole('button', { name: /→ Today/i }));
+      expect(dispatch).toHaveBeenCalledWith({ type: 'MOVE_TO_TODAY', taskId: 'inbox-1' });
     });
 
-    render(
-      <DITView
-        tasks={mockTasks}
-        onTaskClick={mockOnTaskClick}
-        onTaskComplete={mockOnTaskComplete}
-      />
-    );
+    it('"→ Tomorrow" in Inbox dispatches MOVE_TO_TOMORROW', () => {
+      const dispatch = vi.fn();
+      const task = makeTask({ id: 'inbox-1' });
+      const state = makeDITState({ todayTasks: [], tomorrowTasks: [] });
 
-    expect(
-      screen.getByText(/No tasks scheduled for tomorrow/i)
-    ).toBeInTheDocument();
+      renderDITView([task], state, dispatch);
+
+      fireEvent.click(screen.getByRole('button', { name: /→ Tomorrow/i }));
+      expect(dispatch).toHaveBeenCalledWith({ type: 'MOVE_TO_TOMORROW', taskId: 'inbox-1' });
+    });
   });
 
-  it('should show move buttons for tasks', () => {
-    render(
-      <DITView
-        tasks={mockTasks}
-        onTaskClick={mockOnTaskClick}
-        onTaskComplete={mockOnTaskComplete}
-      />
-    );
+  // ── No store access ────────────────────────────────────────────────────────
 
-    // Tomorrow tasks should have "Move to Today" button
-    // Today tasks should have "Move to Tomorrow" button
-    const moveToTodayButton = screen.getByRole('button', { name: 'Move to Today' });
-    const moveToTomorrowButton = screen.getByRole('button', { name: 'Move to Tomorrow' });
-    
-    expect(moveToTodayButton).toBeInTheDocument();
-    expect(moveToTomorrowButton).toBeInTheDocument();
+  describe('does NOT call useTMSStore', () => {
+    it('renders without calling useTMSStore (pure props-driven)', () => {
+      useTMSStoreMock.mockClear();
+
+      const task = makeTask({ id: 't1' });
+      const state = makeDITState({ todayTasks: ['t1'] });
+
+      renderDITView([task], state);
+
+      expect(useTMSStoreMock).not.toHaveBeenCalled();
+    });
   });
 });

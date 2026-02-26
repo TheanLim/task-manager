@@ -137,24 +137,12 @@ describe('Data Integrity - Export/Import/Share', () => {
       ],
       tmsState: {
         activeSystem: TimeManagementSystem.DIT,
-        dit: {
-          todayTasks: [TASK_1, TASK_2],
-          tomorrowTasks: [TASK_3],
-          lastDayChange: '2024-01-20T00:00:00.000Z',
+        systemStates: {
+          dit: { todayTasks: [TASK_1, TASK_2], tomorrowTasks: [TASK_3], lastDayChange: '2024-01-20T00:00:00.000Z' },
+          af4: { backlogTaskIds: [TASK_1, TASK_2], activeListTaskIds: [TASK_3], currentPosition: 0, lastPassHadWork: false, dismissedTaskIds: [], phase: 'backlog' as const },
+          fvp: { dottedTasks: [TASK_2, TASK_3], scanPosition: 2 },
         },
-        af4: {
-          backlogTaskIds: [TASK_1, TASK_2],
-          activeListTaskIds: [TASK_3],
-          currentPosition: 0,
-          lastPassHadWork: false,
-          passStartPosition: 0,
-          dismissedTaskIds: [],
-          phase: 'backlog' as const,
-        },
-        fvp: {
-          dottedTasks: [TASK_2, TASK_3],
-          scanPosition: 2,
-        }
+        systemStateVersions: {},
       },
       settings: {
         activeProjectId: PROJ_1,
@@ -337,7 +325,7 @@ describe('Data Integrity - Export/Import/Share', () => {
       expect(exported.sections.length).toBe(testState.sections.length);
       expect(exported.dependencies.length).toBe(testState.dependencies.length);
       expect(exported.tmsState).toBeDefined();
-      expect(exported.tmsState.dit.todayTasks).toEqual(testState.tmsState.dit.todayTasks);
+      expect(exported.tmsState.systemStates).toEqual(testState.tmsState.systemStates);
       expect(exported.settings).toBeDefined();
       expect(exported.settings.activeProjectId).toBe(testState.settings.activeProjectId);
     });
@@ -352,24 +340,8 @@ describe('Data Integrity - Export/Import/Share', () => {
         dependencies: [],
         tmsState: {
           activeSystem: TimeManagementSystem.NONE,
-          dit: {
-            todayTasks: [],
-            tomorrowTasks: [],
-            lastDayChange: new Date().toISOString()
-          },
-          af4: {
-            backlogTaskIds: [],
-            activeListTaskIds: [],
-            currentPosition: 0,
-            lastPassHadWork: false,
-            passStartPosition: 0,
-            dismissedTaskIds: [],
-            phase: 'backlog' as const,
-          },
-          fvp: {
-            dottedTasks: [],
-            scanPosition: 1,
-          }
+          systemStates: {},
+          systemStateVersions: {},
         },
         settings: {
           activeProjectId: null,

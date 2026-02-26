@@ -10,14 +10,15 @@ import { TaskDetailPanel } from '@/features/tasks/components/TaskDetailPanel';
 import { DependencyDialog } from '@/features/tasks/components/DependencyDialog';
 import { ProjectView } from '@/features/projects/components/ProjectView';
 import { GlobalTasksContainer } from '@/features/tasks/components/GlobalTasksContainer';
+import { TMSHost } from '@/features/tms/components/TMSHost';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
 import { useDataStore, automationService } from '@/stores/dataStore';
 import { useSchedulerInit } from '@/features/automations/hooks/useSchedulerInit';
 import { useAppStore } from '@/stores/appStore';
 import { useTMSStore } from '@/features/tms/stores/tmsStore';
-import { getTMSHandler } from '@/features/tms/handlers';
-import { ViewMode, Priority, TimeManagementSystem } from '@/types';
+import { getTMSHandler } from '@/features/tms/registry';
+import { ViewMode, Priority } from '@/types';
 import { ProjectService } from '@/features/projects/services/projectService';
 import { TaskService } from '@/features/tasks/services/taskService';
 import { taskService } from '@/lib/serviceContainer';
@@ -246,17 +247,8 @@ function HomeContent() {
     }
   }, [tabFromUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Initialize TMS on mount and check for day change
-  useEffect(() => {
-    if (settings.timeManagementSystem) {
-      const handler = getTMSHandler(settings.timeManagementSystem as TimeManagementSystem);
-      const currentTmsState = useTMSStore.getState().state;
-      const delta = handler.initialize(tasks, currentTmsState);
-      if (Object.keys(delta).length > 0) {
-        useTMSStore.getState().updateState(delta);
-      }
-    }
-  }, [settings.timeManagementSystem, tasks]);
+  // TMS initialization is handled by TMSHost (task 4.8) — no need to initialize here.
+  // TMSHost calls handler.onActivate when the system is activated via the tab bar.
 
   // Handle task panel resize
   useEffect(() => {
@@ -352,11 +344,13 @@ function HomeContent() {
 
       // Notify TMS handler of task creation and apply state delta
       if (settings.timeManagementSystem) {
-        const handler = getTMSHandler(settings.timeManagementSystem as TimeManagementSystem);
-        const currentTmsState = useTMSStore.getState().state;
-        const delta = handler.onTaskCreated(newTask, currentTmsState);
+        const handler = getTMSHandler(settings.timeManagementSystem);
+        const storeState = useTMSStore.getState().state;
+        const systemId = storeState.activeSystem;
+        const systemState = storeState.systemStates[systemId] ?? {};
+        const delta = handler.onTaskCreated(newTask, systemState);
         if (Object.keys(delta).length > 0) {
-          useTMSStore.getState().updateState(delta);
+          useTMSStore.getState().applySystemStateDelta(systemId, delta as Record<string, unknown>);
         }
       }
     }
@@ -392,11 +386,13 @@ function HomeContent() {
 
     // Notify TMS handler of task completion and apply state delta
     if (completed && settings.timeManagementSystem) {
-      const handler = getTMSHandler(settings.timeManagementSystem as TimeManagementSystem);
-      const currentTmsState = useTMSStore.getState().state;
-      const delta = handler.onTaskCompleted(task, currentTmsState);
+      const handler = getTMSHandler(settings.timeManagementSystem);
+      const storeState = useTMSStore.getState().state;
+      const systemId = storeState.activeSystem;
+      const systemState = storeState.systemStates[systemId] ?? {};
+      const delta = handler.onTaskCompleted(task, systemState);
       if (Object.keys(delta).length > 0) {
-        useTMSStore.getState().updateState(delta);
+        useTMSStore.getState().applySystemStateDelta(systemId, delta as Record<string, unknown>);
       }
     }
   };
@@ -523,6 +519,12 @@ function HomeContent() {
         >
           {!hydrated ? (
             <SkeletonTaskList />
+          ) : viewFromUrl === 'tms' ? (
+            <TMSHost
+              tasks={tasks}
+              onTaskClick={handleTaskClick}
+              onTaskComplete={handleTaskComplete}
+            />
           ) : isGlobalView ? (
             <GlobalTasksContainer
               onTaskClick={handleTaskClick}

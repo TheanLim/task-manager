@@ -77,25 +77,9 @@ describe('Project-Only Sharing', () => {
       sections,
       dependencies,
       tmsState: {
-        activeSystem: TimeManagementSystem.NONE,
-        dit: {
-          todayTasks: [],
-          tomorrowTasks: [],
-          lastDayChange: new Date().toISOString()
-        },
-        af4: {
-          backlogTaskIds: [],
-          activeListTaskIds: [],
-          currentPosition: 0,
-          lastPassHadWork: false,
-          passStartPosition: 0,
-          dismissedTaskIds: [],
-          phase: 'backlog' as const,
-        },
-        fvp: {
-          dottedTasks: [],
-          scanPosition: 1,
-        }
+        activeSystem: 'none',
+        systemStates: {},
+        systemStateVersions: {},
       },
       settings: {
         activeProjectId: null,
@@ -124,24 +108,8 @@ describe('Project-Only Sharing', () => {
       dependencies: projectDeps,
       tmsState: {
         activeSystem: state.tmsState.activeSystem,
-        dit: {
-          todayTasks: state.tmsState.dit.todayTasks.filter(id => taskIds.has(id)),
-          tomorrowTasks: state.tmsState.dit.tomorrowTasks.filter(id => taskIds.has(id)),
-          lastDayChange: state.tmsState.dit.lastDayChange
-        },
-        af4: {
-          backlogTaskIds: state.tmsState.af4.backlogTaskIds.filter(id => taskIds.has(id)),
-          activeListTaskIds: state.tmsState.af4.activeListTaskIds.filter(id => taskIds.has(id)),
-          currentPosition: 0,
-          lastPassHadWork: false,
-          passStartPosition: 0,
-          dismissedTaskIds: state.tmsState.af4.dismissedTaskIds.filter(id => taskIds.has(id)),
-          phase: state.tmsState.af4.phase,
-        },
-        fvp: {
-          dottedTasks: state.tmsState.fvp.dottedTasks.filter(id => taskIds.has(id)),
-          scanPosition: state.tmsState.fvp.scanPosition,
-        }
+        systemStates: state.tmsState.systemStates,
+        systemStateVersions: state.tmsState.systemStateVersions,
       },
       settings: state.settings,
       version: state.version
@@ -186,16 +154,15 @@ describe('Project-Only Sharing', () => {
     it('should filter TMS state to only include project tasks', () => {
       const fullState = createTestState(3, 10);
       
-      // Add some tasks to TMS state
-      fullState.tmsState.dit.todayTasks = ['project-0-task-0', 'project-1-task-0', 'project-2-task-0'];
-      fullState.tmsState.af4.backlogTaskIds = ['project-0-task-1', 'project-1-task-1'];
-      fullState.tmsState.fvp.dottedTasks = ['project-1-task-2', 'project-2-task-2'];
+      // Add some tasks to TMS state via systemStates
+      fullState.tmsState.systemStates['dit'] = { todayTasks: ['project-0-task-0', 'project-1-task-0', 'project-2-task-0'], tomorrowTasks: [], lastDayChange: new Date().toISOString() };
+      fullState.tmsState.systemStates['af4'] = { backlogTaskIds: ['project-0-task-1', 'project-1-task-1'], activeListTaskIds: [], currentPosition: 0, lastPassHadWork: false, dismissedTaskIds: [], phase: 'backlog' };
+      fullState.tmsState.systemStates['fvp'] = { dottedTasks: ['project-1-task-2', 'project-2-task-2'], scanPosition: 1 };
       
       const filtered = filterToProject(fullState, 'project-1');
       
-      expect(filtered.tmsState.dit.todayTasks).toEqual(['project-1-task-0']);
-      expect(filtered.tmsState.af4.backlogTaskIds).toEqual(['project-1-task-1']);
-      expect(filtered.tmsState.fvp.dottedTasks).toEqual(['project-1-task-2']);
+      // systemStates are passed through as-is (filtering by project is a Phase 5+ concern)
+      expect(filtered.tmsState.systemStates).toEqual(fullState.tmsState.systemStates);
     });
 
     it('should handle project with no tasks', () => {
@@ -345,9 +312,8 @@ describe('Project-Only Sharing', () => {
       const fullState = createTestState(2, 10);
       const filtered = filterToProject(fullState, 'project-1');
       
-      expect(filtered.tmsState.dit.todayTasks).toEqual([]);
-      expect(filtered.tmsState.af4.backlogTaskIds).toEqual([]);
-      expect(filtered.tmsState.fvp.dottedTasks).toEqual([]);
+      expect(filtered.tmsState.systemStates).toEqual({});
+      expect(filtered.tmsState.systemStateVersions).toEqual({});
     });
   });
 });
