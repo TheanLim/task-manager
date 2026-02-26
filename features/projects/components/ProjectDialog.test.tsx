@@ -4,6 +4,28 @@ import { ProjectDialog } from './ProjectDialog';
 import { Project, ViewMode } from '@/types';
 
 describe('ProjectDialog', () => {
+  it('should not show Default View field in create mode', () => {
+    render(
+      <ProjectDialog open={true} onOpenChange={vi.fn()} onSubmit={vi.fn()} />
+    );
+    expect(screen.queryByLabelText(/default view/i)).not.toBeInTheDocument();
+  });
+
+  it('should show Default View field in edit mode', () => {
+    const project: Project = {
+      id: 'project-1',
+      name: 'Test Project',
+      description: '',
+      viewMode: ViewMode.BOARD,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    render(
+      <ProjectDialog open={true} onOpenChange={vi.fn()} onSubmit={vi.fn()} project={project} />
+    );
+    expect(screen.getByLabelText(/default view/i)).toBeInTheDocument();
+  });
+
   it('should render create mode when no project provided', () => {
     const onOpenChange = vi.fn();
     const onSubmit = vi.fn();

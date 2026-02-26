@@ -111,19 +111,21 @@ export function ProjectDialog({
               />
             </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="viewMode">Default View</Label>
-              <select
-                id="viewMode"
-                value={viewMode}
-                onChange={(e) => setViewMode(e.target.value as ViewMode)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              >
-                <option value={ViewMode.LIST}>List</option>
-                <option value={ViewMode.BOARD}>Board</option>
-                <option value={ViewMode.CALENDAR}>Calendar</option>
-              </select>
-            </div>
+            {project && (
+              <div className="grid gap-2">
+                <Label htmlFor="viewMode">Default View</Label>
+                <select
+                  id="viewMode"
+                  value={viewMode}
+                  onChange={(e) => setViewMode(e.target.value as ViewMode)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                  <option value={ViewMode.LIST}>List</option>
+                  <option value={ViewMode.BOARD}>Board</option>
+                  <option value={ViewMode.CALENDAR}>Calendar</option>
+                </select>
+              </div>
+            )}
           </div>
 
           <DialogFooter>
