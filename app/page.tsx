@@ -117,11 +117,14 @@ function HomeContent() {
 
   useGlobalShortcuts({
     onNewTask: () => {
-      // Create task in the same section as the focused task (if any)
+      // Create task in the same section as the focused task (if any).
+      // Only pass sectionId for unlinked tasks — project tasks use a virtual
+      // section ID (__from_projects__) that must not leak onto new tasks.
       const taskId = useKeyboardNavStore.getState().focusedTaskId;
       if (taskId) {
         const task = tasks.find(t => t.id === taskId);
-        handleNewTask(task?.sectionId ?? undefined);
+        const sectionId = task?.projectId === null ? (task?.sectionId ?? undefined) : undefined;
+        handleNewTask(sectionId);
       } else {
         handleNewTask();
       }
