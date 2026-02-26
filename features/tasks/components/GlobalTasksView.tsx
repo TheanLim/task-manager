@@ -87,14 +87,21 @@ export function GlobalTasksView({
 
   // Process tasks and sections based on display mode
   const { displayTasks, displaySections } = useMemo(() => {
-    // Assign all project tasks to the virtual "From Projects" section
+    // Assign all project tasks to the virtual "Tasks" section.
+    // Also assign unlinked tasks with no sectionId to the virtual section
+    // so they appear inside it rather than after the "Add tasks..." row.
     const tasksWithVirtualSection = projectTasks.map(task => ({
       ...task,
       sectionId: FROM_PROJECTS_SECTION_ID
     }));
-    
-    // Combine with unlinked tasks (keep their original sections)
-    const allTasks = [...tasksWithVirtualSection, ...unlinkedTasks];
+
+    const unlinkedWithSection = unlinkedTasks.map(task => ({
+      ...task,
+      sectionId: task.sectionId ?? FROM_PROJECTS_SECTION_ID,
+    }));
+
+    // Combine: virtual-section tasks first, then unlinked tasks (preserving their real sections)
+    const allTasks = [...tasksWithVirtualSection, ...unlinkedWithSection];
     
     // Create sections list: virtual section + unlinked sections
     const allSections = [virtualFromProjectsSection, ...unlinkedSections];
@@ -257,7 +264,12 @@ export function GlobalTasksView({
       sections={displaySections}
       onTaskClick={onTaskClick}
       onTaskComplete={onTaskComplete}
-      onAddTask={onAddTask}
+      onAddTask={(sectionId) => {
+        // Strip the virtual section ID — tasks added from the Tasks section
+        // are unlinked (no real sectionId), not tied to __from_projects__
+        const realSectionId = sectionId === FROM_PROJECTS_SECTION_ID ? undefined : sectionId;
+        onAddTask(realSectionId);
+      }}
       onViewSubtasks={onViewSubtasks}
       onSubtaskButtonClick={onSubtaskButtonClick}
       onAddSubtask={globalTasksDisplayMode === 'nested' ? onAddSubtask : undefined}
