@@ -136,6 +136,51 @@ describe('TaskDialog', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it('should show subtask title and description when parentTask provided', () => {
+    const onOpenChange = vi.fn();
+    const onSubmit = vi.fn();
+    const parentTask: Task = {
+      id: 'parent-1',
+      projectId: 'project-1',
+      parentTaskId: null,
+      sectionId: 'section-1',
+      columnId: null,
+      description: 'My Parent Task',
+      notes: '',
+      assignee: '',
+      priority: Priority.NONE,
+      tags: [],
+      dueDate: null,
+      completed: false,
+      completedAt: null,
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    render(
+      <TaskDialog
+        open={true}
+        onOpenChange={onOpenChange}
+        onSubmit={onSubmit}
+        parentTask={parentTask}
+      />
+    );
+
+    expect(screen.getByText('Create New Subtask')).toBeInTheDocument();
+    expect(screen.getByText('Create a new subtask for My Parent Task.')).toBeInTheDocument();
+    // Submit button still says "Create Task"
+    expect(screen.getByText('Create Task')).toBeInTheDocument();
+  });
+
+  it('should show generic title when no task and no parentTask', () => {
+    render(
+      <TaskDialog open={true} onOpenChange={vi.fn()} onSubmit={vi.fn()} />
+    );
+    expect(screen.getByText('Create New Task')).toBeInTheDocument();
+    expect(screen.getByText('Create a new task for your project.')).toBeInTheDocument();
+  });
+
   it('should start with empty fields when creating subtask', () => {
     const onOpenChange = vi.fn();
     const onSubmit = vi.fn();

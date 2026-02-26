@@ -121,9 +121,15 @@ export function TaskDialog({ open, onOpenChange, onSubmit, task, parentTask }: T
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>{task ? 'Edit Task' : 'Create New Task'}</DialogTitle>
+            <DialogTitle>
+              {task ? 'Edit Task' : parentTask ? 'Create New Subtask' : 'Create New Task'}
+            </DialogTitle>
             <DialogDescription>
-              {task ? 'Update your task details.' : 'Create a new task for your project.'}
+              {task
+                ? 'Update your task details.'
+                : parentTask
+                  ? `Create a new subtask for ${parentTask.description}.`
+                  : 'Create a new task for your project.'}
             </DialogDescription>
           </DialogHeader>
 
