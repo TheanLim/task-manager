@@ -11,7 +11,7 @@ import { DependencyDialog } from '@/features/tasks/components/DependencyDialog';
 import { ProjectView } from '@/features/projects/components/ProjectView';
 import { GlobalTasksContainer } from '@/features/tasks/components/GlobalTasksContainer';
 import { Button } from '@/components/ui/button';
-import { Plus, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useDataStore, automationService } from '@/stores/dataStore';
 import { useSchedulerInit } from '@/features/automations/hooks/useSchedulerInit';
 import { useAppStore } from '@/stores/appStore';
@@ -503,12 +503,7 @@ function HomeContent() {
           <div className="flex items-center gap-2 flex-wrap shrink-0 ml-auto">
             <ImportExportMenu />
             <ThemeToggle />
-            {(activeProject || isGlobalView) && (
-              <Button onClick={() => handleNewTask()} size="sm" className="bg-accent-brand hover:bg-accent-brand-hover text-white sm:size-default">
-                <Plus className="mr-0 sm:mr-2 h-4 w-4" />
-                <span className="hidden sm:inline">New Task</span>
-              </Button>
-            )}
+
           </div>
         </>
       }
