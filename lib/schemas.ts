@@ -67,13 +67,17 @@ export const TMSStateSchema = z.object({
     lastDayChange: z.string().datetime(),
   }),
   af4: z.object({
-    markedTasks: z.array(z.string()),
-    markedOrder: z.array(z.string()),
+    backlogTaskIds: z.array(z.string()),
+    activeListTaskIds: z.array(z.string()),
+    currentPosition: z.number(),
+    lastPassHadWork: z.boolean(),
+    passStartPosition: z.number(),
+    dismissedTaskIds: z.array(z.string()),
+    phase: z.enum(['backlog', 'active']),
   }),
   fvp: z.object({
     dottedTasks: z.array(z.string()),
-    currentX: z.string().nullable(),
-    selectionInProgress: z.boolean(),
+    scanPosition: z.number(),
   }),
 });
 

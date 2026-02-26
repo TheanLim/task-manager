@@ -72,13 +72,17 @@ const validAppStateArb = fc.record({
       lastDayChange: fc.date().map((d) => d.toISOString()),
     }),
     af4: fc.record({
-      markedTasks: fc.array(fc.string(), { maxLength: 3 }),
-      markedOrder: fc.array(fc.string(), { maxLength: 3 }),
+      backlogTaskIds: fc.array(fc.string(), { maxLength: 3 }),
+      activeListTaskIds: fc.array(fc.string(), { maxLength: 3 }),
+      currentPosition: fc.integer({ min: 0, max: 10 }),
+      lastPassHadWork: fc.boolean(),
+      passStartPosition: fc.integer({ min: 0, max: 10 }),
+      dismissedTaskIds: fc.array(fc.string(), { maxLength: 3 }),
+      phase: fc.constantFrom('backlog', 'active'),
     }),
     fvp: fc.record({
       dottedTasks: fc.array(fc.string(), { maxLength: 3 }),
-      currentX: fc.option(fc.string(), { nil: null }),
-      selectionInProgress: fc.boolean(),
+      scanPosition: fc.integer({ min: 0, max: 10 }),
     }),
   }),
   settings: fc.record({

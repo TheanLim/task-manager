@@ -1,190 +1,254 @@
 import { describe, it, expect } from 'vitest';
-import * as FVPHandler from './FVPHandler';
+import * as FVP from './FVPHandler';
 import { Task, TMSState, Priority, TimeManagementSystem } from '@/types';
 
-const createDefaultTMSState = (overrides?: Partial<TMSState['fvp']>): TMSState => ({
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const makeTMSState = (fvpOverrides?: Partial<TMSState['fvp']>): TMSState => ({
   activeSystem: TimeManagementSystem.FVP,
-  dit: {
-    todayTasks: [],
-    tomorrowTasks: [],
-    lastDayChange: new Date().toISOString(),
-  },
+  dit: { todayTasks: [], tomorrowTasks: [], lastDayChange: new Date().toISOString() },
   af4: {
-    markedTasks: [],
-    markedOrder: [],
+    backlogTaskIds: [],
+    activeListTaskIds: [],
+    currentPosition: 0,
+    lastPassHadWork: false,
+    passStartPosition: 0,
+    dismissedTaskIds: [],
+    phase: 'backlog',
   },
   fvp: {
     dottedTasks: [],
-    currentX: null,
-    selectionInProgress: false,
-    ...overrides,
+    scanPosition: 1,
+    ...fvpOverrides,
   },
 });
 
-const createTask = (id: string, description: string): Task => ({
+const makeTask = (id: string, completed = false): Task => ({
   id,
-  projectId: 'project-1',
+  projectId: 'p1',
   parentTaskId: null,
   sectionId: null,
-  description,
+  description: `Task ${id}`,
   notes: '',
   assignee: '',
   priority: Priority.NONE,
   tags: [],
   dueDate: null,
-  completed: false,
+  completed,
   completedAt: null,
   order: 0,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 });
 
-describe('FVPHandler', () => {
-  describe('initialize', () => {
-    it('should not modify state', () => {
-      const tmsState = createDefaultTMSState();
-      const delta = FVPHandler.initialize([], tmsState);
-      expect(delta).toEqual({});
-    });
+// ─── initialize ──────────────────────────────────────────────────────────────
+
+describe('FVPHandler.initialize', () => {
+  it('resets to clean state with scanPosition=1', () => {
+    const state = makeTMSState({ dottedTasks: ['t1', 't2'], scanPosition: 5 });
+    const delta = FVP.initialize([], state);
+    expect(delta.fvp).toEqual({ dottedTasks: [], scanPosition: 1 });
+  });
+});
+
+// ─── getOrderedTasks ─────────────────────────────────────────────────────────
+
+describe('FVPHandler.getOrderedTasks', () => {
+  it('returns dotted tasks first (oldest→newest), then undotted, then completed', () => {
+    const [t1, t2, t3, t4] = ['t1', 't2', 't3', 't4'].map(id => makeTask(id));
+    const t5 = makeTask('t5', true);
+    const state = makeTMSState({ dottedTasks: ['t1', 't3'] });
+    const ordered = FVP.getOrderedTasks([t1, t2, t3, t4, t5], state);
+    expect(ordered.map(t => t.id)).toEqual(['t1', 't3', 't2', 't4', 't5']);
   });
 
-  describe('getOrderedTasks', () => {
-    it('should return dotted tasks in reverse order (last dotted first)', () => {
-      const task1 = createTask('task-1', 'First dotted');
-      const task2 = createTask('task-2', 'Second dotted');
-      const task3 = createTask('task-3', 'Third dotted');
-      const task4 = createTask('task-4', 'Undotted');
-
-      const tmsState = createDefaultTMSState({
-        dottedTasks: ['task-1', 'task-2', 'task-3'],
-      });
-
-      const ordered = FVPHandler.getOrderedTasks([task1, task2, task3, task4], tmsState);
-
-      expect(ordered).toHaveLength(4);
-      expect(ordered[0].id).toBe('task-3');
-      expect(ordered[1].id).toBe('task-2');
-      expect(ordered[2].id).toBe('task-1');
-      expect(ordered[3].id).toBe('task-4');
-    });
-
-    it('should return all tasks in natural order when no tasks are dotted', () => {
-      const task1 = createTask('task-1', 'Task 1');
-      const task2 = createTask('task-2', 'Task 2');
-      const tmsState = createDefaultTMSState();
-
-      const ordered = FVPHandler.getOrderedTasks([task1, task2], tmsState);
-
-      expect(ordered).toHaveLength(2);
-      expect(ordered).toEqual([task1, task2]);
-    });
-
-    it('should handle empty task list', () => {
-      const tmsState = createDefaultTMSState();
-      const ordered = FVPHandler.getOrderedTasks([], tmsState);
-      expect(ordered).toEqual([]);
-    });
-
-    it('should handle dotted tasks that are not in the provided task list', () => {
-      const task1 = createTask('task-1', 'Existing task');
-
-      const tmsState = createDefaultTMSState({
-        dottedTasks: ['task-1', 'task-2', 'task-3'],
-      });
-
-      const ordered = FVPHandler.getOrderedTasks([task1], tmsState);
-
-      expect(ordered).toHaveLength(1);
-      expect(ordered[0].id).toBe('task-1');
-    });
-
-    it('should preserve reverse order even if tasks are provided in different order', () => {
-      const task1 = createTask('task-1', 'Task 1');
-      const task2 = createTask('task-2', 'Task 2');
-      const task3 = createTask('task-3', 'Task 3');
-
-      const tmsState = createDefaultTMSState({
-        dottedTasks: ['task-1', 'task-2', 'task-3'],
-      });
-
-      const ordered = FVPHandler.getOrderedTasks([task3, task1, task2], tmsState);
-
-      expect(ordered).toHaveLength(3);
-      expect(ordered[0].id).toBe('task-3');
-      expect(ordered[1].id).toBe('task-2');
-      expect(ordered[2].id).toBe('task-1');
-    });
+  it('returns all tasks in natural order when nothing is dotted', () => {
+    const tasks = ['t1', 't2', 't3'].map(id => makeTask(id));
+    const state = makeTMSState();
+    expect(FVP.getOrderedTasks(tasks, state).map(t => t.id)).toEqual(['t1', 't2', 't3']);
   });
 
-  describe('onTaskCreated', () => {
-    it('should not modify state', () => {
-      const task = createTask('task-1', 'New task');
-      const tmsState = createDefaultTMSState();
+  it('skips dotted IDs that no longer exist in the task list', () => {
+    const t1 = makeTask('t1');
+    const state = makeTMSState({ dottedTasks: ['t1', 'ghost'] });
+    const ordered = FVP.getOrderedTasks([t1], state);
+    expect(ordered.map(t => t.id)).toEqual(['t1']);
+  });
+});
 
-      const delta = FVPHandler.onTaskCreated(task, tmsState);
-      expect(delta).toEqual({});
-    });
+// ─── onTaskCreated ────────────────────────────────────────────────────────────
+
+describe('FVPHandler.onTaskCreated', () => {
+  it('returns empty delta — new tasks join the undotted pool naturally', () => {
+    const state = makeTMSState();
+    expect(FVP.onTaskCreated(makeTask('t1'), state)).toEqual({});
+  });
+});
+
+// ─── onTaskCompleted ─────────────────────────────────────────────────────────
+
+describe('FVPHandler.onTaskCompleted', () => {
+  it('removes a dotted task from dottedTasks', () => {
+    const state = makeTMSState({ dottedTasks: ['t1', 't2', 't3'] });
+    const delta = FVP.onTaskCompleted(makeTask('t2'), state);
+    expect(delta.fvp?.dottedTasks).toEqual(['t1', 't3']);
   });
 
-  describe('onTaskCompleted', () => {
-    it('should remove dot from completed task', () => {
-      const tmsState = createDefaultTMSState({
-        dottedTasks: ['task-1', 'task-2', 'task-3'],
-      });
+  it('returns empty delta when completing an undotted task', () => {
+    const state = makeTMSState({ dottedTasks: ['t2'] });
+    expect(FVP.onTaskCompleted(makeTask('t1'), state)).toEqual({});
+  });
 
-      const task = createTask('task-2', 'Completed task');
-      const delta = FVPHandler.onTaskCompleted(task, tmsState);
+  it('does not change scanPosition on external completion', () => {
+    const state = makeTMSState({ dottedTasks: ['t1'], scanPosition: 3 });
+    const delta = FVP.onTaskCompleted(makeTask('t1'), state);
+    expect(delta.fvp?.scanPosition).toBe(3);
+  });
+});
 
-      expect(delta.fvp).toBeDefined();
-      expect(delta.fvp!.dottedTasks).not.toContain('task-2');
-      expect(delta.fvp!.dottedTasks).toContain('task-1');
-      expect(delta.fvp!.dottedTasks).toContain('task-3');
-    });
+// ─── getCurrentTask ───────────────────────────────────────────────────────────
 
-    it('should reset currentX if completed task was X', () => {
-      const tmsState = createDefaultTMSState({
-        dottedTasks: ['task-1', 'task-2'],
-        currentX: 'task-2',
-        selectionInProgress: true,
-      });
+describe('FVP.getCurrentTask', () => {
+  it('returns the last dotted task', () => {
+    const tasks = ['t1', 't2', 't3'].map(id => makeTask(id));
+    const state = makeTMSState({ dottedTasks: ['t1', 't2', 't3'] });
+    expect(FVP.getCurrentTask(tasks, state)?.id).toBe('t3');
+  });
 
-      const task = createTask('task-2', 'Completed X task');
-      const delta = FVPHandler.onTaskCompleted(task, tmsState);
+  it('returns null when nothing is dotted', () => {
+    expect(FVP.getCurrentTask([], makeTMSState())).toBeNull();
+  });
+});
 
-      expect(delta.fvp).toBeDefined();
-      expect(delta.fvp!.dottedTasks).not.toContain('task-2');
-      expect(delta.fvp!.currentX).toBeNull();
-      expect(delta.fvp!.selectionInProgress).toBe(false);
-    });
+// ─── getCurrentX ─────────────────────────────────────────────────────────────
 
-    it('should not reset currentX if completed task was not X', () => {
-      const tmsState = createDefaultTMSState({
-        dottedTasks: ['task-1', 'task-2'],
-        currentX: 'task-2',
-        selectionInProgress: true,
-      });
+describe('FVP.getCurrentX', () => {
+  it('returns second-to-last dotted task when ≥2 dotted', () => {
+    const tasks = ['t1', 't2', 't3'].map(id => makeTask(id));
+    const state = makeTMSState({ dottedTasks: ['t1', 't2', 't3'] });
+    expect(FVP.getCurrentX(tasks, state)?.id).toBe('t2');
+  });
 
-      const task = createTask('task-1', 'Completed non-X task');
-      const delta = FVPHandler.onTaskCompleted(task, tmsState);
+  it('returns first undotted task when <2 dotted (implicit X)', () => {
+    const tasks = ['t1', 't2', 't3'].map(id => makeTask(id));
+    const state = makeTMSState({ dottedTasks: ['t3'] });
+    // t1 and t2 are undotted; t1 is first
+    expect(FVP.getCurrentX(tasks, state)?.id).toBe('t1');
+  });
 
-      expect(delta.fvp).toBeDefined();
-      expect(delta.fvp!.dottedTasks).not.toContain('task-1');
-      // currentX and selectionInProgress should be preserved (not in delta or unchanged)
-      const mergedFvp = { ...tmsState.fvp, ...delta.fvp };
-      expect(mergedFvp.currentX).toBe('task-2');
-      expect(mergedFvp.selectionInProgress).toBe(true);
-    });
+  it('returns null when no undotted tasks remain', () => {
+    const tasks = ['t1'].map(id => makeTask(id));
+    const state = makeTMSState({ dottedTasks: ['t1'] });
+    expect(FVP.getCurrentX(tasks, state)).toBeNull();
+  });
+});
 
-    it('should handle completing undotted task', () => {
-      const tmsState = createDefaultTMSState({
-        dottedTasks: ['task-2'],
-      });
+// ─── getScanCandidate ─────────────────────────────────────────────────────────
 
-      const task = createTask('task-1', 'Undotted task');
-      const delta = FVPHandler.onTaskCompleted(task, tmsState);
+describe('FVP.getScanCandidate', () => {
+  it('returns the first undotted incomplete task at or after scanPosition', () => {
+    const tasks = ['t1', 't2', 't3', 't4'].map(id => makeTask(id));
+    const state = makeTMSState({ dottedTasks: ['t1'], scanPosition: 1 });
+    // incomplete list: [t1,t2,t3,t4]; scan from index 1 → t2 is undotted
+    expect(FVP.getScanCandidate(tasks, state)?.id).toBe('t2');
+  });
 
-      // No changes needed — empty delta
-      expect(delta).toEqual({});
-    });
+  it('skips dotted tasks when scanning', () => {
+    const tasks = ['t1', 't2', 't3'].map(id => makeTask(id));
+    const state = makeTMSState({ dottedTasks: ['t1', 't2'], scanPosition: 1 });
+    // scan from 1: t2 is dotted, t3 is not → t3
+    expect(FVP.getScanCandidate(tasks, state)?.id).toBe('t3');
+  });
+
+  it('returns null when scan is past the end', () => {
+    const tasks = ['t1', 't2'].map(id => makeTask(id));
+    const state = makeTMSState({ scanPosition: 10 });
+    expect(FVP.getScanCandidate(tasks, state)).toBeNull();
+  });
+
+  it('skips completed tasks', () => {
+    const t1 = makeTask('t1');
+    const t2 = makeTask('t2', true); // completed
+    const t3 = makeTask('t3');
+    const state = makeTMSState({ scanPosition: 1 });
+    // incomplete list: [t1, t3]; scan from 1 → t3
+    expect(FVP.getScanCandidate([t1, t2, t3], state)?.id).toBe('t3');
+  });
+});
+
+// ─── dotTask ─────────────────────────────────────────────────────────────────
+
+describe('FVP.dotTask', () => {
+  it('appends candidate to dottedTasks and advances scanPosition past it', () => {
+    const tasks = ['t1', 't2', 't3'].map(id => makeTask(id));
+    const state = makeTMSState({ dottedTasks: ['t1'], scanPosition: 1 });
+    const delta = FVP.dotTask(makeTask('t2'), tasks, state);
+    expect(delta.fvp?.dottedTasks).toEqual(['t1', 't2']);
+    expect(delta.fvp?.scanPosition).toBe(2); // index of t2 in incomplete list is 1, +1 = 2
+  });
+});
+
+// ─── skipTask ────────────────────────────────────────────────────────────────
+
+describe('FVP.skipTask', () => {
+  it('advances scanPosition past the candidate without dotting', () => {
+    const tasks = ['t1', 't2', 't3'].map(id => makeTask(id));
+    const state = makeTMSState({ dottedTasks: ['t1'], scanPosition: 1 });
+    const delta = FVP.skipTask(makeTask('t2'), tasks, state);
+    // dottedTasks is preserved unchanged
+    expect(delta.fvp?.dottedTasks).toEqual(['t1']);
+    expect(delta.fvp?.scanPosition).toBe(2);
+  });
+});
+
+// ─── completeCurrentTask ─────────────────────────────────────────────────────
+
+describe('FVP.completeCurrentTask', () => {
+  it('removes last dotted task and sets scanPosition after its position', () => {
+    const tasks = ['t1', 't2', 't3', 't4'].map(id => makeTask(id));
+    const state = makeTMSState({ dottedTasks: ['t1', 't3'], scanPosition: 4 });
+    // current task = t3; incomplete list index of t3 = 2; new scanPosition = 3
+    const delta = FVP.completeCurrentTask(tasks, state);
+    expect(delta.fvp?.dottedTasks).toEqual(['t1']);
+    expect(delta.fvp?.scanPosition).toBe(3);
+  });
+
+  it('resets scanPosition to 1 when dottedTasks becomes empty', () => {
+    const tasks = ['t1', 't2'].map(id => makeTask(id));
+    const state = makeTMSState({ dottedTasks: ['t2'], scanPosition: 2 });
+    const delta = FVP.completeCurrentTask(tasks, state);
+    expect(delta.fvp?.dottedTasks).toEqual([]);
+    expect(delta.fvp?.scanPosition).toBe(1);
+  });
+
+  it('returns empty delta when no dotted tasks', () => {
+    const state = makeTMSState();
+    expect(FVP.completeCurrentTask([], state)).toEqual({});
+  });
+});
+
+// ─── resetFVP ────────────────────────────────────────────────────────────────
+
+describe('FVP.resetFVP', () => {
+  it('clears all dotted tasks and resets scanPosition to 1', () => {
+    const state = makeTMSState({ dottedTasks: ['t1', 't2'], scanPosition: 5 });
+    const delta = FVP.resetFVP(state);
+    expect(delta.fvp).toEqual({ dottedTasks: [], scanPosition: 1 });
+  });
+});
+
+// ─── isPreselectionComplete ───────────────────────────────────────────────────
+
+describe('FVP.isPreselectionComplete', () => {
+  it('returns true when no more candidates exist', () => {
+    const tasks = ['t1', 't2'].map(id => makeTask(id));
+    const state = makeTMSState({ dottedTasks: ['t1', 't2'], scanPosition: 10 });
+    expect(FVP.isPreselectionComplete(tasks, state)).toBe(true);
+  });
+
+  it('returns false when candidates remain', () => {
+    const tasks = ['t1', 't2', 't3'].map(id => makeTask(id));
+    const state = makeTMSState({ dottedTasks: ['t1'], scanPosition: 1 });
+    expect(FVP.isPreselectionComplete(tasks, state)).toBe(false);
   });
 });

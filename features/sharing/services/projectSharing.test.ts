@@ -84,13 +84,17 @@ describe('Project-Only Sharing', () => {
           lastDayChange: new Date().toISOString()
         },
         af4: {
-          markedTasks: [],
-          markedOrder: []
+          backlogTaskIds: [],
+          activeListTaskIds: [],
+          currentPosition: 0,
+          lastPassHadWork: false,
+          passStartPosition: 0,
+          dismissedTaskIds: [],
+          phase: 'backlog' as const,
         },
         fvp: {
           dottedTasks: [],
-          currentX: null,
-          selectionInProgress: false
+          scanPosition: 1,
         }
       },
       settings: {
@@ -126,13 +130,17 @@ describe('Project-Only Sharing', () => {
           lastDayChange: state.tmsState.dit.lastDayChange
         },
         af4: {
-          markedTasks: state.tmsState.af4.markedTasks.filter(id => taskIds.has(id)),
-          markedOrder: state.tmsState.af4.markedOrder.filter(id => taskIds.has(id))
+          backlogTaskIds: state.tmsState.af4.backlogTaskIds.filter(id => taskIds.has(id)),
+          activeListTaskIds: state.tmsState.af4.activeListTaskIds.filter(id => taskIds.has(id)),
+          currentPosition: 0,
+          lastPassHadWork: false,
+          passStartPosition: 0,
+          dismissedTaskIds: state.tmsState.af4.dismissedTaskIds.filter(id => taskIds.has(id)),
+          phase: state.tmsState.af4.phase,
         },
         fvp: {
           dottedTasks: state.tmsState.fvp.dottedTasks.filter(id => taskIds.has(id)),
-          currentX: taskIds.has(state.tmsState.fvp.currentX || '') ? state.tmsState.fvp.currentX : null,
-          selectionInProgress: state.tmsState.fvp.selectionInProgress
+          scanPosition: state.tmsState.fvp.scanPosition,
         }
       },
       settings: state.settings,
@@ -180,13 +188,13 @@ describe('Project-Only Sharing', () => {
       
       // Add some tasks to TMS state
       fullState.tmsState.dit.todayTasks = ['project-0-task-0', 'project-1-task-0', 'project-2-task-0'];
-      fullState.tmsState.af4.markedTasks = ['project-0-task-1', 'project-1-task-1'];
+      fullState.tmsState.af4.backlogTaskIds = ['project-0-task-1', 'project-1-task-1'];
       fullState.tmsState.fvp.dottedTasks = ['project-1-task-2', 'project-2-task-2'];
       
       const filtered = filterToProject(fullState, 'project-1');
       
       expect(filtered.tmsState.dit.todayTasks).toEqual(['project-1-task-0']);
-      expect(filtered.tmsState.af4.markedTasks).toEqual(['project-1-task-1']);
+      expect(filtered.tmsState.af4.backlogTaskIds).toEqual(['project-1-task-1']);
       expect(filtered.tmsState.fvp.dottedTasks).toEqual(['project-1-task-2']);
     });
 
@@ -338,7 +346,7 @@ describe('Project-Only Sharing', () => {
       const filtered = filterToProject(fullState, 'project-1');
       
       expect(filtered.tmsState.dit.todayTasks).toEqual([]);
-      expect(filtered.tmsState.af4.markedTasks).toEqual([]);
+      expect(filtered.tmsState.af4.backlogTaskIds).toEqual([]);
       expect(filtered.tmsState.fvp.dottedTasks).toEqual([]);
     });
   });

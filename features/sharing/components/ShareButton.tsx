@@ -64,13 +64,17 @@ export function ShareButton({
         lastDayChange: tmsState.dit.lastDayChange
       },
       af4: {
-        markedTasks: tmsState.af4.markedTasks.filter((id: string) => taskIds.has(id)),
-        markedOrder: tmsState.af4.markedOrder.filter((id: string) => taskIds.has(id))
+        backlogTaskIds: tmsState.af4.backlogTaskIds.filter((id: string) => taskIds.has(id)),
+        activeListTaskIds: tmsState.af4.activeListTaskIds.filter((id: string) => taskIds.has(id)),
+        currentPosition: 0,
+        lastPassHadWork: false,
+        passStartPosition: 0,
+        dismissedTaskIds: tmsState.af4.dismissedTaskIds.filter((id: string) => taskIds.has(id)),
+        phase: tmsState.af4.phase,
       },
       fvp: {
         dottedTasks: tmsState.fvp.dottedTasks.filter((id: string) => taskIds.has(id)),
-        currentX: taskIds.has(tmsState.fvp.currentX || '') ? tmsState.fvp.currentX : null,
-        selectionInProgress: tmsState.fvp.selectionInProgress
+        scanPosition: tmsState.fvp.scanPosition,
       }
     };
   };

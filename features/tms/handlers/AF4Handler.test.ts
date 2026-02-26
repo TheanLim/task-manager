@@ -1,160 +1,320 @@
 import { describe, it, expect } from 'vitest';
-import * as AF4Handler from './AF4Handler';
+import * as AF4 from './AF4Handler';
 import { Task, TMSState, Priority, TimeManagementSystem } from '@/types';
 
-const createDefaultTMSState = (overrides?: Partial<TMSState['af4']>): TMSState => ({
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const makeTMSState = (af4Overrides?: Partial<TMSState['af4']>): TMSState => ({
   activeSystem: TimeManagementSystem.AF4,
-  dit: {
-    todayTasks: [],
-    tomorrowTasks: [],
-    lastDayChange: new Date().toISOString(),
-  },
+  dit: { todayTasks: [], tomorrowTasks: [], lastDayChange: new Date().toISOString() },
   af4: {
-    markedTasks: [],
-    markedOrder: [],
-    ...overrides,
+    backlogTaskIds: [],
+    activeListTaskIds: [],
+    currentPosition: 0,
+    lastPassHadWork: false,
+    passStartPosition: 0,
+    dismissedTaskIds: [],
+    phase: 'backlog',
+    ...af4Overrides,
   },
-  fvp: {
-    dottedTasks: [],
-    currentX: null,
-    selectionInProgress: false,
-  },
+  fvp: { dottedTasks: [], scanPosition: 1 },
 });
 
-const createTask = (id: string, description: string): Task => ({
+const makeTask = (id: string, completed = false): Task => ({
   id,
-  projectId: 'project-1',
+  projectId: 'p1',
   parentTaskId: null,
   sectionId: null,
-  description,
+  description: `Task ${id}`,
   notes: '',
   assignee: '',
   priority: Priority.NONE,
   tags: [],
   dueDate: null,
-  completed: false,
+  completed,
   completedAt: null,
   order: 0,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 });
 
-describe('AF4Handler', () => {
-  describe('initialize', () => {
-    it('should not modify state', () => {
-      const tmsState = createDefaultTMSState();
-      const delta = AF4Handler.initialize([], tmsState);
-      expect(delta).toEqual({});
-    });
+// ─── initialize ──────────────────────────────────────────────────────────────
+
+describe('AF4Handler.initialize', () => {
+  it('puts all incomplete tasks into backlog, active list is empty', () => {
+    const tasks = [makeTask('t1'), makeTask('t2'), makeTask('t3', true)];
+    const state = makeTMSState();
+    const delta = AF4.initialize(tasks, state);
+    expect(delta.af4?.backlogTaskIds).toEqual(['t1', 't2']);
+    expect(delta.af4?.activeListTaskIds).toEqual([]);
+    expect(delta.af4?.currentPosition).toBe(0);
+    expect(delta.af4?.phase).toBe('backlog');
   });
 
-  describe('getOrderedTasks', () => {
-    it('should return marked tasks first in marked order', () => {
-      const task1 = createTask('task-1', 'First marked');
-      const task2 = createTask('task-2', 'Second marked');
-      const task3 = createTask('task-3', 'Unmarked');
+  it('handles empty task list', () => {
+    const delta = AF4.initialize([], makeTMSState());
+    expect(delta.af4?.backlogTaskIds).toEqual([]);
+  });
+});
 
-      const tmsState = createDefaultTMSState({
-        markedTasks: ['task-1', 'task-2'],
-        markedOrder: ['task-1', 'task-2'],
-      });
+// ─── getOrderedTasks ─────────────────────────────────────────────────────────
 
-      const ordered = AF4Handler.getOrderedTasks([task1, task2, task3], tmsState);
-
-      expect(ordered).toHaveLength(3);
-      expect(ordered[0].id).toBe('task-1');
-      expect(ordered[1].id).toBe('task-2');
-      expect(ordered[2].id).toBe('task-3');
+describe('AF4Handler.getOrderedTasks', () => {
+  it('returns backlog first, then active list, then unlisted tasks', () => {
+    const [t1, t2, t3, t4] = ['t1', 't2', 't3', 't4'].map(id => makeTask(id));
+    const state = makeTMSState({
+      backlogTaskIds: ['t2', 't1'],
+      activeListTaskIds: ['t3'],
     });
-
-    it('should preserve marked order even if tasks are provided in different order', () => {
-      const task1 = createTask('task-1', 'Second marked');
-      const task2 = createTask('task-2', 'First marked');
-      const task3 = createTask('task-3', 'Third marked');
-
-      const tmsState = createDefaultTMSState({
-        markedTasks: ['task-2', 'task-1', 'task-3'],
-        markedOrder: ['task-2', 'task-1', 'task-3'],
-      });
-
-      const ordered = AF4Handler.getOrderedTasks([task1, task2, task3], tmsState);
-
-      expect(ordered).toHaveLength(3);
-      expect(ordered[0].id).toBe('task-2');
-      expect(ordered[1].id).toBe('task-1');
-      expect(ordered[2].id).toBe('task-3');
-    });
-
-    it('should return all unmarked tasks when no tasks are marked', () => {
-      const task1 = createTask('task-1', 'Task 1');
-      const task2 = createTask('task-2', 'Task 2');
-      const tmsState = createDefaultTMSState();
-
-      const ordered = AF4Handler.getOrderedTasks([task1, task2], tmsState);
-
-      expect(ordered).toHaveLength(2);
-      expect(ordered).toContainEqual(task1);
-      expect(ordered).toContainEqual(task2);
-    });
-
-    it('should handle empty task list', () => {
-      const tmsState = createDefaultTMSState();
-      const ordered = AF4Handler.getOrderedTasks([], tmsState);
-      expect(ordered).toEqual([]);
-    });
-
-    it('should handle marked tasks that are not in the provided task list', () => {
-      const task1 = createTask('task-1', 'Existing task');
-
-      const tmsState = createDefaultTMSState({
-        markedTasks: ['task-1', 'task-2'],
-        markedOrder: ['task-1', 'task-2'],
-      });
-
-      const ordered = AF4Handler.getOrderedTasks([task1], tmsState);
-
-      expect(ordered).toHaveLength(1);
-      expect(ordered[0].id).toBe('task-1');
-    });
+    const ordered = AF4.getOrderedTasks([t1, t2, t3, t4], state);
+    expect(ordered.map(t => t.id)).toEqual(['t2', 't1', 't3', 't4']);
   });
 
-  describe('onTaskCreated', () => {
-    it('should not modify state', () => {
-      const task = createTask('task-1', 'New task');
-      const tmsState = createDefaultTMSState();
+  it('skips IDs that no longer exist in the task list', () => {
+    const t1 = makeTask('t1');
+    const state = makeTMSState({ backlogTaskIds: ['t1', 'ghost'] });
+    const ordered = AF4.getOrderedTasks([t1], state);
+    expect(ordered.map(t => t.id)).toEqual(['t1']);
+  });
+});
 
-      const delta = AF4Handler.onTaskCreated(task, tmsState);
-      expect(delta).toEqual({});
-    });
+// ─── onTaskCreated ────────────────────────────────────────────────────────────
+
+describe('AF4Handler.onTaskCreated', () => {
+  it('appends new task to end of active list', () => {
+    const state = makeTMSState({ activeListTaskIds: ['t1'] });
+    const delta = AF4.onTaskCreated(makeTask('t2'), state);
+    expect(delta.af4?.activeListTaskIds).toEqual(['t1', 't2']);
   });
 
-  describe('onTaskCompleted', () => {
-    it('should remove mark from completed task', () => {
-      const tmsState = createDefaultTMSState({
-        markedTasks: ['task-1', 'task-2'],
-        markedOrder: ['task-1', 'task-2'],
-      });
+  it('does not touch backlog', () => {
+    const state = makeTMSState({ backlogTaskIds: ['t1'] });
+    const delta = AF4.onTaskCreated(makeTask('t2'), state);
+    expect(delta.af4?.backlogTaskIds).toEqual(['t1']);
+  });
+});
 
-      const task = createTask('task-1', 'Completed task');
-      const delta = AF4Handler.onTaskCompleted(task, tmsState);
+// ─── onTaskCompleted ─────────────────────────────────────────────────────────
 
-      expect(delta.af4).toBeDefined();
-      expect(delta.af4!.markedTasks).not.toContain('task-1');
-      expect(delta.af4!.markedOrder).not.toContain('task-1');
-      expect(delta.af4!.markedTasks).toContain('task-2');
+describe('AF4Handler.onTaskCompleted', () => {
+  it('removes task from backlog', () => {
+    const state = makeTMSState({ backlogTaskIds: ['t1', 't2', 't3'] });
+    const delta = AF4.onTaskCompleted(makeTask('t2'), state);
+    expect(delta.af4?.backlogTaskIds).toEqual(['t1', 't3']);
+  });
+
+  it('removes task from active list', () => {
+    const state = makeTMSState({ activeListTaskIds: ['t1', 't2'] });
+    const delta = AF4.onTaskCompleted(makeTask('t1'), state);
+    expect(delta.af4?.activeListTaskIds).toEqual(['t2']);
+  });
+
+  it('decrements currentPosition when completed task was before cursor', () => {
+    const state = makeTMSState({
+      backlogTaskIds: ['t1', 't2', 't3'],
+      currentPosition: 2,
     });
+    const delta = AF4.onTaskCompleted(makeTask('t1'), state);
+    expect(delta.af4?.currentPosition).toBe(1);
+  });
 
-    it('should handle completing unmarked task', () => {
-      const tmsState = createDefaultTMSState({
-        markedTasks: ['task-2'],
-        markedOrder: ['task-2'],
-      });
-
-      const task = createTask('task-1', 'Unmarked task');
-      const delta = AF4Handler.onTaskCompleted(task, tmsState);
-
-      // No changes needed — empty delta
-      expect(delta).toEqual({});
+  it('does not change currentPosition when completed task is at or after cursor', () => {
+    const state = makeTMSState({
+      backlogTaskIds: ['t1', 't2', 't3'],
+      currentPosition: 1,
     });
+    const delta = AF4.onTaskCompleted(makeTask('t2'), state);
+    expect(delta.af4?.currentPosition).toBe(1);
+  });
+
+  it('returns empty delta for task not in either list', () => {
+    const state = makeTMSState({ backlogTaskIds: ['t1'] });
+    expect(AF4.onTaskCompleted(makeTask('t99'), state)).toEqual({});
+  });
+});
+
+// ─── getCurrentTask ───────────────────────────────────────────────────────────
+
+describe('AF4.getCurrentTask', () => {
+  it('returns task at currentPosition in backlog phase', () => {
+    const tasks = ['t1', 't2', 't3'].map(id => makeTask(id));
+    const state = makeTMSState({ backlogTaskIds: ['t1', 't2', 't3'], currentPosition: 1 });
+    expect(AF4.getCurrentTask(tasks, state)?.id).toBe('t2');
+  });
+
+  it('returns task at currentPosition in active phase', () => {
+    const tasks = ['t1', 't2'].map(id => makeTask(id));
+    const state = makeTMSState({
+      activeListTaskIds: ['t1', 't2'],
+      currentPosition: 0,
+      phase: 'active',
+    });
+    expect(AF4.getCurrentTask(tasks, state)?.id).toBe('t1');
+  });
+
+  it('returns null when list is empty', () => {
+    expect(AF4.getCurrentTask([], makeTMSState())).toBeNull();
+  });
+
+  it('returns null when currentPosition is past end of list', () => {
+    const tasks = ['t1'].map(id => makeTask(id));
+    const state = makeTMSState({ backlogTaskIds: ['t1'], currentPosition: 5 });
+    expect(AF4.getCurrentTask(tasks, state)).toBeNull();
+  });
+});
+
+// ─── didWork ─────────────────────────────────────────────────────────────────
+
+describe('AF4.didWork', () => {
+  it('removes task from backlog, re-enters at end of active list', () => {
+    const tasks = ['t1', 't2', 't3'].map(id => makeTask(id));
+    const state = makeTMSState({
+      backlogTaskIds: ['t1', 't2', 't3'],
+      activeListTaskIds: [],
+      currentPosition: 1,
+    });
+    const delta = AF4.didWork(tasks, state);
+    expect(delta.af4?.backlogTaskIds).toEqual(['t1', 't3']);
+    expect(delta.af4?.activeListTaskIds).toEqual(['t2']);
+    expect(delta.af4?.lastPassHadWork).toBe(true);
+  });
+
+  it('currentPosition stays the same (now points to next task)', () => {
+    const tasks = ['t1', 't2'].map(id => makeTask(id));
+    const state = makeTMSState({
+      backlogTaskIds: ['t1', 't2'],
+      currentPosition: 0,
+    });
+    const delta = AF4.didWork(tasks, state);
+    expect(delta.af4?.currentPosition).toBe(0);
+  });
+});
+
+// ─── skipTask ────────────────────────────────────────────────────────────────
+
+describe('AF4.skipTask', () => {
+  it('increments currentPosition by 1', () => {
+    const state = makeTMSState({ currentPosition: 2 });
+    const delta = AF4.skipTask(state);
+    expect(delta.af4?.currentPosition).toBe(3);
+  });
+});
+
+// ─── isFullPassComplete ───────────────────────────────────────────────────────
+
+describe('AF4.isFullPassComplete', () => {
+  it('returns true when currentPosition >= list length', () => {
+    const state = makeTMSState({ backlogTaskIds: ['t1', 't2'], currentPosition: 2 });
+    expect(AF4.isFullPassComplete(state)).toBe(true);
+  });
+
+  it('returns false when still within the list', () => {
+    const state = makeTMSState({ backlogTaskIds: ['t1', 't2'], currentPosition: 1 });
+    expect(AF4.isFullPassComplete(state)).toBe(false);
+  });
+});
+
+// ─── advanceAfterFullPass ─────────────────────────────────────────────────────
+
+describe('AF4.advanceAfterFullPass', () => {
+  it('switches to active phase when backlog pass had no work', () => {
+    const tasks = ['t1', 't2'].map(id => makeTask(id));
+    const state = makeTMSState({
+      backlogTaskIds: ['t1', 't2'],
+      lastPassHadWork: false,
+      phase: 'backlog',
+    });
+    const delta = AF4.advanceAfterFullPass(tasks, state);
+    expect(delta.af4?.phase).toBe('active');
+    expect(delta.af4?.currentPosition).toBe(0);
+  });
+
+  it('restarts backlog from 0 when backlog pass had work', () => {
+    const tasks = ['t1', 't2'].map(id => makeTask(id));
+    const state = makeTMSState({
+      backlogTaskIds: ['t1', 't2'],
+      lastPassHadWork: true,
+      phase: 'backlog',
+    });
+    const delta = AF4.advanceAfterFullPass(tasks, state);
+    expect(delta.af4?.phase).toBe('backlog');
+    expect(delta.af4?.currentPosition).toBe(0);
+    expect(delta.af4?.lastPassHadWork).toBe(false);
+  });
+
+  it('returns to backlog after active pass completes', () => {
+    const tasks = ['t1'].map(id => makeTask(id));
+    const state = makeTMSState({
+      backlogTaskIds: ['t1'],
+      activeListTaskIds: [],
+      phase: 'active',
+      lastPassHadWork: false,
+    });
+    const delta = AF4.advanceAfterFullPass(tasks, state);
+    expect(delta.af4?.phase).toBe('backlog');
+  });
+
+  it('promotes active list to new backlog when all backlog tasks are done', () => {
+    const t1 = makeTask('t1', true); // completed
+    const t2 = makeTask('t2');
+    const state = makeTMSState({
+      backlogTaskIds: ['t1'],
+      activeListTaskIds: ['t2'],
+      phase: 'backlog',
+    });
+    const delta = AF4.advanceAfterFullPass([t1, t2], state);
+    expect(delta.af4?.backlogTaskIds).toEqual(['t2']);
+    expect(delta.af4?.activeListTaskIds).toEqual([]);
+    expect(delta.af4?.phase).toBe('backlog');
+  });
+});
+
+// ─── dismissTask / resolveDismissed ───────────────────────────────────────────
+
+describe('AF4.dismissTask', () => {
+  it('adds task to dismissedTaskIds', () => {
+    const state = makeTMSState({ backlogTaskIds: ['t1'] });
+    const delta = AF4.dismissTask('t1', state);
+    expect(delta.af4?.dismissedTaskIds).toContain('t1');
+  });
+
+  it('is idempotent', () => {
+    const state = makeTMSState({ dismissedTaskIds: ['t1'] });
+    expect(AF4.dismissTask('t1', state)).toEqual({});
+  });
+});
+
+describe('AF4.resolveDismissed', () => {
+  it('abandon removes task from all lists', () => {
+    const state = makeTMSState({
+      backlogTaskIds: ['t1', 't2'],
+      dismissedTaskIds: ['t1'],
+    });
+    const delta = AF4.resolveDismissed('t1', 'abandon', state);
+    expect(delta.af4?.backlogTaskIds).not.toContain('t1');
+    expect(delta.af4?.dismissedTaskIds).not.toContain('t1');
+  });
+
+  it('re-enter moves task from backlog to end of active list', () => {
+    const state = makeTMSState({
+      backlogTaskIds: ['t1', 't2'],
+      activeListTaskIds: ['t3'],
+      dismissedTaskIds: ['t1'],
+    });
+    const delta = AF4.resolveDismissed('t1', 're-enter', state);
+    expect(delta.af4?.backlogTaskIds).not.toContain('t1');
+    expect(delta.af4?.activeListTaskIds).toEqual(['t3', 't1']);
+    expect(delta.af4?.dismissedTaskIds).not.toContain('t1');
+  });
+
+  it('defer removes from dismissed but keeps in backlog', () => {
+    const state = makeTMSState({
+      backlogTaskIds: ['t1'],
+      dismissedTaskIds: ['t1'],
+    });
+    const delta = AF4.resolveDismissed('t1', 'defer', state);
+    expect(delta.af4?.dismissedTaskIds).not.toContain('t1');
+    // backlog is preserved unchanged
+    expect(delta.af4?.backlogTaskIds).toEqual(['t1']);
   });
 });

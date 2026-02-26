@@ -15,17 +15,6 @@ interface TMSStore {
   removeFromSchedule: (taskId: UUID) => void;
   performDayRollover: () => void;
   
-  // AF4 actions
-  markTask: (taskId: UUID) => void;
-  unmarkTask: (taskId: UUID) => void;
-  
-  // FVP actions
-  startFVPSelection: (firstTaskId: UUID) => void;
-  selectFVPTask: (taskId: UUID) => void;
-  skipFVPTask: () => void;
-  endFVPSelection: () => void;
-  resetFVP: () => void;
-  
   // Generic state update — apply a partial TMSState delta (used by pure TMS handlers)
   updateState: (delta: Partial<TMSState>) => void;
   
@@ -44,13 +33,17 @@ export const useTMSStore = create<TMSStore>()(
           lastDayChange: new Date().toISOString()
         },
         af4: {
-          markedTasks: [],
-          markedOrder: []
+          backlogTaskIds: [],
+          activeListTaskIds: [],
+          currentPosition: 0,
+          lastPassHadWork: false,
+          passStartPosition: 0,
+          dismissedTaskIds: [],
+          phase: 'backlog' as const,
         },
         fvp: {
           dottedTasks: [],
-          currentX: null,
-          selectionInProgress: false
+          scanPosition: 1,
         }
       },
       
@@ -122,80 +115,6 @@ export const useTMSStore = create<TMSStore>()(
         }
       })),
       
-      markTask: (taskId) => set((state) => {
-        if (state.state.af4.markedTasks.includes(taskId)) {
-          return state;
-        }
-        return {
-          state: {
-            ...state.state,
-            af4: {
-              markedTasks: [...state.state.af4.markedTasks, taskId],
-              markedOrder: [...state.state.af4.markedOrder, taskId]
-            }
-          }
-        };
-      }),
-      
-      unmarkTask: (taskId) => set((state) => ({
-        state: {
-          ...state.state,
-          af4: {
-            markedTasks: state.state.af4.markedTasks.filter(id => id !== taskId),
-            markedOrder: state.state.af4.markedOrder.filter(id => id !== taskId)
-          }
-        }
-      })),
-      
-      startFVPSelection: (firstTaskId) => set((state) => ({
-        state: {
-          ...state.state,
-          fvp: {
-            dottedTasks: [],
-            currentX: firstTaskId,
-            selectionInProgress: true
-          }
-        }
-      })),
-      
-      selectFVPTask: (taskId) => set((state) => ({
-        state: {
-          ...state.state,
-          fvp: {
-            ...state.state.fvp,
-            dottedTasks: state.state.fvp.dottedTasks.includes(taskId)
-              ? state.state.fvp.dottedTasks
-              : [...state.state.fvp.dottedTasks, taskId],
-            currentX: taskId
-          }
-        }
-      })),
-      
-      skipFVPTask: () => {
-        // No state change, just continue with current X
-      },
-      
-      endFVPSelection: () => set((state) => ({
-        state: {
-          ...state.state,
-          fvp: {
-            ...state.state.fvp,
-            selectionInProgress: false,
-            currentX: null
-          }
-        }
-      })),
-      
-      resetFVP: () => set((state) => ({
-        state: {
-          ...state.state,
-          fvp: {
-            dottedTasks: [],
-            currentX: null,
-            selectionInProgress: false
-          }
-        }
-      })),
       
       updateState: (delta) => set((store) => ({
         state: {
@@ -216,13 +135,17 @@ export const useTMSStore = create<TMSStore>()(
             lastDayChange: new Date().toISOString()
           },
           af4: {
-            markedTasks: [],
-            markedOrder: []
+            backlogTaskIds: [],
+            activeListTaskIds: [],
+            currentPosition: 0,
+            lastPassHadWork: false,
+            passStartPosition: 0,
+            dismissedTaskIds: [],
+            phase: 'backlog' as const,
           },
           fvp: {
             dottedTasks: [],
-            currentX: null,
-            selectionInProgress: false
+            scanPosition: 1,
           }
         }
       }))

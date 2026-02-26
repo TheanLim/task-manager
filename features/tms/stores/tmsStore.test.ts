@@ -4,7 +4,6 @@ import { TimeManagementSystem } from '@/types';
 
 describe('useTMSStore', () => {
   beforeEach(() => {
-    // Reset store state before each test
     const store = useTMSStore.getState();
     store.clearSystemMetadata();
     store.setActiveSystem(TimeManagementSystem.NONE);
@@ -13,10 +12,10 @@ describe('useTMSStore', () => {
   describe('setActiveSystem', () => {
     it('should set the active time management system', () => {
       const store = useTMSStore.getState();
-      
+
       store.setActiveSystem(TimeManagementSystem.DIT);
       expect(useTMSStore.getState().state.activeSystem).toBe(TimeManagementSystem.DIT);
-      
+
       store.setActiveSystem(TimeManagementSystem.AF4);
       expect(useTMSStore.getState().state.activeSystem).toBe(TimeManagementSystem.AF4);
     });
@@ -24,261 +23,162 @@ describe('useTMSStore', () => {
 
   describe('DIT actions', () => {
     it('should add task to today list', () => {
-      const store = useTMSStore.getState();
-      const taskId = 'task-1';
-      
-      store.addToToday(taskId);
-      
-      expect(useTMSStore.getState().state.dit.todayTasks).toContain(taskId);
+      useTMSStore.getState().addToToday('task-1');
+      expect(useTMSStore.getState().state.dit.todayTasks).toContain('task-1');
     });
 
     it('should add task to tomorrow list', () => {
-      const store = useTMSStore.getState();
-      const taskId = 'task-1';
-      
-      store.addToTomorrow(taskId);
-      
-      expect(useTMSStore.getState().state.dit.tomorrowTasks).toContain(taskId);
+      useTMSStore.getState().addToTomorrow('task-1');
+      expect(useTMSStore.getState().state.dit.tomorrowTasks).toContain('task-1');
     });
 
     it('should move task from tomorrow to today', () => {
       const store = useTMSStore.getState();
-      const taskId = 'task-1';
-      
-      store.addToTomorrow(taskId);
-      expect(useTMSStore.getState().state.dit.tomorrowTasks).toContain(taskId);
-      
-      store.moveToToday(taskId);
-      
-      const state = useTMSStore.getState().state.dit;
-      expect(state.todayTasks).toContain(taskId);
-      expect(state.tomorrowTasks).not.toContain(taskId);
+      store.addToTomorrow('task-1');
+      store.moveToToday('task-1');
+      const dit = useTMSStore.getState().state.dit;
+      expect(dit.todayTasks).toContain('task-1');
+      expect(dit.tomorrowTasks).not.toContain('task-1');
     });
 
     it('should move task from today to tomorrow', () => {
       const store = useTMSStore.getState();
-      const taskId = 'task-1';
-      
-      store.addToToday(taskId);
-      expect(useTMSStore.getState().state.dit.todayTasks).toContain(taskId);
-      
-      store.moveToTomorrow(taskId);
-      
-      const state = useTMSStore.getState().state.dit;
-      expect(state.tomorrowTasks).toContain(taskId);
-      expect(state.todayTasks).not.toContain(taskId);
+      store.addToToday('task-1');
+      store.moveToTomorrow('task-1');
+      const dit = useTMSStore.getState().state.dit;
+      expect(dit.tomorrowTasks).toContain('task-1');
+      expect(dit.todayTasks).not.toContain('task-1');
     });
 
-    it('should remove task from schedule (both today and tomorrow)', () => {
+    it('should remove task from schedule', () => {
       const store = useTMSStore.getState();
-      const task1 = 'task-1';
-      const task2 = 'task-2';
-      
-      store.addToToday(task1);
-      store.addToTomorrow(task2);
-      
-      store.removeFromSchedule(task1);
-      store.removeFromSchedule(task2);
-      
-      const state = useTMSStore.getState().state.dit;
-      expect(state.todayTasks).not.toContain(task1);
-      expect(state.tomorrowTasks).not.toContain(task2);
+      store.addToToday('task-1');
+      store.addToTomorrow('task-2');
+      store.removeFromSchedule('task-1');
+      store.removeFromSchedule('task-2');
+      const dit = useTMSStore.getState().state.dit;
+      expect(dit.todayTasks).not.toContain('task-1');
+      expect(dit.tomorrowTasks).not.toContain('task-2');
     });
 
     it('should perform day rollover', () => {
       const store = useTMSStore.getState();
-      const task1 = 'task-1';
-      const task2 = 'task-2';
-      
-      store.addToTomorrow(task1);
-      store.addToTomorrow(task2);
-      
+      store.addToTomorrow('task-1');
+      store.addToTomorrow('task-2');
       store.performDayRollover();
-      
-      const state = useTMSStore.getState().state.dit;
-      expect(state.todayTasks).toContain(task1);
-      expect(state.todayTasks).toContain(task2);
-      expect(state.tomorrowTasks).toHaveLength(0);
+      const dit = useTMSStore.getState().state.dit;
+      expect(dit.todayTasks).toContain('task-1');
+      expect(dit.todayTasks).toContain('task-2');
+      expect(dit.tomorrowTasks).toHaveLength(0);
     });
   });
 
-  describe('AF4 actions', () => {
-    it('should mark a task', () => {
-      const store = useTMSStore.getState();
-      const taskId = 'task-1';
-      
-      store.markTask(taskId);
-      
-      const state = useTMSStore.getState().state.af4;
-      expect(state.markedTasks).toContain(taskId);
-      expect(state.markedOrder).toContain(taskId);
+  describe('AF4 state via updateState', () => {
+    it('should update af4 backlog via updateState', () => {
+      useTMSStore.getState().updateState({
+        af4: {
+          backlogTaskIds: ['task-1', 'task-2'],
+          activeListTaskIds: [],
+          currentPosition: 0,
+          lastPassHadWork: false,
+          passStartPosition: 0,
+          dismissedTaskIds: [],
+          phase: 'backlog',
+        },
+      });
+      const af4 = useTMSStore.getState().state.af4;
+      expect(af4.backlogTaskIds).toEqual(['task-1', 'task-2']);
+      expect(af4.activeListTaskIds).toEqual([]);
     });
 
-    it('should not duplicate marks', () => {
-      const store = useTMSStore.getState();
-      const taskId = 'task-1';
-      
-      store.markTask(taskId);
-      store.markTask(taskId);
-      
-      const state = useTMSStore.getState().state.af4;
-      expect(state.markedTasks).toHaveLength(1);
-      expect(state.markedOrder).toHaveLength(1);
-    });
-
-    it('should preserve marking order', () => {
-      const store = useTMSStore.getState();
-      const task1 = 'task-1';
-      const task2 = 'task-2';
-      const task3 = 'task-3';
-      
-      store.markTask(task1);
-      store.markTask(task2);
-      store.markTask(task3);
-      
-      const state = useTMSStore.getState().state.af4;
-      expect(state.markedOrder).toEqual([task1, task2, task3]);
-    });
-
-    it('should unmark a task', () => {
-      const store = useTMSStore.getState();
-      const taskId = 'task-1';
-      
-      store.markTask(taskId);
-      expect(useTMSStore.getState().state.af4.markedTasks).toContain(taskId);
-      
-      store.unmarkTask(taskId);
-      
-      const state = useTMSStore.getState().state.af4;
-      expect(state.markedTasks).not.toContain(taskId);
-      expect(state.markedOrder).not.toContain(taskId);
+    it('should update af4 phase to active via updateState', () => {
+      useTMSStore.getState().updateState({
+        af4: {
+          backlogTaskIds: ['task-1'],
+          activeListTaskIds: ['task-2'],
+          currentPosition: 0,
+          lastPassHadWork: false,
+          passStartPosition: 0,
+          dismissedTaskIds: [],
+          phase: 'active',
+        },
+      });
+      expect(useTMSStore.getState().state.af4.phase).toBe('active');
     });
   });
 
-  describe('FVP actions', () => {
-    it('should start FVP selection', () => {
-      const store = useTMSStore.getState();
-      const firstTaskId = 'task-1';
-      
-      store.startFVPSelection(firstTaskId);
-      
-      const state = useTMSStore.getState().state.fvp;
-      expect(state.currentX).toBe(firstTaskId);
-      expect(state.selectionInProgress).toBe(true);
-      expect(state.dottedTasks).toHaveLength(0);
+  describe('FVP state via updateState', () => {
+    it('should update fvp dottedTasks via updateState', () => {
+      useTMSStore.getState().updateState({
+        fvp: { dottedTasks: ['task-1', 'task-2'], scanPosition: 2 },
+      });
+      const fvp = useTMSStore.getState().state.fvp;
+      expect(fvp.dottedTasks).toEqual(['task-1', 'task-2']);
+      expect(fvp.scanPosition).toBe(2);
     });
 
-    it('should select FVP task (dot it)', () => {
-      const store = useTMSStore.getState();
-      const task1 = 'task-1';
-      const task2 = 'task-2';
-      
-      store.startFVPSelection(task1);
-      store.selectFVPTask(task2);
-      
-      const state = useTMSStore.getState().state.fvp;
-      expect(state.dottedTasks).toContain(task2);
-      expect(state.currentX).toBe(task2);
-    });
-
-    it('should not duplicate dotted tasks', () => {
-      const store = useTMSStore.getState();
-      const task1 = 'task-1';
-      const task2 = 'task-2';
-      
-      store.startFVPSelection(task1);
-      store.selectFVPTask(task2);
-      store.selectFVPTask(task2);
-      
-      const state = useTMSStore.getState().state.fvp;
-      expect(state.dottedTasks).toHaveLength(1);
-    });
-
-    it('should skip FVP task without state change', () => {
-      const store = useTMSStore.getState();
-      const task1 = 'task-1';
-      
-      store.startFVPSelection(task1);
-      const stateBefore = useTMSStore.getState().state.fvp;
-      
-      store.skipFVPTask();
-      
-      const stateAfter = useTMSStore.getState().state.fvp;
-      expect(stateAfter).toEqual(stateBefore);
-    });
-
-    it('should end FVP selection', () => {
-      const store = useTMSStore.getState();
-      const task1 = 'task-1';
-      
-      store.startFVPSelection(task1);
-      store.endFVPSelection();
-      
-      const state = useTMSStore.getState().state.fvp;
-      expect(state.selectionInProgress).toBe(false);
-      expect(state.currentX).toBe(null);
-    });
-
-    it('should reset FVP state', () => {
-      const store = useTMSStore.getState();
-      const task1 = 'task-1';
-      const task2 = 'task-2';
-      
-      store.startFVPSelection(task1);
-      store.selectFVPTask(task2);
-      
-      store.resetFVP();
-      
-      const state = useTMSStore.getState().state.fvp;
-      expect(state.dottedTasks).toHaveLength(0);
-      expect(state.currentX).toBe(null);
-      expect(state.selectionInProgress).toBe(false);
+    it('should reset fvp via updateState', () => {
+      useTMSStore.getState().updateState({
+        fvp: { dottedTasks: ['task-1'], scanPosition: 3 },
+      });
+      useTMSStore.getState().updateState({
+        fvp: { dottedTasks: [], scanPosition: 1 },
+      });
+      const fvp = useTMSStore.getState().state.fvp;
+      expect(fvp.dottedTasks).toHaveLength(0);
+      expect(fvp.scanPosition).toBe(1);
     });
   });
 
   describe('clearSystemMetadata', () => {
-    it('should clear all TMS metadata', () => {
+    it('should reset all TMS sub-state to defaults', () => {
       const store = useTMSStore.getState();
-      
-      // Set up some state
       store.addToToday('task-1');
       store.addToTomorrow('task-2');
-      store.markTask('task-3');
-      store.startFVPSelection('task-4');
-      store.selectFVPTask('task-5');
-      
-      // Clear metadata
+      store.updateState({
+        af4: {
+          backlogTaskIds: ['task-3'],
+          activeListTaskIds: ['task-4'],
+          currentPosition: 1,
+          lastPassHadWork: true,
+          passStartPosition: 0,
+          dismissedTaskIds: ['task-3'],
+          phase: 'active',
+        },
+        fvp: { dottedTasks: ['task-5'], scanPosition: 3 },
+      });
+
       store.clearSystemMetadata();
-      
+
       const state = useTMSStore.getState().state;
       expect(state.dit.todayTasks).toHaveLength(0);
       expect(state.dit.tomorrowTasks).toHaveLength(0);
-      expect(state.af4.markedTasks).toHaveLength(0);
-      expect(state.af4.markedOrder).toHaveLength(0);
+      expect(state.af4.backlogTaskIds).toHaveLength(0);
+      expect(state.af4.activeListTaskIds).toHaveLength(0);
+      expect(state.af4.currentPosition).toBe(0);
+      expect(state.af4.phase).toBe('backlog');
       expect(state.fvp.dottedTasks).toHaveLength(0);
-      expect(state.fvp.currentX).toBe(null);
-      expect(state.fvp.selectionInProgress).toBe(false);
+      expect(state.fvp.scanPosition).toBe(1);
     });
   });
 
   describe('initial state', () => {
-    it('should have correct default state', () => {
-      // Create a fresh store instance by clearing and checking
+    it('should have correct default state after clear', () => {
       const store = useTMSStore.getState();
       store.clearSystemMetadata();
       store.setActiveSystem(TimeManagementSystem.NONE);
-      
+
       const state = useTMSStore.getState().state;
-      
       expect(state.activeSystem).toBe(TimeManagementSystem.NONE);
       expect(state.dit.todayTasks).toEqual([]);
       expect(state.dit.tomorrowTasks).toEqual([]);
       expect(state.dit.lastDayChange).toBeDefined();
-      expect(state.af4.markedTasks).toEqual([]);
-      expect(state.af4.markedOrder).toEqual([]);
+      expect(state.af4.backlogTaskIds).toEqual([]);
+      expect(state.af4.activeListTaskIds).toEqual([]);
+      expect(state.af4.currentPosition).toBe(0);
+      expect(state.af4.phase).toBe('backlog');
       expect(state.fvp.dottedTasks).toEqual([]);
-      expect(state.fvp.currentX).toBe(null);
-      expect(state.fvp.selectionInProgress).toBe(false);
+      expect(state.fvp.scanPosition).toBe(1);
     });
   });
 });

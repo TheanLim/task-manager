@@ -27,7 +27,9 @@ const taskArb: fc.Arbitrary<Task> = fc.record({
   updatedAt: fc.date().map((d) => d.toISOString()),
 });
 
-const taskArrayArb = fc.array(taskArb, { minLength: 0, maxLength: 10 });
+// Task arrays with guaranteed unique IDs — required for ordering handlers that
+// use task IDs as set membership keys (FVP dottedTasks, AF4 backlog, etc.)
+const taskArrayArb = fc.uniqueArray(taskArb, { selector: (t) => t.id, minLength: 0, maxLength: 10 });
 
 /**
  * Generate a TMSState where dit/af4/fvp sub-state task IDs reference
@@ -59,19 +61,27 @@ function tmsStateArbForTasks(tasks: Task[]): fc.Arbitrary<TMSState> {
         lastDayChange: new Date().toISOString(),
       }));
     }),
-    af4: subsetArb.map((marked) => ({
-      markedTasks: marked,
-      markedOrder: [...marked], // markedOrder is same set, possibly shuffled
-    })),
+    af4: subsetArb.chain((backlog) => {
+      const remaining = taskIds.filter((id) => !backlog.includes(id));
+      const activeArb =
+        remaining.length > 0
+          ? fc.subarray(remaining, { minLength: 0 })
+          : fc.constant([] as string[]);
+      return activeArb.chain((active) =>
+        fc.record({
+          backlogTaskIds: fc.constant(backlog),
+          activeListTaskIds: fc.constant(active),
+          currentPosition: fc.integer({ min: 0, max: Math.max(0, backlog.length) }),
+          lastPassHadWork: fc.boolean(),
+          passStartPosition: fc.integer({ min: 0, max: Math.max(0, backlog.length) }),
+          dismissedTaskIds: fc.subarray(backlog, { minLength: 0 }),
+          phase: fc.constantFrom('backlog' as const, 'active' as const),
+        })
+      );
+    }),
     fvp: fc.record({
       dottedTasks: subsetArb,
-      currentX: fc.option(
-        taskIds.length > 0
-          ? fc.constantFrom(...taskIds)
-          : fc.constant('none'),
-        { nil: null }
-      ),
-      selectionInProgress: fc.boolean(),
+      scanPosition: fc.integer({ min: 0, max: Math.max(1, taskIds.length) }),
     }),
   });
 }

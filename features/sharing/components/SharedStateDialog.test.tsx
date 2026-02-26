@@ -38,7 +38,7 @@ function makeSharedState(overrides: Partial<AppState> & Record<string, unknown> 
     tasks: [{ id: 't1', projectId: 'p1', parentTaskId: null, sectionId: null, description: 'Task', notes: '', assignee: '', priority: 'none', tags: [], dueDate: null, completed: false, completedAt: null, order: 0, createdAt: now, updatedAt: now }],
     sections: [],
     dependencies: [],
-    tmsState: { activeSystem: 'none', dit: { todayTasks: [], tomorrowTasks: [], lastDayChange: now }, af4: { markedTasks: [], markedOrder: [] }, fvp: { dottedTasks: [], currentX: null, selectionInProgress: false } },
+    tmsState: { activeSystem: 'none', dit: { todayTasks: [], tomorrowTasks: [], lastDayChange: now }, af4: { backlogTaskIds: [], activeListTaskIds: [], currentPosition: 0, lastPassHadWork: false, passStartPosition: 0, dismissedTaskIds: [], phase: 'backlog' as const }, fvp: { dottedTasks: [], scanPosition: 1 } },
     settings: { activeProjectId: null, timeManagementSystem: 'none', showOnlyActionableTasks: false, theme: 'system' },
     version: '1.0',
     ...overrides,

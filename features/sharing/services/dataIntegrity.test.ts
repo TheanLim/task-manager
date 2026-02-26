@@ -143,13 +143,17 @@ describe('Data Integrity - Export/Import/Share', () => {
           lastDayChange: '2024-01-20T00:00:00.000Z',
         },
         af4: {
-          markedTasks: [TASK_1],
-          markedOrder: [TASK_1],
+          backlogTaskIds: [TASK_1, TASK_2],
+          activeListTaskIds: [TASK_3],
+          currentPosition: 0,
+          lastPassHadWork: false,
+          passStartPosition: 0,
+          dismissedTaskIds: [],
+          phase: 'backlog' as const,
         },
         fvp: {
           dottedTasks: [TASK_2, TASK_3],
-          currentX: TASK_2,
-          selectionInProgress: true,
+          scanPosition: 2,
         }
       },
       settings: {
@@ -354,13 +358,17 @@ describe('Data Integrity - Export/Import/Share', () => {
             lastDayChange: new Date().toISOString()
           },
           af4: {
-            markedTasks: [],
-            markedOrder: []
+            backlogTaskIds: [],
+            activeListTaskIds: [],
+            currentPosition: 0,
+            lastPassHadWork: false,
+            passStartPosition: 0,
+            dismissedTaskIds: [],
+            phase: 'backlog' as const,
           },
           fvp: {
             dottedTasks: [],
-            currentX: null,
-            selectionInProgress: false
+            scanPosition: 1,
           }
         },
         settings: {

@@ -16,13 +16,17 @@ function getDefaultTMSState(): AppState['tmsState'] {
       lastDayChange: new Date().toISOString(),
     },
     af4: {
-      markedTasks: [],
-      markedOrder: [],
+      backlogTaskIds: [],
+      activeListTaskIds: [],
+      currentPosition: 0,
+      lastPassHadWork: false,
+      passStartPosition: 0,
+      dismissedTaskIds: [],
+      phase: 'backlog',
     },
     fvp: {
       dottedTasks: [],
-      currentX: null,
-      selectionInProgress: false,
+      scanPosition: 1,
     },
   };
 }

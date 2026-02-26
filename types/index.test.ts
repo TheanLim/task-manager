@@ -8,7 +8,6 @@ import {
   type Project,
   type Task,
   type Section,
-  type Column,
   type TaskDependency,
   type TMSState,
   type AppSettings,
@@ -74,7 +73,6 @@ describe('Core Type Definitions', () => {
         projectId: 'project-1',
         parentTaskId: null,
         sectionId: null,
-        columnId: null,
         description: 'Test task',
         notes: 'Some notes',
         assignee: 'John Doe',
@@ -99,26 +97,13 @@ describe('Core Type Definitions', () => {
         projectId: 'project-1',
         name: 'To Do',
         order: 0,
+        collapsed: false,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
 
       expect(section.name).toBe('To Do');
       expect(section.order).toBe(0);
-    });
-
-    it('should create a valid Column object', () => {
-      const column: Column = {
-        id: '1',
-        projectId: 'project-1',
-        name: 'In Progress',
-        order: 1,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-
-      expect(column.name).toBe('In Progress');
-      expect(column.order).toBe(1);
     });
 
     it('should create a valid TaskDependency object', () => {
@@ -142,19 +127,23 @@ describe('Core Type Definitions', () => {
           lastDayChange: new Date().toISOString()
         },
         af4: {
-          markedTasks: [],
-          markedOrder: []
+          backlogTaskIds: [],
+          activeListTaskIds: [],
+          currentPosition: 0,
+          lastPassHadWork: false,
+          passStartPosition: 0,
+          dismissedTaskIds: [],
+          phase: 'backlog',
         },
         fvp: {
           dottedTasks: [],
-          currentX: null,
-          selectionInProgress: false
+          scanPosition: 1,
         }
       };
 
       expect(tmsState.activeSystem).toBe(TimeManagementSystem.DIT);
       expect(tmsState.dit.todayTasks).toHaveLength(2);
-      expect(tmsState.af4.markedTasks).toHaveLength(0);
+      expect(tmsState.af4.backlogTaskIds).toHaveLength(0);
     });
 
     it('should create a valid AppSettings object', () => {
@@ -174,7 +163,6 @@ describe('Core Type Definitions', () => {
         projects: [],
         tasks: [],
         sections: [],
-        columns: [],
         dependencies: [],
         tmsState: {
           activeSystem: TimeManagementSystem.NONE,
@@ -184,13 +172,17 @@ describe('Core Type Definitions', () => {
             lastDayChange: new Date().toISOString()
           },
           af4: {
-            markedTasks: [],
-            markedOrder: []
+            backlogTaskIds: [],
+            activeListTaskIds: [],
+            currentPosition: 0,
+            lastPassHadWork: false,
+            passStartPosition: 0,
+            dismissedTaskIds: [],
+            phase: 'backlog',
           },
           fvp: {
             dottedTasks: [],
-            currentX: null,
-            selectionInProgress: false
+            scanPosition: 1,
           }
         },
         settings: {
@@ -258,7 +250,6 @@ describe('Core Type Definitions', () => {
         projectId: 'project-1',
         parentTaskId: null,
         sectionId: null,
-        columnId: null,
         description: 'Test',
         notes: '',
         assignee: '',
@@ -301,7 +292,6 @@ describe('Core Type Definitions', () => {
         projectId: 'project-1',
         parentTaskId: null,
         sectionId: null,
-        columnId: null,
         description: 'Test',
         notes: '',
         assignee: '',
@@ -317,7 +307,6 @@ describe('Core Type Definitions', () => {
 
       expect(task.parentTaskId).toBeNull();
       expect(task.sectionId).toBeNull();
-      expect(task.columnId).toBeNull();
       expect(task.dueDate).toBeNull();
       expect(task.completedAt).toBeNull();
     });
@@ -333,7 +322,7 @@ describe('Core Type Definitions', () => {
       expect(settings.activeProjectId).toBeNull();
     });
 
-    it('should allow null for nullable FVP currentX', () => {
+    it('should allow fvp state with empty dotted tasks', () => {
       const tmsState: TMSState = {
         activeSystem: TimeManagementSystem.FVP,
         dit: {
@@ -342,17 +331,22 @@ describe('Core Type Definitions', () => {
           lastDayChange: new Date().toISOString()
         },
         af4: {
-          markedTasks: [],
-          markedOrder: []
+          backlogTaskIds: [],
+          activeListTaskIds: [],
+          currentPosition: 0,
+          lastPassHadWork: false,
+          passStartPosition: 0,
+          dismissedTaskIds: [],
+          phase: 'backlog',
         },
         fvp: {
           dottedTasks: [],
-          currentX: null,
-          selectionInProgress: false
+          scanPosition: 1,
         }
       };
 
-      expect(tmsState.fvp.currentX).toBeNull();
+      expect(tmsState.fvp.dottedTasks).toHaveLength(0);
+      expect(tmsState.fvp.scanPosition).toBe(1);
     });
   });
 });
