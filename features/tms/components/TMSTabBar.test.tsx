@@ -64,7 +64,7 @@ describe('TMSTabBar', () => {
       expect(screen.getByText('AF4')).toBeTruthy();
     });
 
-    it('active tab has aria-selected="true" and bg-primary classes', () => {
+    it('active tab has aria-selected="true" and contains bg-accent-brand indicator', () => {
       render(
         <TMSTabBar
           activeSystemId="dit"
@@ -74,9 +74,11 @@ describe('TMSTabBar', () => {
       const tabs = screen.getAllByRole('tab');
       const activeTab = tabs.find(t => t.getAttribute('aria-selected') === 'true');
       expect(activeTab).toBeTruthy();
-      expect(activeTab!.className).toContain('bg-primary');
       // The active tab should be the DIT one
       expect(activeTab!.textContent).toContain('DIT');
+      // The animated active indicator is a child span with bg-accent-brand
+      const indicator = activeTab!.querySelector('.bg-accent-brand');
+      expect(indicator).not.toBeNull();
     });
 
     it('inactive tabs have aria-selected="false"', () => {
@@ -91,18 +93,7 @@ describe('TMSTabBar', () => {
       expect(inactiveTabs).toHaveLength(MOCK_HANDLERS.length - 1);
     });
 
-    it('inactive tab with saved state shows "resumed" pill', () => {
-      render(
-        <TMSTabBar
-          activeSystemId="standard"
-          onSwitch={vi.fn()}
-          resumedSystemId="dit"
-        />
-      );
-      expect(screen.getByText('resumed')).toBeTruthy();
-    });
-
-    it('does not show "resumed" pill when resumedSystemId is not set', () => {
+    it('does not show "resumed" pill (moved to TMSHost banner)', () => {
       render(
         <TMSTabBar
           activeSystemId="standard"

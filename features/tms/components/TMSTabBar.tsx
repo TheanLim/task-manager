@@ -1,7 +1,7 @@
 'use client';
 
-import { useRef, useCallback, useEffect } from 'react';
-import { AnimatePresence, motion, useAnimate } from 'motion/react';
+import { useRef, useCallback } from 'react';
+import { motion } from 'motion/react';
 import { getAllTMSHandlers } from '../registry';
 import type { TimeManagementSystemHandler } from '../handlers';
 
@@ -10,8 +10,6 @@ import type { TimeManagementSystemHandler } from '../handlers';
 export interface TMSTabBarProps {
   activeSystemId: string;
   onSwitch: (systemId: string) => void;
-  /** Shows "resumed" pill on this tab */
-  resumedSystemId?: string;
   /** Amber dot on the DIT tab when inbox has tasks */
   inboxCount?: number;
 }
@@ -43,42 +41,11 @@ const tabItemVariants = {
   },
 } as const;
 
-// ── Resumed pill sub-component (auto-fades after 3s) ──────────────────────────
-
-function ResumedPill() {
-  const [scope, animate] = useAnimate();
-
-  useEffect(() => {
-    // Spring in, then fade out after 3s
-    const sequence = async () => {
-      await animate(scope.current, { opacity: 1, scale: 1 }, {
-        type: 'spring', stiffness: 500, damping: 25,
-      });
-      await animate(scope.current, { opacity: 0, scale: 0.85 }, {
-        duration: 0.4, delay: 3,
-      });
-    };
-    sequence();
-  }, [animate, scope]);
-
-  return (
-    <motion.span
-      ref={scope}
-      initial={{ opacity: 0, scale: 0.6 }}
-      exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.15 } }}
-      className="relative text-[9px] bg-white/20 text-white rounded-full px-1.5 py-0.5"
-    >
-      resumed
-    </motion.span>
-  );
-}
-
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function TMSTabBar({
   activeSystemId,
   onSwitch,
-  resumedSystemId,
   inboxCount = 0,
 }: TMSTabBarProps) {
   const handlers = getAllTMSHandlers();
@@ -130,7 +97,6 @@ export function TMSTabBar({
     >
       {handlers.map((handler: TimeManagementSystemHandler, index: number) => {
         const isActive = handler.id === activeSystemId;
-        const isResumed = resumedSystemId === handler.id;
         const showInboxDot = handler.id === 'dit' && inboxCount > 0;
         const icon = SYSTEM_ICONS[handler.id] || '•';
 
@@ -183,11 +149,6 @@ export function TMSTabBar({
 
             {/* Name */}
             <span className="relative text-sm font-semibold whitespace-nowrap">{handler.displayName}</span>
-
-            {/* "Resumed" pill — auto-fades after 3s */}
-            <AnimatePresence>
-              {isResumed && <ResumedPill />}
-            </AnimatePresence>
 
             {/* DIT inbox amber dot */}
             {showInboxDot && (

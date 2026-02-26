@@ -147,7 +147,7 @@ export function TMSHost({ tasks, onTaskClick, onTaskComplete }: TMSHostProps) {
         setResumedSystemId(newSystemId);
         resumedTimerRef.current = setTimeout(() => {
           setResumedSystemId(null);
-        }, 3000);
+        }, 2500);
       } else {
         setResumedSystemId(null);
       }
@@ -193,7 +193,6 @@ export function TMSHost({ tasks, onTaskClick, onTaskComplete }: TMSHostProps) {
             <TMSTabBar
               activeSystemId={activeSystemId}
               onSwitch={handleSwitch}
-              resumedSystemId={resumedSystemId ?? undefined}
             />
           </div>
           <AnimatePresence>
@@ -227,6 +226,29 @@ export function TMSHost({ tasks, onTaskClick, onTaskComplete }: TMSHostProps) {
       </div>
       <div className="flex-1 overflow-y-auto">
         <TMSErrorBoundary systemId={activeSystemId}>
+          {/* Resumed session banner — slides in above view content */}
+          <AnimatePresence>
+            {resumedSystemId && (
+              <motion.div
+                key="resumed-banner"
+                initial={{ opacity: 0, height: 0, y: -8 }}
+                animate={{ opacity: 1, height: 'auto', y: 0 }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{
+                  opacity: { duration: 0.25, delay: 0.15 },
+                  height: { type: 'spring', stiffness: 350, damping: 28 },
+                  y: { type: 'spring', stiffness: 350, damping: 28, delay: 0.15 },
+                }}
+                style={{ overflow: 'hidden' }}
+              >
+                <div className="mx-4 mt-3 mb-1 flex items-center gap-2 rounded-lg border-l-2 border-l-accent-brand bg-accent-brand/[0.06] px-3 py-1.5">
+                  <span className="text-[11px] text-accent-brand">
+                    Picking up where you left off
+                  </span>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
           <AnimatePresence mode="wait">
             <motion.div
               key={activeSystemId}
