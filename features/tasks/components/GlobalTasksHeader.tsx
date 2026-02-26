@@ -179,7 +179,7 @@ export function GlobalTasksHeader({ onAddTask }: GlobalTasksHeaderProps) {
             </>
           )}
 
-          <Button onClick={onAddTask} size="sm">
+          <Button onClick={onAddTask} size="sm" className="bg-accent-brand hover:bg-accent-brand-hover text-white">
             <Plus className="mr-2 h-4 w-4" />
             Add Task
           </Button>
