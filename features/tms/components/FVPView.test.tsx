@@ -122,26 +122,24 @@ describe('FVPView', () => {
   // ── State A: No dotted tasks ───────────────────────────────────────────────
 
   describe('State A — no dotted tasks', () => {
-    it('shows "Start Preselection" full-width button when no dotted tasks', () => {
+    it('shows "Start Executing" button when no dotted tasks', () => {
       const tasks = [makeTask({ id: 't1' }), makeTask({ id: 't2' })];
       const state = makeFVPState({ dottedTasks: [], scanPosition: 1 });
 
       renderFVPView(tasks, state);
 
-      const btn = screen.getByRole('button', { name: /start preselection/i });
+      const btn = screen.getByRole('button', { name: /start executing/i });
       expect(btn).toBeTruthy();
-      // Full-width: should have w-full class
-      expect(btn.className).toContain('w-full');
     });
 
-    it('dispatches START_PRESELECTION when "Start Preselection" is clicked', () => {
+    it('dispatches START_PRESELECTION when "Start Executing" is clicked', () => {
       const dispatch = vi.fn();
       const tasks = [makeTask({ id: 't1' }), makeTask({ id: 't2' })];
       const state = makeFVPState({ dottedTasks: [], scanPosition: 1 });
 
       renderFVPView(tasks, state, dispatch);
 
-      fireEvent.click(screen.getByRole('button', { name: /start preselection/i }));
+      fireEvent.click(screen.getByRole('button', { name: /start executing/i }));
       expect(dispatch).toHaveBeenCalledWith({ type: 'START_PRESELECTION', tasks });
     });
   });
@@ -215,8 +213,7 @@ describe('FVPView', () => {
   // ── State C: Preselection complete ────────────────────────────────────────
 
   describe('State C — preselection complete', () => {
-    it('shows "Resume Preselection" outline button when preselection is complete', () => {
-      // t1 is dotted (current), t2 is undotted — scanPosition past end → no candidate
+    it('shows "View Mode" button when preselection is complete (executing state)', () => {
       const t1 = makeTask({ id: 't1', description: 'Task 1' });
       const t2 = makeTask({ id: 't2', description: 'Task 2' });
       // Only t1 dotted, scanPosition past end → preselection complete, t2 still undotted
@@ -224,24 +221,8 @@ describe('FVPView', () => {
 
       renderFVPView([t1, t2], state);
 
-      const btn = screen.getByRole('button', { name: /resume preselection/i });
+      const btn = screen.getByRole('button', { name: /view mode/i });
       expect(btn).toBeTruthy();
-      // Should be outline variant (not filled)
-      expect(btn.className).toContain('flex-1');
-    });
-
-    it('dispatches START_PRESELECTION when "Resume Preselection" is clicked', () => {
-      const dispatch = vi.fn();
-      const t1 = makeTask({ id: 't1' });
-      const t2 = makeTask({ id: 't2' });
-      // t1 dotted, t2 undotted, scanPosition past end → preselection complete
-      const state = makeFVPState({ dottedTasks: ['t1'], scanPosition: 99 });
-      const tasks = [t1, t2];
-
-      renderFVPView(tasks, state, dispatch);
-
-      fireEvent.click(screen.getByRole('button', { name: /resume preselection/i }));
-      expect(dispatch).toHaveBeenCalledWith({ type: 'START_PRESELECTION', tasks });
     });
   });
 

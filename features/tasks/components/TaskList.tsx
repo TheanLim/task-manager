@@ -57,6 +57,16 @@ interface TaskListProps {
   onOpenRuleDialog?: (prefill: { triggerType: TriggerType; sectionId: string }) => void;
   /** Section IDs that are read-only: no edit, delete, drag, or collapse controls */
   readonlySectionIds?: Set<string>;
+  /** TMS integration: callback that returns per-task visual props (tmsVariant, leadingSlot, actionsSlot). */
+  tmsTaskProps?: (task: Task) => { tmsVariant?: 'default' | 'current' | 'dotted' | 'flagged' | 'attention'; leadingSlot?: React.ReactNode; actionsSlot?: React.ReactNode; trailingSlot?: React.ReactNode };
+  /** DIT: called when user presses the "move to today" hotkey on a focused task */
+  onMoveToToday?: (taskId: string) => void;
+  /** DIT: called when user presses the "move to tomorrow" hotkey on a focused task */
+  onMoveToTomorrow?: (taskId: string) => void;
+  /** DIT: called when user presses the "move to inbox" hotkey on a focused task */
+  onMoveToInbox?: (taskId: string) => void;
+  /** When true, column sort headers are disabled and sortColumn is ignored. Used by TMS views that control task order. */
+  disableSort?: boolean;
 }
 
 interface ColumnWidths {
@@ -81,7 +91,7 @@ const COLUMN_LABELS: Record<TaskColumnId, string> = {
  * List view component for displaying tasks grouped by collapsible sections
  * with table-like task rows and draggable column headers
  */
-export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTask, onViewSubtasks, onSubtaskButtonClick, onAddSubtask, selectedTaskId, showProjectColumn = false, onProjectClick, flatMode = false, initialSortByProject = false, showReinsertButton = false, onReinsert, onToggleSection, hideCompletedSubtasks = false, onOpenRuleDialog, readonlySectionIds }: TaskListProps) {
+export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTask, onViewSubtasks, onSubtaskButtonClick, onAddSubtask, selectedTaskId, showProjectColumn = false, onProjectClick, flatMode = false, initialSortByProject = false, showReinsertButton = false, onReinsert, onToggleSection, hideCompletedSubtasks = false, onOpenRuleDialog, readonlySectionIds, tmsTaskProps, onMoveToToday, onMoveToTomorrow, onMoveToInbox, disableSort = false }: TaskListProps) {
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverTaskId, setDragOverTaskId] = useState<string | null>(null);
   const [draggedSectionId, setDraggedSectionId] = useState<string | null>(null);
@@ -112,7 +122,9 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
   const keyboardShortcuts = useAppStore(s => s.keyboardShortcuts);
 
   // Column order and sort state from persisted store
-  const { columnOrder, setColumnOrder, sortColumn, sortDirection, toggleSort } = useAppStore();
+  const { columnOrder, setColumnOrder, sortColumn: rawSortColumn, sortDirection, toggleSort } = useAppStore();
+  // When disableSort is true, ignore the global sort state — TMS views control task order
+  const sortColumn = disableSort ? null : rawSortColumn;
 
   // Column drag state — use refs to avoid stale closures during drag events
   const [draggedColumnId, setDraggedColumnId] = useState<TaskColumnId | null>(null);
@@ -580,6 +592,9 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
     onEnterPress: (taskId: string) => {
       onTaskClick(taskId);
     },
+    onMoveToToday,
+    onMoveToTomorrow,
+    onMoveToInbox,
   });
 
   if (tasks.length === 0 && sections.length === 0) {
@@ -647,9 +662,9 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
             <tr className="border-b">
               {/* Name column header - always first, not draggable */}
               <th className="p-2 text-left text-sm font-medium border-r relative bg-muted sticky left-0 z-30 group/th">
-                <div className="flex items-center justify-between pr-2 cursor-pointer select-none" onClick={() => toggleSort('name')}>
+                <div className={cn("flex items-center justify-between pr-2 select-none", !disableSort && "cursor-pointer")} onClick={disableSort ? undefined : () => toggleSort('name')}>
                   <span>Name</span>
-                  {renderSortIcon('name')}
+                  {!disableSort && renderSortIcon('name')}
                 </div>
                 {renderResizeHandle('name')}
               </th>
@@ -670,9 +685,9 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                   onDrop={(e) => handleColumnDrop(e, colId)}
                   onDragEnd={handleColumnDragEnd}
                 >
-                  <div className="flex items-center justify-between pr-2 cursor-pointer" onClick={() => toggleSort(colId)}>
+                  <div className={cn("flex items-center justify-between pr-2", !disableSort && "cursor-pointer")} onClick={disableSort ? undefined : () => toggleSort(colId)}>
                     <span>{COLUMN_LABELS[colId]}</span>
-                    {renderSortIcon(colId)}
+                    {!disableSort && renderSortIcon(colId)}
                   </div>
                   {renderResizeHandle(colId as keyof ColumnWidths)}
                 </th>
@@ -819,6 +834,7 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                       hideCompletedSubtasks={hideCompletedSubtasks}
                       subtasksExpanded={expandedTaskIds.has(task.id)}
                       onToggleSubtasks={handleToggleSubtasks}
+                      {...(tmsTaskProps ? tmsTaskProps(task) : {})}
                     />
                   ))}
 
@@ -904,6 +920,7 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                 hideCompletedSubtasks={hideCompletedSubtasks}
                 subtasksExpanded={expandedTaskIds.has(task.id)}
                 onToggleSubtasks={handleToggleSubtasks}
+                {...(tmsTaskProps ? tmsTaskProps(task) : {})}
               />
             ))}
           </tbody>

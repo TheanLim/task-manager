@@ -3,7 +3,7 @@
 import { useMemo, useRef, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Button } from '@/components/ui/button';
-import { ListTodo, PartyPopper, Sparkles, Circle, RotateCcw } from 'lucide-react';
+import { ListTodo, PartyPopper, Sparkles, Circle, RotateCcw, Eye, Play } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { TaskList } from '@/features/tasks/components/TaskList';
 import { TMSEmptyState } from './shared/TMSEmptyState';
@@ -95,6 +95,22 @@ export function FVPView({
   const isStateB = !preselectionDone && scanCandidate !== null;
   const isStateC = preselectionDone && systemState.dottedTasks.length > 0;
 
+  // View mode: when true, sorting is enabled and FVP execution UI is hidden.
+  const [viewMode, setViewMode] = useState(false);
+  // Auto-exit view mode when dots appear (user started preselection)
+  const hasActiveDots = systemState.dottedTasks.length > 0;
+  const effectiveViewMode = viewMode && !hasActiveDots;
+  const isExecuting = hasActiveDots && !effectiveViewMode;
+
+  const handleEnterViewMode = () => {
+    fvpDispatch({ type: 'RESET_FVP' });
+    setViewMode(true);
+  };
+  const handleExitViewMode = () => {
+    setViewMode(false);
+    fvpDispatch({ type: 'START_PRESELECTION', tasks });
+  };
+
   // Track when preselection just completed for staggered dot animation
   const prevPreselectionDone = useRef(preselectionDone);
   const [justCompleted, setJustCompleted] = useState(false);
@@ -136,14 +152,23 @@ export function FVPView({
 
   return (
     <div className="space-y-4 p-4">
-      {/* ── State A: Start Preselection ──────────────────────────────── */}
-      <AnimatePresence mode="wait">
-        {isStateA && (
-          <motion.div
-            key="start-btn"
-            {...CROSSFADE}
-            transition={{ duration: 0.25, ease: 'easeOut' }}
-          >
+      {/* ── Mode toggle ────────────────────────────────────────────── */}
+      {incompleteTasks.length > 0 && (
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] text-muted-foreground">
+            {isExecuting ? 'Sorting locked during preselection' : effectiveViewMode ? 'Sorting enabled — dots cleared' : ''}
+          </span>
+          {isExecuting ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs gap-1.5"
+              onClick={handleEnterViewMode}
+            >
+              <Eye className="h-3.5 w-3.5" />
+              View Mode
+            </Button>
+          ) : (
             <motion.div
               whileHover={{ scale: 1.015 }}
               whileTap={{ scale: 0.97, y: 1 }}
@@ -151,30 +176,29 @@ export function FVPView({
             >
               <Button
                 className={cn(
-                  'w-full bg-accent-brand hover:bg-accent-brand-hover text-white gap-2',
-                  'relative overflow-hidden',
-                  'motion-safe:hover:animate-tms-shimmer',
-                  'motion-safe:hover:bg-[length:200%_100%]',
-                  'motion-safe:hover:bg-gradient-to-r motion-safe:hover:from-transparent motion-safe:hover:via-white/[0.08] motion-safe:hover:to-transparent',
+                  'gap-2 text-xs',
+                  effectiveViewMode
+                    ? 'bg-accent-brand hover:bg-accent-brand-hover text-white'
+                    : 'bg-accent-brand hover:bg-accent-brand-hover text-white',
                 )}
-                onClick={handleStartPreselection}
+                size="sm"
+                onClick={effectiveViewMode ? handleExitViewMode : handleStartPreselection}
               >
-                <motion.span
-                  animate={{ rotate: [0, 15, -15, 0] }}
-                  transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut', type: 'tween' }}
-                >
-                  <Sparkles className="h-4 w-4" />
-                </motion.span>
-                Start Preselection
+                {effectiveViewMode ? (
+                  <Play className="h-3.5 w-3.5" />
+                ) : (
+                  <Sparkles className="h-3.5 w-3.5" />
+                )}
+                {effectiveViewMode ? 'Resume Executing' : 'Start Executing'}
               </Button>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </div>
+      )}
 
       {/* ── Do Now hero (State C) ────────────────────────────────────── */}
       <AnimatePresence mode="wait">
-        {isStateC && currentTask && (
+        {isStateC && currentTask && isExecuting && (
           <motion.div
             key="do-now"
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
@@ -272,7 +296,7 @@ export function FVPView({
 
       {/* ── State B: Preselection panel ──────────────────────────────── */}
       <AnimatePresence mode="wait">
-        {isStateB && currentX && scanCandidate && (
+        {isStateB && currentX && scanCandidate && isExecuting && (
           <motion.div
             key={scanCandidate.id}
             initial={{ opacity: 0, x: 60, rotateY: 8, scale: 0.97 }}
@@ -355,41 +379,9 @@ export function FVPView({
         )}
       </AnimatePresence>
 
-      {/* ── State C: Resume Preselection ─────────────────────────────── */}
-      <AnimatePresence mode="wait">
-        {isStateC && undottedTasks.length > 0 && (
-          <motion.div
-            key="resume-btn"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={SPRING_GENTLE}
-          >
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                className="flex-1 border-accent-brand/30 text-accent-brand hover:bg-accent-brand/10"
-                onClick={handleStartPreselection}
-              >
-                Resume Preselection ({undottedTasks.length} remaining)
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-muted-foreground hover:text-foreground text-xs gap-1 shrink-0"
-                onClick={handleStartPreselection}
-              >
-                <RotateCcw className="h-3 w-3" />
-                Restart
-              </Button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* ── State C: All done ────────────────────────────────────────── */}
       <AnimatePresence mode="wait">
-        {isStateC && undottedTasks.length === 0 && !currentTask && (
+        {isStateC && undottedTasks.length === 0 && !currentTask && isExecuting && (
           <motion.div
             key="all-done"
             initial={{ opacity: 0, scale: 0.95 }}
@@ -415,6 +407,7 @@ export function FVPView({
           onTaskClick={onTaskClick}
           onTaskComplete={(taskId, completed) => onTaskComplete(taskId, completed)}
           onAddTask={() => {}}
+          disableSort={isExecuting}
           tmsTaskProps={(task) => {
             const isDotted = dottedSet.has(task.id);
             const isCurrentTask = currentTask?.id === task.id;
