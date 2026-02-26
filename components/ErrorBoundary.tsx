@@ -47,7 +47,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
               <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
               <h1 className="text-2xl font-bold mb-2">Something went wrong</h1>
               <p className="text-muted-foreground mb-6">
-                We encountered an unexpected error. Your data is safe in localStorage.
+                An unexpected error occurred, but your data is safe. Try reloading or head back home.
               </p>
               
               {this.state.error && (

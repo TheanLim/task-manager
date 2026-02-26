@@ -561,7 +561,7 @@ describe('TMSHost', () => {
       });
 
       expect(mockToastInfo).toHaveBeenCalledWith(
-        "Good morning! Yesterday's Tomorrow is now Today.",
+        "Good morning! Yesterday's Tomorrow list is now Today.",
       );
     });
 

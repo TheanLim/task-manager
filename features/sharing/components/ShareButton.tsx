@@ -205,7 +205,7 @@ export function ShareButton({
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Share Options</DialogTitle>
+            <DialogTitle>Share options</DialogTitle>
             <DialogDescription>
               Choose what to include when sharing {projectId ? 'this project' : 'your data'}.
             </DialogDescription>
@@ -246,7 +246,7 @@ export function ShareButton({
           <DialogHeader>
             <DialogTitle>Share URL</DialogTitle>
             <DialogDescription>
-              Copy this URL to share your application state. Anyone with this link can view your projects and tasks.
+              Anyone with this link can view your projects and tasks. Share only with people you trust.
             </DialogDescription>
           </DialogHeader>
           
@@ -271,7 +271,7 @@ export function ShareButton({
           </div>
           
           <p className="text-sm text-muted-foreground">
-            ⚠️ This URL contains your application data. Only share with trusted recipients.
+            ⚠️ This link contains your data. Only share with trusted recipients.
           </p>
         </DialogContent>
       </Dialog>

@@ -17,8 +17,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Task Management App",
-  description: "A task management web application with integrated time management methodologies",
+  title: "Tasks",
+  description: "Organize your work with projects, task lists, and time management systems.",
 };
 
 export default function RootLayout({

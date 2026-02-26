@@ -38,8 +38,8 @@ describe('ProjectDialog', () => {
       />
     );
 
-    expect(screen.getByText('Create New Project')).toBeInTheDocument();
-    expect(screen.getByText('Create Project')).toBeInTheDocument();
+    expect(screen.getByText('New project')).toBeInTheDocument();
+    expect(screen.getByText('Create project')).toBeInTheDocument();
   });
 
   it('should render edit mode when project provided', () => {
@@ -63,8 +63,8 @@ describe('ProjectDialog', () => {
       />
     );
 
-    expect(screen.getByText('Edit Project')).toBeInTheDocument();
-    expect(screen.getByText('Save Changes')).toBeInTheDocument();
+    expect(screen.getByText('Edit project')).toBeInTheDocument();
+    expect(screen.getByText('Save changes')).toBeInTheDocument();
     expect(screen.getByDisplayValue('Test Project')).toBeInTheDocument();
   });
 
@@ -80,7 +80,7 @@ describe('ProjectDialog', () => {
       />
     );
 
-    const submitButton = screen.getByText('Create Project');
+    const submitButton = screen.getByText('Create project');
     fireEvent.click(submitButton);
 
     await waitFor(() => {
@@ -108,7 +108,7 @@ describe('ProjectDialog', () => {
     fireEvent.change(nameInput, { target: { value: 'New Project' } });
     fireEvent.change(descriptionInput, { target: { value: 'Project description' } });
 
-    const submitButton = screen.getByText('Create Project');
+    const submitButton = screen.getByText('Create project');
     fireEvent.click(submitButton);
 
     await waitFor(() => {
@@ -153,7 +153,7 @@ describe('ProjectDialog', () => {
     const nameInput = screen.getByLabelText(/name/i);
     fireEvent.change(nameInput, { target: { value: 'a'.repeat(201) } });
 
-    const submitButton = screen.getByText('Create Project');
+    const submitButton = screen.getByText('Create project');
     fireEvent.click(submitButton);
 
     await waitFor(() => {

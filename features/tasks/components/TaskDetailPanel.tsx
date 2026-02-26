@@ -319,7 +319,7 @@ export function TaskDetailPanel({
                     {task.priority}
                   </Badge>
                 ) : (
-                  <span className="text-xs text-muted-foreground italic">No priority</span>
+                  <span className="text-xs text-muted-foreground italic">Set priority</span>
                 )}
               </SelectValue>
             </SelectTrigger>
@@ -344,7 +344,7 @@ export function TaskDetailPanel({
                 {task.dueDate ? (
                   <span>Due {format(new Date(task.dueDate), 'PPP')}</span>
                 ) : (
-                  <span className="text-muted-foreground italic">No due date</span>
+                  <span className="text-muted-foreground italic">Set due date</span>
                 )}
               </div>
             }
@@ -359,7 +359,7 @@ export function TaskDetailPanel({
             onSave={(newAssignee) => {
               updateTask(task.id, { assignee: newAssignee || '' });
             }}
-            placeholder="No assignee"
+            placeholder="Unassigned"
             displayClassName="text-sm"
             inputClassName="text-sm"
           />
@@ -381,7 +381,7 @@ export function TaskDetailPanel({
                     </Badge>
                   ))
                 ) : (
-                  <span className="text-muted-foreground italic text-sm">No tags</span>
+                  <span className="text-muted-foreground italic text-sm">Add tags</span>
                 )}
               </div>
             }
@@ -418,7 +418,7 @@ export function TaskDetailPanel({
                 className="quill-readonly-view"
               />
             ) : (
-              <span className="text-muted-foreground italic text-sm">Click to add notes...</span>
+              <span className="text-muted-foreground italic text-sm">Add notes…</span>
             )}
           </div>
         )}
@@ -444,7 +444,7 @@ export function TaskDetailPanel({
           )}
         </div>
         {subtasks.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No subtasks</p>
+          <p className="text-sm text-muted-foreground">No subtasks yet</p>
         ) : (
           <div className="border-t border-b">
             {subtasks.map((subtask, index) => (
@@ -570,15 +570,15 @@ export function TaskDetailPanel({
     <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete Task</AlertDialogTitle>
+          <AlertDialogTitle>Delete task</AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to delete &ldquo;{task.description}&rdquo;?
+            &ldquo;{task.description}&rdquo; will be permanently deleted.
             {subtasks.length > 0 && (
               <span className="block mt-2 font-semibold text-destructive">
-                This task has {subtasks.length} subtask{subtasks.length > 1 ? 's' : ''} that will also be deleted.
+                Its {subtasks.length} subtask{subtasks.length > 1 ? 's' : ''} will also be removed.
               </span>
             )}
-            This action cannot be undone.
+            This can&rsquo;t be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

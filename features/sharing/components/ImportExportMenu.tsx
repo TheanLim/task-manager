@@ -76,10 +76,10 @@ export function ImportExportMenu() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      showToast('Data exported successfully!', 'success');
+      showToast('Data exported', 'success');
     } catch (error) {
       console.error('Export failed:', error);
-      showToast('Failed to export data. Please try again.', 'error');
+      showToast('Export failed. Try again.', 'error');
     }
   };
 
@@ -134,7 +134,7 @@ export function ImportExportMenu() {
         setImportDialogOpen(false);
         setImportPreview(null);
         setImportData(null);
-        showToast('Data imported successfully!', 'success');
+        showToast('Data imported', 'success');
       } else {
         // Merge: deduplicate existing, filter new, write through repositories
         const current = {
@@ -184,12 +184,12 @@ export function ImportExportMenu() {
         } else if (skippedCount > 0) {
           showToast(`Merged ${addedCount} items (${skippedCount} duplicates skipped)`, 'info');
         } else {
-          showToast('Data merged successfully!', 'success');
+          showToast('Data merged', 'success');
         }
       }
     } catch (error) {
       console.error('Import failed:', error);
-      showToast('Failed to import data. Please try again.', 'error');
+      showToast('Import failed. Try again.', 'error');
     }
   };
 
@@ -229,11 +229,11 @@ export function ImportExportMenu() {
       <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Import Data</DialogTitle>
+            <DialogTitle>Import data</DialogTitle>
             <DialogDescription>
               {importError
-                ? 'There was an error importing your data.'
-                : 'Choose how to import your data.'}
+                ? 'Something went wrong reading your file.'
+                : 'Choose how to bring in your data.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -244,21 +244,21 @@ export function ImportExportMenu() {
           ) : importPreview ? (
             <div className="space-y-4">
               <div className="rounded-md bg-muted p-4">
-                <h4 className="mb-2 font-semibold">Import Preview</h4>
+                <h4 className="mb-2 font-semibold">What&apos;s inside</h4>
                 <ul className="space-y-1 text-sm">
-                  <li>{importPreview.projects} project(s)</li>
-                  <li>{importPreview.tasks} task(s)</li>
-                  <li>{importPreview.sections} section(s)</li>
-                  <li>{importPreview.dependencies} dependenc(ies)</li>
+                  <li>{importPreview.projects} project{importPreview.projects !== 1 ? 's' : ''}</li>
+                  <li>{importPreview.tasks} task{importPreview.tasks !== 1 ? 's' : ''}</li>
+                  <li>{importPreview.sections} section{importPreview.sections !== 1 ? 's' : ''}</li>
+                  <li>{importPreview.dependencies} dependenc{importPreview.dependencies !== 1 ? 'ies' : 'y'}</li>
                 </ul>
               </div>
 
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">
-                  <strong>Replace:</strong> Delete all existing data and import new data.
+                  <strong>Replace:</strong> Remove all current data and load the import.
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  <strong>Merge:</strong> Keep existing data and add imported data.
+                  <strong>Merge:</strong> Keep your data and add new items from the import.
                 </p>
               </div>
             </div>

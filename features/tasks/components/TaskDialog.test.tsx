@@ -12,8 +12,8 @@ describe('TaskDialog', () => {
       <TaskDialog open={true} onOpenChange={onOpenChange} onSubmit={onSubmit} />
     );
 
-    expect(screen.getByText('Create New Task')).toBeInTheDocument();
-    expect(screen.getByText('Create Task')).toBeInTheDocument();
+    expect(screen.getByText('New task')).toBeInTheDocument();
+    expect(screen.getByText('Create task')).toBeInTheDocument();
   });
 
   it('should render edit mode when task provided', () => {
@@ -42,8 +42,8 @@ describe('TaskDialog', () => {
       <TaskDialog open={true} onOpenChange={onOpenChange} onSubmit={onSubmit} task={task} />
     );
 
-    expect(screen.getByText('Edit Task')).toBeInTheDocument();
-    expect(screen.getByText('Save Changes')).toBeInTheDocument();
+    expect(screen.getByText('Edit task')).toBeInTheDocument();
+    expect(screen.getByText('Save changes')).toBeInTheDocument();
     expect(screen.getByDisplayValue('Test Task')).toBeInTheDocument();
   });
 
@@ -55,7 +55,7 @@ describe('TaskDialog', () => {
       <TaskDialog open={true} onOpenChange={onOpenChange} onSubmit={onSubmit} />
     );
 
-    const submitButton = screen.getByText('Create Task');
+    const submitButton = screen.getByText('Create task');
     fireEvent.click(submitButton);
 
     await waitFor(() => {
@@ -79,7 +79,7 @@ describe('TaskDialog', () => {
     fireEvent.change(descriptionInput, { target: { value: 'New Task' } });
     fireEvent.change(assigneeInput, { target: { value: 'John' } });
 
-    const submitButton = screen.getByText('Create Task');
+    const submitButton = screen.getByText('Create task');
     fireEvent.click(submitButton);
 
     await waitFor(() => {
@@ -169,16 +169,16 @@ describe('TaskDialog', () => {
 
     expect(screen.getByText('Create New Subtask')).toBeInTheDocument();
     expect(screen.getByText('Create a new subtask for My Parent Task.')).toBeInTheDocument();
-    // Submit button still says "Create Task"
-    expect(screen.getByText('Create Task')).toBeInTheDocument();
+    // Submit button still says "Create task"
+    expect(screen.getByText('Create task')).toBeInTheDocument();
   });
 
   it('should show generic title when no task and no parentTask', () => {
     render(
       <TaskDialog open={true} onOpenChange={vi.fn()} onSubmit={vi.fn()} />
     );
-    expect(screen.getByText('Create New Task')).toBeInTheDocument();
-    expect(screen.getByText('Create a new task for your project.')).toBeInTheDocument();
+    expect(screen.getByText('New task')).toBeInTheDocument();
+    expect(screen.getByText('Add a task to your project.')).toBeInTheDocument();
   });
 
   it('should start with empty fields when creating subtask', () => {
@@ -220,7 +220,7 @@ describe('TaskDialog', () => {
     expect(screen.getByLabelText(/priority/i)).toHaveValue(Priority.NONE);
     expect(screen.queryByText('urgent')).not.toBeInTheDocument();
     expect(screen.queryByText('backend')).not.toBeInTheDocument();
-    expect(screen.queryByText(/pick a date/i)).toBeInTheDocument(); // Due date not set
+    expect(screen.queryByText(/set a due date/i)).toBeInTheDocument(); // Due date not set
   });
 
   it('should allow setting all fields when creating subtask', async () => {
@@ -263,7 +263,7 @@ describe('TaskDialog', () => {
     fireEvent.change(assigneeInput, { target: { value: 'John Smith' } });
     fireEvent.change(prioritySelect, { target: { value: Priority.MEDIUM } });
 
-    const submitButton = screen.getByText('Create Task');
+    const submitButton = screen.getByText('Create task');
     fireEvent.click(submitButton);
 
     await waitFor(() => {

@@ -57,7 +57,7 @@ class TMSErrorBoundary extends React.Component<
           </div>
           <p className="text-sm font-medium text-foreground">Something went wrong</p>
           <p className="text-xs text-muted-foreground max-w-[240px]">
-            This system encountered an error. Switch to another system or reload the page.
+            This system hit an error. Switch to another system or reload the page.
           </p>
           <button
             className="text-xs text-primary underline mt-1"
@@ -89,7 +89,7 @@ export function TMSHost({ tasks, onTaskClick, onTaskComplete }: TMSHostProps) {
     const today = new Date().toISOString().slice(0, 10);
     if (lastRolloverToastDateRef.current === today) return;
     lastRolloverToastDateRef.current = today;
-    sonnerToast.info("Good morning! Yesterday's Tomorrow is now Today.");
+    sonnerToast.info("Good morning! Yesterday's Tomorrow list is now Today.");
   }, []);
 
   // Resolve the active handler and system state via hook

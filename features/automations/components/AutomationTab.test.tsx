@@ -166,8 +166,8 @@ describe('AutomationTab', () => {
       render(<AutomationTab projectId="project-1" sections={mockSections} />);
 
       expect(screen.getByText('Automate repetitive work')).toBeInTheDocument();
-      expect(screen.getByText(/Create rules to move cards, set dates/)).toBeInTheDocument();
-      expect(screen.getByText('+ Create your first rule')).toBeInTheDocument();
+      expect(screen.getByText(/Set up rules to move tasks, update dates/)).toBeInTheDocument();
+      expect(screen.getByText('Create your first rule')).toBeInTheDocument();
     });
 
     it('opens RuleDialog when CTA button is clicked', async () => {
@@ -179,7 +179,7 @@ describe('AutomationTab', () => {
 
       render(<AutomationTab projectId="project-1" sections={mockSections} />);
 
-      const ctaButton = screen.getByText('+ Create your first rule');
+      const ctaButton = screen.getByText('Create your first rule');
       await user.click(ctaButton);
 
       // Dialog should open (check for dialog title)
@@ -336,7 +336,7 @@ describe('AutomationTab', () => {
       // Confirmation dialog should appear
       await waitFor(() => {
         expect(screen.getByText('Delete this automation?')).toBeInTheDocument();
-        expect(screen.getByText('This cannot be undone.')).toBeInTheDocument();
+        expect(screen.getByText("This can't be undone.")).toBeInTheDocument();
       });
     });
 

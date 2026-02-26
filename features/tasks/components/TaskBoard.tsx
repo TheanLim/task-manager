@@ -527,7 +527,7 @@ export function TaskBoard({ tasks, sections, onTaskClick, onTaskComplete, onTask
                     <div className="overflow-y-auto flex-1 space-y-2 min-h-0 scrollbar-none" role="region" aria-label={`${section.name} tasks`} tabIndex={0}>
                       {sectionTasks.length === 0 ? (
                         <div className="flex-1 flex items-center justify-center border-2 border-dashed border-muted-foreground/20 rounded-lg text-muted-foreground text-sm min-h-[120px]">
-                          Drop tasks here
+                          Drop tasks here to move them
                         </div>
                       ) : (
                         <SortableContext items={sectionTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>

@@ -68,7 +68,7 @@ describe('SharedStateDialog', () => {
         sharedState: makeSharedState({ automationRules: [{ id: 'r1' }, { id: 'r2' }, { id: 'r3' }] } as any),
       });
 
-      expect(screen.getByText('3 automation rule(s)')).toBeInTheDocument();
+      expect(screen.getByText('3 automation rules')).toBeInTheDocument();
     });
 
     it('does not render automation rule count when automationRules is absent', () => {
@@ -191,8 +191,8 @@ describe('SharedStateDialog', () => {
     it('shows shared data counts', () => {
       renderDialog();
 
-      expect(screen.getByText('1 project(s)')).toBeInTheDocument();
-      expect(screen.getByText('1 task(s)')).toBeInTheDocument();
+      expect(screen.getByText('1 project')).toBeInTheDocument();
+      expect(screen.getByText('1 task')).toBeInTheDocument();
     });
   });
 });

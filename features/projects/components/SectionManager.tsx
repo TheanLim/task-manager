@@ -45,7 +45,7 @@ export function SectionManager({ projectId }: SectionManagerProps) {
   };
 
   const handleDelete = (sectionId: UUID) => {
-    if (confirm('Are you sure you want to delete this section? Tasks in this section will be moved to the default section.')) {
+    if (confirm('Delete this section? Tasks in it will move to the default section.')) {
       deleteSection(sectionId);
     }
   };

@@ -30,7 +30,7 @@ export function DependencyList({
         <div className="flex items-center gap-2 p-3 bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-lg">
           <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
           <span className="text-sm text-yellow-800 dark:text-yellow-200">
-            This task is blocked by incomplete tasks
+            Waiting on incomplete tasks before this can start
           </span>
         </div>
       )}
@@ -107,7 +107,7 @@ export function DependencyList({
 
       {!hasBlockingTasks && !hasBlockedTasks && (
         <div className="text-sm text-muted-foreground text-center py-4">
-          No dependencies
+          No dependencies yet
         </div>
       )}
     </div>

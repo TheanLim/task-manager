@@ -74,12 +74,12 @@ export function ProjectDialog({
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>
-              {project ? 'Edit Project' : 'Create New Project'}
+              {project ? 'Edit project' : 'New project'}
             </DialogTitle>
             <DialogDescription>
               {project
                 ? 'Update your project details.'
-                : 'Create a new project to organize your tasks.'}
+                : 'Set up a project to organize your tasks.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -92,7 +92,7 @@ export function ProjectDialog({
                 id="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="My Project"
+                placeholder="e.g. Website Redesign"
                 maxLength={200}
                 autoFocus
               />
@@ -107,7 +107,7 @@ export function ProjectDialog({
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Project description (optional)"
+                placeholder="What's this project about? (optional)"
               />
             </div>
 
@@ -137,7 +137,7 @@ export function ProjectDialog({
               Cancel
             </Button>
             <Button type="submit">
-              {project ? 'Save Changes' : 'Create Project'}
+              {project ? 'Save changes' : 'Create project'}
             </Button>
           </DialogFooter>
         </form>

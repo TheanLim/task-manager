@@ -16,7 +16,7 @@ export function LandingEmptyState({ onNewProject, onImport }: LandingEmptyStateP
       </div>
       <h2 className="text-xl font-semibold mb-2">Welcome to Tasks</h2>
       <p className="text-muted-foreground mb-6 max-w-sm">
-        Create a project to organize your tasks, or import existing data
+        Start a project to organize your work, or import data you already have.
       </p>
       <div className="flex items-center gap-3">
         <Button
@@ -30,7 +30,7 @@ export function LandingEmptyState({ onNewProject, onImport }: LandingEmptyStateP
         </Button>
       </div>
       <p className="text-xs text-muted-foreground mt-4">
-        Press <kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-[10px]">?</kbd> for keyboard shortcuts
+        <kbd className="px-1.5 py-0.5 rounded border bg-muted font-mono text-[10px]">?</kbd> for keyboard shortcuts
       </p>
     </div>
   );

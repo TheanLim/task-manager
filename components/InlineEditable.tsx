@@ -18,7 +18,7 @@ export function InlineEditable({
   value,
   onSave,
   validate,
-  placeholder = 'Click to edit',
+  placeholder = 'Edit…',
   className = '',
   displayClassName = '',
   inputClassName = '',
@@ -136,7 +136,7 @@ export function InlineEditable({
         ${displayClassName}
         ${className}
       `}
-      title="Click to edit"
+      title="Edit"
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {

@@ -9,7 +9,7 @@ describe('SearchInput', () => {
 
   it('renders the search input with placeholder', () => {
     render(<SearchInput />);
-    expect(screen.getByPlaceholderText('Search tasks… (upcoming)')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Search tasks…')).toBeInTheDocument();
   });
 
   it('renders the ⌘K keyboard shortcut badge', () => {
@@ -26,14 +26,14 @@ describe('SearchInput', () => {
     const onSearch = vi.fn();
     render(<SearchInput onSearch={onSearch} />);
 
-    const input = screen.getByPlaceholderText('Search tasks… (upcoming)');
+    const input = screen.getByPlaceholderText('Search tasks…');
     fireEvent.change(input, { target: { value: 'hello' } });
     expect(onSearch).toHaveBeenCalledWith('hello');
   });
 
   it('focuses input on Cmd+K', () => {
     render(<SearchInput />);
-    const input = screen.getByPlaceholderText('Search tasks… (upcoming)');
+    const input = screen.getByPlaceholderText('Search tasks…');
 
     fireEvent.keyDown(document, { key: 'k', metaKey: true });
     expect(document.activeElement).toBe(input);
@@ -41,7 +41,7 @@ describe('SearchInput', () => {
 
   it('focuses input on Ctrl+K', () => {
     render(<SearchInput />);
-    const input = screen.getByPlaceholderText('Search tasks… (upcoming)');
+    const input = screen.getByPlaceholderText('Search tasks…');
 
     fireEvent.keyDown(document, { key: 'k', ctrlKey: true });
     expect(document.activeElement).toBe(input);
@@ -49,7 +49,7 @@ describe('SearchInput', () => {
 
   it('does not focus on plain K keypress', () => {
     render(<SearchInput />);
-    const input = screen.getByPlaceholderText('Search tasks… (upcoming)');
+    const input = screen.getByPlaceholderText('Search tasks…');
 
     fireEvent.keyDown(document, { key: 'k' });
     expect(document.activeElement).not.toBe(input);
@@ -57,7 +57,7 @@ describe('SearchInput', () => {
 
   it('works without onSearch callback', () => {
     render(<SearchInput />);
-    const input = screen.getByPlaceholderText('Search tasks… (upcoming)');
+    const input = screen.getByPlaceholderText('Search tasks…');
     // Should not throw
     fireEvent.change(input, { target: { value: 'test' } });
   });

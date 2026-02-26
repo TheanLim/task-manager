@@ -152,8 +152,8 @@ export function AutomationTab({ projectId, sections, onShowToast }: AutomationTa
         <EmptyState
           icon={Zap}
           title="Automate repetitive work"
-          description="Create rules to move cards, set dates, and more when things change in your project."
-          actionLabel="+ Create your first rule"
+          description="Set up rules to move tasks, update dates, and more when things change."
+          actionLabel="Create your first rule"
           onAction={handleCreateNew}
         />
         <RuleDialog open={isDialogOpen} onOpenChange={handleDialogClose} projectId={projectId} sections={sections} editingRule={editingRule} />
@@ -255,7 +255,7 @@ export function AutomationTab({ projectId, sections, onShowToast }: AutomationTa
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this automation?</AlertDialogTitle>
-            <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+            <AlertDialogDescription>This can&apos;t be undone.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={handleDeleteCancel}>Cancel</AlertDialogCancel>

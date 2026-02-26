@@ -9,7 +9,7 @@ describe('LandingEmptyState', () => {
 
     expect(screen.getByText('Welcome to Tasks')).toBeInTheDocument();
     expect(
-      screen.getByText('Create a project to organize your tasks, or import existing data')
+      screen.getByText('Start a project to organize your work, or import data you already have.')
     ).toBeInTheDocument();
     expect(screen.getByText('?')).toBeInTheDocument();
     expect(screen.getByText(/keyboard shortcuts/i)).toBeInTheDocument();

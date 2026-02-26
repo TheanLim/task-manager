@@ -109,7 +109,7 @@ export function ProjectOverview({
         <CardHeader>
           <CardTitle className="text-destructive">Danger Zone</CardTitle>
           <CardDescription>
-            Irreversible actions that will permanently affect this project
+            Actions here are permanent and can&apos;t be reversed.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -117,7 +117,7 @@ export function ProjectOverview({
             variant="destructive"
             onClick={() => setDeleteDialogOpen(true)}
           >
-            Delete Project
+            Delete project
           </Button>
         </CardContent>
       </Card>
@@ -126,16 +126,15 @@ export function ProjectOverview({
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogTitle>Delete this project?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the project
-              &quot;{project.name}&quot; and all {tasks.length} associated task{tasks.length !== 1 ? 's' : ''}.
+              &quot;{project.name}&quot; and all {tasks.length} task{tasks.length !== 1 ? 's' : ''} will be permanently deleted. This can&apos;t be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Delete Project
+              Delete project
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

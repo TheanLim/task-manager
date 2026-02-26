@@ -28,7 +28,7 @@ export function SearchInput({ onSearch }: SearchInputProps) {
       <input
         ref={inputRef}
         type="search"
-        placeholder="Search tasks… (upcoming)"
+        placeholder="Search tasks…"
         aria-label="Search tasks"
         className="h-8 w-48 rounded-md border border-transparent bg-muted/50 pl-8 pr-12 text-sm placeholder:text-muted-foreground focus:border-border focus:bg-background focus:outline-none focus:ring-1 focus:ring-ring transition-colors"
         onChange={(e) => onSearch?.(e.target.value)}

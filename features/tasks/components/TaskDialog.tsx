@@ -122,14 +122,14 @@ export function TaskDialog({ open, onOpenChange, onSubmit, task, parentTask }: T
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>
-              {task ? 'Edit Task' : parentTask ? 'Create New Subtask' : 'Create New Task'}
+              {task ? 'Edit task' : parentTask ? 'Create New Subtask' : 'New task'}
             </DialogTitle>
             <DialogDescription>
               {task
-                ? 'Update your task details.'
+                ? 'Update the details for this task.'
                 : parentTask
                   ? `Create a new subtask for ${parentTask.description}.`
-                  : 'Create a new task for your project.'}
+                  : 'Add a task to your project.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -143,7 +143,7 @@ export function TaskDialog({ open, onOpenChange, onSubmit, task, parentTask }: T
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Task description"
+                placeholder="What needs to be done?"
                 maxLength={500}
                 autoFocus
               />
@@ -198,7 +198,7 @@ export function TaskDialog({ open, onOpenChange, onSubmit, task, parentTask }: T
                   onClick={() => setShowCalendar(!showCalendar)}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {dueDate ? format(dueDate, 'PPP') : 'Pick a date'}
+                  {dueDate ? format(dueDate, 'PPP') : 'Set a due date'}
                 </Button>
                 {dueDate && (
                   <Button
@@ -265,7 +265,7 @@ export function TaskDialog({ open, onOpenChange, onSubmit, task, parentTask }: T
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit">{task ? 'Save Changes' : 'Create Task'}</Button>
+            <Button type="submit">{task ? 'Save changes' : 'Create task'}</Button>
           </DialogFooter>
         </form>
       </DialogContent>

@@ -747,18 +747,18 @@ function HomeContent() {
           table?.focus();
         }}>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Task</AlertDialogTitle>
+            <AlertDialogTitle>Delete task</AlertDialogTitle>
             <AlertDialogDescription>
               {deleteConfirmTaskId && (() => {
                 const taskToDelete = tasks.find(t => t.id === deleteConfirmTaskId);
                 const subtaskCount = taskToDelete ? getSubtasks(deleteConfirmTaskId).length : 0;
                 return (
                   <>
-                    Are you sure you want to delete &ldquo;{taskToDelete?.description}&rdquo;?
+                    &ldquo;{taskToDelete?.description}&rdquo; will be permanently deleted.
                     {subtaskCount > 0 && (
-                      <> This will also delete {subtaskCount} subtask{subtaskCount !== 1 ? 's' : ''}.</>
+                      <> Its {subtaskCount} subtask{subtaskCount !== 1 ? 's' : ''} will also be removed.</>
                     )}
-                    {' '}This action cannot be undone.
+                    {' '}This can&rsquo;t be undone.
                   </>
                 );
               })()}
@@ -785,7 +785,7 @@ function HomeContent() {
 
 export default function Home() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<div>Loading…</div>}>
       <HomeContent />
     </Suspense>
   );

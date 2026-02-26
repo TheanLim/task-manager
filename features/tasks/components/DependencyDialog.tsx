@@ -70,7 +70,7 @@ export function DependencyDialog({
 
   const handleSubmit = () => {
     if (!selectedTaskId) {
-      setError('Please select a task');
+      setError('Select a task first');
       return;
     }
 
@@ -92,7 +92,7 @@ export function DependencyDialog({
     ];
 
     if (resolver.hasCircularDependency(blockingTaskId, blockedTaskId, tempDependencies)) {
-      setError('This dependency would create a circular dependency chain');
+      setError('Adding this would create a circular dependency');
       return;
     }
 
@@ -122,15 +122,15 @@ export function DependencyDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add Dependency</DialogTitle>
+          <DialogTitle>Add dependency</DialogTitle>
           <DialogDescription>
-            Create a dependency relationship between tasks
+            Link tasks so one blocks or is blocked by another.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>Dependency Type</Label>
+            <Label>Relationship</Label>
             <Select
               value={dependencyType}
               onValueChange={(value) => setDependencyType(value as 'blocks' | 'blocked-by')}
@@ -140,19 +140,19 @@ export function DependencyDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="blocks">
-                  This task blocks another task
+                  This task blocks another
                 </SelectItem>
                 <SelectItem value="blocked-by">
-                  This task is blocked by another task
+                  This task is blocked by another
                 </SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           <div className="space-y-2">
-            <Label>Search Tasks</Label>
+            <Label>Find a task</Label>
             <Input
-              placeholder="Search for a task..."
+              placeholder="Search by name…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -173,7 +173,7 @@ export function DependencyDialog({
               <SelectContent>
                 {availableTasks.length === 0 ? (
                   <div className="p-2 text-sm text-muted-foreground">
-                    No tasks available
+                    No matching tasks
                   </div>
                 ) : (
                   availableTasks.map((t) => (
@@ -195,7 +195,7 @@ export function DependencyDialog({
           <Button variant="outline" onClick={handleCancel}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit}>Add Dependency</Button>
+          <Button onClick={handleSubmit}>Add dependency</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

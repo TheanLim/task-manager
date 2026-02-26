@@ -126,7 +126,7 @@ describe('TaskBoard', () => {
       />
     );
 
-    expect(screen.getByText('Drop tasks here')).toBeInTheDocument();
+    expect(screen.getByText('Drop tasks here to move them')).toBeInTheDocument();
   });
 
   it('should render drag handles for all tasks', () => {

@@ -69,11 +69,11 @@ export function SharedStateDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Load Shared Data</DialogTitle>
+          <DialogTitle>Load shared data</DialogTitle>
           <DialogDescription>
             {hasCurrentData
-              ? 'You have existing data. How would you like to load the shared data?'
-              : 'Load the shared data into your workspace?'}
+              ? 'You already have data. How should the shared data be loaded?'
+              : 'Load this shared data into your workspace?'}
           </DialogDescription>
         </DialogHeader>
 
@@ -81,26 +81,26 @@ export function SharedStateDialog({
           {/* Current Data */}
           {hasCurrentData && (
             <div className="rounded-md bg-muted p-4">
-              <h4 className="mb-2 font-semibold text-sm">Your Current Data</h4>
+              <h4 className="mb-2 font-semibold text-sm">Your current data</h4>
               <ul className="space-y-1 text-sm">
-                <li>{currentState.projects} project(s)</li>
-                <li>{currentState.tasks} task(s)</li>
-                <li>{currentState.sections} section(s)</li>
-                <li>{currentState.dependencies} dependenc(ies)</li>
+                <li>{currentState.projects} project{currentState.projects !== 1 ? 's' : ''}</li>
+                <li>{currentState.tasks} task{currentState.tasks !== 1 ? 's' : ''}</li>
+                <li>{currentState.sections} section{currentState.sections !== 1 ? 's' : ''}</li>
+                <li>{currentState.dependencies} dependenc{currentState.dependencies !== 1 ? 'ies' : 'y'}</li>
               </ul>
             </div>
           )}
 
           {/* Shared Data */}
           <div className="rounded-md bg-primary/10 p-4">
-            <h4 className="mb-2 font-semibold text-sm">Shared Data</h4>
+            <h4 className="mb-2 font-semibold text-sm">Shared data</h4>
             <ul className="space-y-1 text-sm">
-              <li>{sharedDataCount.projects} project(s)</li>
-              <li>{sharedDataCount.tasks} task(s)</li>
-              <li>{sharedDataCount.sections} section(s)</li>
-              <li>{sharedDataCount.dependencies} dependenc(ies)</li>
+              <li>{sharedDataCount.projects} project{sharedDataCount.projects !== 1 ? 's' : ''}</li>
+              <li>{sharedDataCount.tasks} task{sharedDataCount.tasks !== 1 ? 's' : ''}</li>
+              <li>{sharedDataCount.sections} section{sharedDataCount.sections !== 1 ? 's' : ''}</li>
+              <li>{sharedDataCount.dependencies} dependenc{sharedDataCount.dependencies !== 1 ? 'ies' : 'y'}</li>
               {automationRuleCount > 0 && (
-                <li>{automationRuleCount} automation rule(s)</li>
+                <li>{automationRuleCount} automation rule{automationRuleCount !== 1 ? 's' : ''}</li>
               )}
             </ul>
           </div>
@@ -126,13 +126,13 @@ export function SharedStateDialog({
           {hasCurrentData && (
             <div className="space-y-2 text-sm text-muted-foreground">
               <p>
-                <strong>Replace:</strong> Delete all your current data and load the shared data.
+                <strong>Replace:</strong> Remove all current data and load the shared data.
               </p>
               <p>
-                <strong>Merge:</strong> Keep your current data and add the shared data.
+                <strong>Merge:</strong> Keep your data and add new items from the share.
               </p>
               <p>
-                <strong>Cancel:</strong> Don&apos;t load the shared data.
+                <strong>Cancel:</strong> Don&apos;t load anything.
               </p>
             </div>
           )}
