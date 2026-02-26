@@ -2,6 +2,20 @@ import '@testing-library/jest-dom'
 import { cleanup } from '@testing-library/react'
 import { afterEach, beforeEach } from 'vitest'
 
+// Polyfill PointerEvent for jsdom — motion-dom's press gesture fires
+// PointerEvents that jsdom doesn't support natively.
+if (typeof globalThis.PointerEvent === 'undefined') {
+  (globalThis as any).PointerEvent = class PointerEvent extends MouseEvent {
+    readonly pointerId: number;
+    readonly pointerType: string;
+    constructor(type: string, params: PointerEventInit = {}) {
+      super(type, params);
+      this.pointerId = params.pointerId ?? 0;
+      this.pointerType = params.pointerType ?? '';
+    }
+  };
+}
+
 // Suppress React 18 act() warnings in tests
 // These warnings are expected when testing async state updates
 const originalError = console.error

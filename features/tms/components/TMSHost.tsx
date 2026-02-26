@@ -6,6 +6,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { toast as sonnerToast } from 'sonner';
 import { Task } from '@/types';
 import { useTMSStore } from '../stores/tmsStore';
@@ -72,15 +73,21 @@ class TMSErrorBoundary extends React.Component<
   }
 }
 
+// ── View transition variants ──────────────────────────────────────────────────
+
+const viewVariants = {
+  enter: { opacity: 0, y: 8 },
+  center: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -6 },
+};
+
 // ── TMSHost ───────────────────────────────────────────────────────────────────
 
 export function TMSHost({ tasks, onTaskClick, onTaskComplete }: TMSHostProps) {
   const { state, applySystemStateDelta, setActiveSystem, setSystemState } = useTMSStore();
   const hydrated = useTMSStoreHydrated();
   const [resumedSystemId, setResumedSystemId] = useState<string | null>(null);
-  const [transitioning, setTransitioning] = useState(false);
   const resumedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastRolloverToastDateRef = useRef<string | null>(null);
 
   // Show DIT day rollover toast — once per calendar day
@@ -111,12 +118,6 @@ export function TMSHost({ tasks, onTaskClick, onTaskComplete }: TMSHostProps) {
     (newSystemId: string) => {
       if (newSystemId === activeSystemId) return;
 
-      // Start transition animation
-      setTransitioning(true);
-      if (transitionTimerRef.current) {
-        clearTimeout(transitionTimerRef.current);
-      }
-
       // 1. Deactivate current system — persist clean state
       const deactivateDelta = handler.onDeactivate(systemState);
       applySystemStateDelta(handler.id, deactivateDelta as Record<string, unknown>);
@@ -130,9 +131,6 @@ export function TMSHost({ tasks, onTaskClick, onTaskComplete }: TMSHostProps) {
       const newRaw = existingState ?? newHandler.getInitialState();
       const newSystemState = newHandler.validateState(newRaw);
       const activateDelta = newHandler.onActivate(tasks, newSystemState);
-      // Merge the activate delta with the full validated state and persist.
-      // Using setSystemState (not applySystemStateDelta) ensures the store has
-      // a complete state object that passes handler.validateState() on re-read.
       const mergedState = { ...(newSystemState as Record<string, unknown>), ...(activateDelta as Record<string, unknown>) };
       setSystemState(newSystemId, mergedState);
 
@@ -143,7 +141,6 @@ export function TMSHost({ tasks, onTaskClick, onTaskComplete }: TMSHostProps) {
 
       // 5. Set resumedSystemId if the new system already had state
       if (existingState !== undefined) {
-        // Clear any existing timer
         if (resumedTimerRef.current) {
           clearTimeout(resumedTimerRef.current);
         }
@@ -154,11 +151,6 @@ export function TMSHost({ tasks, onTaskClick, onTaskComplete }: TMSHostProps) {
       } else {
         setResumedSystemId(null);
       }
-
-      // End transition animation after 150ms
-      transitionTimerRef.current = setTimeout(() => {
-        setTransitioning(false);
-      }, 150);
     },
     [handler, systemState, state.activeSystem, activeSystemId, state.systemStates, applySystemStateDelta, setActiveSystem, setSystemState, tasks, showRolloverToastIfNeeded],
   );
@@ -168,9 +160,6 @@ export function TMSHost({ tasks, onTaskClick, onTaskComplete }: TMSHostProps) {
     return () => {
       if (resumedTimerRef.current) {
         clearTimeout(resumedTimerRef.current);
-      }
-      if (transitionTimerRef.current) {
-        clearTimeout(transitionTimerRef.current);
       }
     };
   }, []);
@@ -183,7 +172,6 @@ export function TMSHost({ tasks, onTaskClick, onTaskComplete }: TMSHostProps) {
     if (activeSystemId === 'dit') {
       const activateDelta = handler.onActivate(tasks, systemState);
       const deltaRecord = activateDelta as Record<string, unknown>;
-      // Always persist the full merged state so validateState succeeds on re-read
       const mergedState = { ...(systemState as Record<string, unknown>), ...deltaRecord };
       setSystemState(handler.id, mergedState);
       showRolloverToastIfNeeded(deltaRecord);
@@ -208,29 +196,55 @@ export function TMSHost({ tasks, onTaskClick, onTaskComplete }: TMSHostProps) {
               resumedSystemId={resumedSystemId ?? undefined}
             />
           </div>
-          {!guideVisible && (
-            <div className="pt-2">
-              <TMSGuideHelpButton onClick={reopenGuide} />
-            </div>
-          )}
+          <AnimatePresence>
+            {!guideVisible && (
+              <motion.div
+                className="pt-2"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.15 }}
+              >
+                <TMSGuideHelpButton onClick={reopenGuide} />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
-        {guideVisible && (
-          <TMSGuide systemId={activeSystemId} onDismiss={dismissGuide} />
-        )}
+        <AnimatePresence mode="wait">
+          {guideVisible && (
+            <motion.div
+              key="guide"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              style={{ overflow: 'hidden' }}
+            >
+              <TMSGuide systemId={activeSystemId} onDismiss={dismissGuide} />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
       <div className="flex-1 overflow-y-auto">
         <TMSErrorBoundary systemId={activeSystemId}>
-          <div className={`motion-safe:transition-[opacity,transform] motion-safe:duration-200 motion-safe:ease-out ${
-            transitioning ? 'opacity-0 translate-y-1.5' : 'opacity-100 translate-y-0'
-          }`}>
-            <ViewComponent
-              tasks={tasks}
-              systemState={systemState}
-              dispatch={dispatch}
-              onTaskClick={onTaskClick}
-              onTaskComplete={onTaskComplete}
-            />
-          </div>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeSystemId}
+              variants={viewVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+            >
+              <ViewComponent
+                tasks={tasks}
+                systemState={systemState}
+                dispatch={dispatch}
+                onTaskClick={onTaskClick}
+                onTaskComplete={onTaskComplete}
+              />
+            </motion.div>
+          </AnimatePresence>
         </TMSErrorBoundary>
       </div>
     </div>

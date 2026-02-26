@@ -3,28 +3,32 @@
 /**
  * StandardView — Review Queue view for the Standard TMS system.
  *
- * Wraps GlobalTasksView with Review Queue semantics:
- * - Tasks sorted by lastActionAt ascending (oldest first)
- * - First task gets "Needs Attention" treatment with Reinsert button
- * - Local toggles for flat/nested view and hide-completed
- *
- * Ref: UI-UX-DESIGN.md §4, §12 "StandardView"
- * Requirements: 5.1, 5.5
+ * Reuses TaskList for the enriched table (inline editing, columns, keyboard nav).
+ * Tasks sorted by lastActionAt ascending (oldest first).
+ * First task gets "Needs Attention" treatment via tmsTaskProps.
  */
 
 import { useMemo, useState } from 'react';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, RotateCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { TaskCard } from './shared/TaskCard';
-import { TaskListView } from './shared/TaskListView';
+import { TaskList } from '@/features/tasks/components/TaskList';
 import { TMSEmptyState } from './shared/TMSEmptyState';
 import type { TMSViewProps } from '../handlers';
+import type { Section, Task } from '@/types';
 
-// StandardState is {} — no handler state needed
 type StandardState = Record<string, never>;
-
 type StandardAction = { type: 'REINSERT_TASK'; taskId: string };
+
+const VIRTUAL_SECTION: Section = {
+  id: '__std_all__',
+  projectId: null,
+  name: 'All Tasks',
+  order: 0,
+  collapsed: false,
+  createdAt: '2000-01-01T00:00:00.000Z',
+  updatedAt: '2000-01-01T00:00:00.000Z',
+};
 
 export function StandardView({
   tasks,
@@ -34,17 +38,19 @@ export function StandardView({
 }: TMSViewProps<StandardState>) {
   const [showCompleted, setShowCompleted] = useState(true);
 
-  // Sort by lastActionAt ascending (null/missing treated as oldest)
   const sortedTasks = useMemo(() => {
     const filtered = showCompleted ? tasks : tasks.filter(t => !t.completed);
-    return [...filtered].sort((a, b) => {
-      const aTime = a.lastActionAt ? new Date(a.lastActionAt).getTime() : 0;
-      const bTime = b.lastActionAt ? new Date(b.lastActionAt).getTime() : 0;
-      return aTime - bTime;
-    });
+    return [...filtered]
+      .sort((a, b) => {
+        const aTime = a.lastActionAt ? new Date(a.lastActionAt).getTime() : 0;
+        const bTime = b.lastActionAt ? new Date(b.lastActionAt).getTime() : 0;
+        return aTime - bTime;
+      })
+      .map((t, i) => ({ ...t, sectionId: VIRTUAL_SECTION.id, order: i }));
   }, [tasks, showCompleted]);
 
-  // Count tasks completed today
+  const firstTaskId = sortedTasks.find(t => !t.completed)?.id ?? null;
+
   const completedTodayCount = useMemo(() => {
     const today = new Date().toDateString();
     return tasks.filter(
@@ -63,11 +69,11 @@ export function StandardView({
   }
 
   return (
-    <div className="flex flex-col h-full overflow-auto p-4">
+    <div className="flex flex-col h-full overflow-auto p-4 space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-foreground">All Tasks</h1>
+          <h1 className="text-lg font-bold text-foreground">All Tasks</h1>
           {completedTodayCount > 0 && (
             <p className="text-xs text-muted-foreground mt-0.5">
               {completedTodayCount} completed today
@@ -75,7 +81,7 @@ export function StandardView({
           )}
         </div>
         <div className="flex items-center gap-2">
-          <Badge className="bg-primary/20 text-primary border border-primary/30">
+          <Badge className="bg-accent-brand/15 text-accent-brand border border-accent-brand/25">
             Review Queue
           </Badge>
           <Button
@@ -88,51 +94,25 @@ export function StandardView({
         </div>
       </div>
 
-      {/* Task list */}
-      <TaskListView
+      {/* Reuse TaskList */}
+      <TaskList
         tasks={sortedTasks}
-        emptyState={
-          <TMSEmptyState
-            icon={<CheckCircle2 className="h-6 w-6" />}
-            title="All caught up!"
-            description="Nothing needs attention right now."
-          />
-        }
-        renderTask={(task, index) => {
-          const isFirst = index === 0;
-          return (
-            <TaskCard
-              task={task}
-              variant={isFirst ? 'attention' : 'default'}
-              showProjectName={true}
-              onClick={() => onTaskClick(task.id)}
-              onComplete={(completed) => onTaskComplete(task.id, completed)}
-              actions={
-                isFirst ? (
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[11px] font-semibold tracking-widest text-primary uppercase mt-1 block">
-                      ↑ Needs Attention
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="border-primary text-primary hover:bg-primary/10 self-start"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        (dispatch as (a: StandardAction) => void)({
-                          type: 'REINSERT_TASK',
-                          taskId: task.id,
-                        });
-                      }}
-                    >
-                      ↺ Reinsert
-                    </Button>
-                  </div>
-                ) : undefined
-              }
-            />
-          );
+        sections={[VIRTUAL_SECTION]}
+        onTaskClick={onTaskClick}
+        onTaskComplete={(taskId, completed) => onTaskComplete(taskId, completed)}
+        onAddTask={() => {}}
+        showReinsertButton
+        onReinsert={(taskId) => {
+          (dispatch as (a: StandardAction) => void)({ type: 'REINSERT_TASK', taskId });
         }}
+        tmsTaskProps={(task) => ({
+          tmsVariant: task.id === firstTaskId ? 'attention' as const : undefined,
+          leadingSlot: task.id === firstTaskId ? (
+            <span className="text-[10px] font-bold tracking-[0.08em] text-accent-brand uppercase shrink-0 hidden sm:inline">
+              Needs Attention
+            </span>
+          ) : undefined,
+        })}
       />
     </div>
   );

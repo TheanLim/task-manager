@@ -1,4 +1,7 @@
-import { useRef, useCallback } from 'react';
+'use client';
+
+import { useRef, useCallback, useEffect } from 'react';
+import { AnimatePresence, motion, useAnimate } from 'motion/react';
 import { getAllTMSHandlers } from '../registry';
 import type { TimeManagementSystemHandler } from '../handlers';
 
@@ -11,6 +14,63 @@ export interface TMSTabBarProps {
   resumedSystemId?: string;
   /** Amber dot on the DIT tab when inbox has tasks */
   inboxCount?: number;
+}
+
+// ── System icons (inline SVG-like indicators) ─────────────────────────────────
+
+const SYSTEM_ICONS: Record<string, string> = {
+  none: '◎',
+  dit:  '☀',
+  af4:  '↻',
+  fvp:  '◆',
+};
+
+// ── Stagger entrance variants ─────────────────────────────────────────────────
+
+const tabBarVariants = {
+  hidden: {},
+  visible: {
+    transition: { staggerChildren: 0.06 },
+  },
+};
+
+const tabItemVariants = {
+  hidden: { opacity: 0, y: 4 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { type: 'spring', stiffness: 400, damping: 28 } as const,
+  },
+} as const;
+
+// ── Resumed pill sub-component (auto-fades after 3s) ──────────────────────────
+
+function ResumedPill() {
+  const [scope, animate] = useAnimate();
+
+  useEffect(() => {
+    // Spring in, then fade out after 3s
+    const sequence = async () => {
+      await animate(scope.current, { opacity: 1, scale: 1 }, {
+        type: 'spring', stiffness: 500, damping: 25,
+      });
+      await animate(scope.current, { opacity: 0, scale: 0.85 }, {
+        duration: 0.4, delay: 3,
+      });
+    };
+    sequence();
+  }, [animate, scope]);
+
+  return (
+    <motion.span
+      ref={scope}
+      initial={{ opacity: 0, scale: 0.6 }}
+      exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.15 } }}
+      className="relative text-[9px] bg-white/20 text-white rounded-full px-1.5 py-0.5"
+    >
+      resumed
+    </motion.span>
+  );
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -60,18 +120,22 @@ export function TMSTabBar({
   );
 
   return (
-    <div
+    <motion.div
       role="tablist"
       aria-label="Time management systems"
-      className="flex gap-1 bg-card border border-border rounded-[14px] p-[5px] mb-6 overflow-x-auto scrollbar-none"
+      className="flex gap-1 bg-card border border-border rounded-xl p-1 mb-4 overflow-x-auto scrollbar-none"
+      variants={tabBarVariants}
+      initial="hidden"
+      animate="visible"
     >
       {handlers.map((handler: TimeManagementSystemHandler, index: number) => {
         const isActive = handler.id === activeSystemId;
         const isResumed = resumedSystemId === handler.id;
         const showInboxDot = handler.id === 'dit' && inboxCount > 0;
+        const icon = SYSTEM_ICONS[handler.id] || '•';
 
         return (
-          <button
+          <motion.button
             key={handler.id}
             ref={(el) => { tabRefs.current[index] = el; }}
             role="tab"
@@ -80,37 +144,63 @@ export function TMSTabBar({
             onClick={() => onSwitch(handler.id)}
             onKeyDown={(e) => handleKeyDown(e, index)}
             title={handler.description}
+            variants={tabItemVariants}
+            {...(!isActive && {
+              whileHover: { scale: 1.03 },
+              whileTap: { scale: 0.97 },
+            })}
+            transition={{ type: 'spring', stiffness: 400, damping: 25 }}
             className={[
-              'flex flex-col items-center px-4 py-3 min-w-fit transition-colors motion-safe:duration-150',
+              'relative flex items-center gap-2 px-4 py-2.5 min-w-fit rounded-lg cursor-pointer z-[1]',
+              'transition-colors motion-safe:duration-150',
               isActive
-                ? 'bg-primary text-white rounded-[10px] shadow-[0_2px_12px_rgba(13,148,136,0.25)]'
-                : 'bg-transparent text-muted-foreground rounded-[10px] hover:bg-muted hover:text-foreground',
+                ? 'text-white'
+                : 'text-muted-foreground hover:text-foreground',
             ].join(' ')}
           >
-            {/* Name row */}
-            <span className="flex items-center gap-1.5">
-              <span className="text-sm font-semibold">{handler.displayName}</span>
+            {/* Animated active background pill */}
+            {isActive && (
+              <motion.span
+                layoutId="tms-tab-active"
+                className="absolute inset-0 rounded-lg bg-accent-brand shadow-[0_2px_12px_hsl(var(--accent-brand)/0.25)]"
+                transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+              />
+            )}
 
-              {/* "Resumed" pill */}
-              {isResumed && (
-                <span className="text-[10px] bg-primary/20 text-primary rounded-full px-1.5 py-0.5 ml-1">
-                  resumed
-                </span>
-              )}
+            {/* Icon — springs on active */}
+            <motion.span
+              className={`relative text-sm ${isActive ? 'opacity-90' : 'opacity-50'}`}
+              aria-hidden="true"
+              animate={isActive ? { scale: [1, 1.25, 1] } : { scale: 1 }}
+              transition={isActive
+                ? { duration: 0.4, ease: 'easeInOut' }
+                : { duration: 0.15 }
+              }
+              key={`icon-${handler.id}-${isActive}`}
+            >
+              {icon}
+            </motion.span>
 
-              {/* DIT inbox amber dot */}
-              {showInboxDot && (
-                <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" aria-label="Inbox has tasks" />
-              )}
-            </span>
+            {/* Name */}
+            <span className="relative text-sm font-semibold whitespace-nowrap">{handler.displayName}</span>
+
+            {/* "Resumed" pill — auto-fades after 3s */}
+            <AnimatePresence>
+              {isResumed && <ResumedPill />}
+            </AnimatePresence>
+
+            {/* DIT inbox amber dot */}
+            {showInboxDot && (
+              <span className="relative w-2 h-2 rounded-full bg-amber-500 shrink-0" aria-label="Inbox has tasks" />
+            )}
 
             {/* Description — hidden on mobile */}
-            <span className={`text-[10px] font-normal hidden sm:block mt-0.5 leading-tight ${isActive ? 'opacity-85' : 'opacity-70'}`}>
+            <span className={`relative text-[10px] font-normal hidden lg:inline whitespace-nowrap ${isActive ? 'opacity-75' : 'opacity-50'}`}>
               {handler.description}
             </span>
-          </button>
+          </motion.button>
         );
       })}
-    </div>
+    </motion.div>
   );
 }

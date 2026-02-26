@@ -1,27 +1,33 @@
 'use client';
 
-import { Sun, CalendarDays, Inbox, Clock } from 'lucide-react';
+import { useMemo } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
+import { Sun, CalendarDays, Inbox } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { TaskCard } from './shared/TaskCard';
-import { TaskListView } from './shared/TaskListView';
-import { SectionHeader } from './shared/SectionHeader';
+import { TaskList } from '@/features/tasks/components/TaskList';
 import { TMSEmptyState } from './shared/TMSEmptyState';
 import type { TMSViewProps } from '../handlers';
 import type { DITState, DITAction } from '../handlers/DITHandler';
+import type { Section, Task } from '@/types';
 
 /**
- * DIT (Do It Tomorrow) View
+ * DIT (Do It Tomorrow) View — Reuses TaskList
  *
- * Pure presentational component — no store access.
- * Accepts TMSViewProps<DITState> and dispatches DITAction.
- *
- * Three zones stacked vertically:
- *   Today    — border-l-2 border-l-primary
- *   Tomorrow — border-l-2 border-l-slate-600
- *   Inbox    — border-l-amber-500 when non-empty, border-l-border when empty
- *
- * Ref: UI-UX-DESIGN.md §7
+ * Three virtual sections: Today, Tomorrow, Inbox.
+ * Each task gets action buttons via tmsTaskProps.actionsSlot.
+ * Zone-specific CSS via tmsTaskProps.tmsVariant is not needed here —
+ * the section headers provide the visual grouping.
  */
+
+/** Spring presets — gentle feel for DIT's calm personality */
+const SPRING_GENTLE = { type: 'spring' as const, stiffness: 350, damping: 28 };
+const SPRING_SNAPPY = { type: 'spring' as const, stiffness: 500, damping: 32 };
+
+const SECTIONS: Section[] = [
+  { id: '__dit_today__', projectId: null, name: 'Today', order: 0, collapsed: false, createdAt: '2000-01-01T00:00:00.000Z', updatedAt: '2000-01-01T00:00:00.000Z' },
+  { id: '__dit_tomorrow__', projectId: null, name: 'Tomorrow', order: 1, collapsed: false, createdAt: '2000-01-01T00:00:00.000Z', updatedAt: '2000-01-01T00:00:00.000Z' },
+  { id: '__dit_inbox__', projectId: null, name: 'Inbox', order: 2, collapsed: false, createdAt: '2000-01-01T00:00:00.000Z', updatedAt: '2000-01-01T00:00:00.000Z' },
+];
 
 export function DITView({
   tasks,
@@ -30,154 +36,131 @@ export function DITView({
   onTaskClick,
   onTaskComplete,
 }: TMSViewProps<DITState>) {
-  const todayTasks    = tasks.filter(t => systemState.todayTasks.includes(t.id));
-  const tomorrowTasks = tasks.filter(t => systemState.tomorrowTasks.includes(t.id));
-  const inboxTasks    = tasks.filter(
-    t => !systemState.todayTasks.includes(t.id) && !systemState.tomorrowTasks.includes(t.id),
-  );
+  const ditDispatch = dispatch as (a: DITAction) => void;
 
-  const hasInbox = inboxTasks.length > 0;
+  // Assign each task to a virtual section based on DIT state
+  const assignedTasks = useMemo(() => {
+    const todaySet = new Set(systemState.todayTasks);
+    const tomorrowSet = new Set(systemState.tomorrowTasks);
+
+    return tasks.map((t, i) => {
+      let sectionId: string;
+      if (todaySet.has(t.id)) sectionId = '__dit_today__';
+      else if (tomorrowSet.has(t.id)) sectionId = '__dit_tomorrow__';
+      else sectionId = '__dit_inbox__';
+      return { ...t, sectionId, order: i };
+    });
+  }, [tasks, systemState.todayTasks, systemState.tomorrowTasks]);
+
+  const allEmpty = tasks.length === 0;
+
+  if (allEmpty) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={SPRING_GENTLE}
+      >
+        <TMSEmptyState
+          icon={<Sun className="h-6 w-6" />}
+          title="No tasks yet"
+          description="Add tasks to start using Do It Tomorrow."
+        />
+      </motion.div>
+    );
+  }
 
   return (
-    <div className="space-y-4">
-      {/* ── Today Zone ──────────────────────────────────────────────────── */}
-      <section
-        aria-label="Today"
-        className="rounded-[14px] border-l-2 border-l-primary border-t border-r border-b border-border p-4"
-      >
-        <SectionHeader title="Today" count={todayTasks.length} countVariant="default" icon={<Clock className="h-4 w-4 text-teal-400" />} titleClassName="text-teal-400" />
-
-        <TaskListView
-          tasks={todayTasks}
-          emptyState={
-            <TMSEmptyState
-              icon={<Sun className="h-5 w-5" />}
-              title="Nothing scheduled for today"
-              description="Move tasks from Tomorrow or Inbox."
-            />
-          }
-          renderTask={(task) => (
-            <TaskCard
-              task={task}
-              onClick={() => onTaskClick(task.id)}
-              onComplete={(completed) => onTaskComplete(task.id, completed)}
-              actions={
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-muted-foreground text-xs"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    (dispatch as (a: DITAction) => void)({ type: 'MOVE_TO_TOMORROW', taskId: task.id });
-                  }}
-                >
-                  → Tomorrow
-                </Button>
-              }
-            />
-          )}
-        />
-      </section>
-
-      {/* ── Tomorrow Zone ───────────────────────────────────────────────── */}
-      <section
-        aria-label="Tomorrow"
-        className="rounded-[14px] border-l-2 border-l-slate-600 border-t border-r border-b border-border p-4"
-      >
-        <SectionHeader title="Tomorrow" count={tomorrowTasks.length} countVariant="slate" icon={<CalendarDays className="h-4 w-4 text-slate-500" />} />
-
-        <TaskListView
-          tasks={tomorrowTasks}
-          emptyState={
-            <TMSEmptyState
-              icon={<CalendarDays className="h-5 w-5" />}
-              title="Nothing for tomorrow yet"
-              description="New tasks you create will appear here."
-            />
-          }
-          renderTask={(task) => (
-            <TaskCard
-              task={task}
-              onClick={() => onTaskClick(task.id)}
-              onComplete={(completed) => onTaskComplete(task.id, completed)}
-              actions={
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-muted-foreground text-xs"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    (dispatch as (a: DITAction) => void)({ type: 'MOVE_TO_TODAY', taskId: task.id });
-                  }}
-                >
-                  ← Today
-                </Button>
-              }
-            />
-          )}
-        />
-      </section>
-
-      {/* ── Inbox Zone ──────────────────────────────────────────────────── */}
-      <section
-        aria-label="Inbox"
-        className={`rounded-[14px] border-l-2 p-4 ${
-          hasInbox
-            ? 'border-l-amber-500 border-t border-r border-b border-amber-500/30'
-            : 'border-l-border border-t border-r border-b border-border'
-        }`}
-      >
-        <SectionHeader
-          title="Inbox"
-          count={inboxTasks.length}
-          countVariant={hasInbox ? 'amber' : 'secondary'}
-          icon={<Inbox className="h-4 w-4 text-slate-500" />}
-          titleClassName="text-slate-500"
-        />
-
-        <TaskListView
-          tasks={inboxTasks}
-          emptyState={
-            <TMSEmptyState
-              icon={<Inbox className="h-5 w-5" />}
-              title="All tasks are scheduled"
-            />
-          }
-          renderTask={(task) => (
-            <TaskCard
-              task={task}
-              onClick={() => onTaskClick(task.id)}
-              onComplete={(completed) => onTaskComplete(task.id, completed)}
-              actions={
-                <div className="flex gap-1">
+    <motion.div
+      className="p-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.25, ease: 'easeOut' }}
+    >
+      <TaskList
+        tasks={assignedTasks}
+        sections={SECTIONS}
+        onTaskClick={onTaskClick}
+        onTaskComplete={(taskId, completed) => onTaskComplete(taskId, completed)}
+        onAddTask={() => {}}
+        onMoveToToday={(taskId) => ditDispatch({ type: 'MOVE_TO_TODAY', taskId })}
+        onMoveToTomorrow={(taskId) => ditDispatch({ type: 'MOVE_TO_TOMORROW', taskId })}
+        onMoveToInbox={(taskId) => ditDispatch({ type: 'REMOVE_FROM_SCHEDULE', taskId })}
+        tmsTaskProps={(task) => {
+          const sectionId = task.sectionId;
+          if (sectionId === '__dit_today__') {
+            return {
+              trailingSlot: (
+                <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.95, y: 1 }} transition={SPRING_SNAPPY}>
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-xs"
+                    className="h-7 px-2 text-muted-foreground text-xs hover:text-foreground"
                     onClick={(e) => {
                       e.stopPropagation();
-                      (dispatch as (a: DITAction) => void)({ type: 'MOVE_TO_TODAY', taskId: task.id });
-                    }}
-                  >
-                    → Today
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      (dispatch as (a: DITAction) => void)({ type: 'MOVE_TO_TOMORROW', taskId: task.id });
+                      ditDispatch({ type: 'MOVE_TO_TOMORROW', taskId: task.id });
                     }}
                   >
                     → Tomorrow
                   </Button>
-                </div>
-              }
-            />
-          )}
-        />
-      </section>
-    </div>
+                </motion.div>
+              ),
+            };
+          }
+          if (sectionId === '__dit_tomorrow__') {
+            return {
+              trailingSlot: (
+                <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.95, y: 1 }} transition={SPRING_SNAPPY}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-muted-foreground text-xs hover:text-foreground"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      ditDispatch({ type: 'MOVE_TO_TODAY', taskId: task.id });
+                    }}
+                  >
+                    ← Today
+                  </Button>
+                </motion.div>
+              ),
+            };
+          }
+          // Inbox
+          return {
+            trailingSlot: (
+              <div className="flex gap-0.5">
+                <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.95, y: 1 }} transition={SPRING_SNAPPY}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs hover:text-accent-brand"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      ditDispatch({ type: 'MOVE_TO_TODAY', taskId: task.id });
+                    }}
+                  >
+                    → Today
+                  </Button>
+                </motion.div>
+                <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.95, y: 1 }} transition={SPRING_SNAPPY}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      ditDispatch({ type: 'MOVE_TO_TOMORROW', taskId: task.id });
+                    }}
+                  >
+                    → Tomorrow
+                  </Button>
+                </motion.div>
+              </div>
+            ),
+          };
+        }}
+      />
+    </motion.div>
   );
 }
