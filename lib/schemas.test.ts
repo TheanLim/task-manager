@@ -86,7 +86,7 @@ const validAppStateArb = fc.record({
     timeManagementSystem: fc.constantFrom('none', 'dit', 'af4', 'fvp'),
     showOnlyActionableTasks: fc.boolean(),
     theme: fc.constantFrom('light', 'dark', 'system'),
-    autoHideThreshold: fc.option(fc.constantFrom('24h', '48h', '1w', 'never'), { nil: undefined }),
+    autoHideThreshold: fc.option(fc.constantFrom('24h', '48h', '1w', 'show-all', 'always'), { nil: undefined }),
   }),
   version: fc.string({ minLength: 1 }),
 });

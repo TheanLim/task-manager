@@ -46,8 +46,12 @@ describe('getThresholdMs', () => {
     expect(getThresholdMs('1w')).toBe(604_800_000);
   });
 
-  it('returns null for never', () => {
-    expect(getThresholdMs('never')).toBeNull();
+  it('returns null for show-all', () => {
+    expect(getThresholdMs('show-all')).toBeNull();
+  });
+
+  it('returns 0 for always', () => {
+    expect(getThresholdMs('always')).toBe(0);
   });
 });
 
@@ -96,18 +100,32 @@ describe('filterAutoHiddenTasks', () => {
     expect(result.autoHidden).toEqual([]);
   });
 
-  it('returns all tasks visible when threshold is never', () => {
+  it('returns all tasks visible when threshold is show-all', () => {
     const tasks = [
       makeTask('t1', { completed: true, completedAt: new Date(NOW - 999_999_999).toISOString() }),
       makeTask('t2', { completed: false }),
     ];
     const result = filterAutoHiddenTasks(tasks, tasks, {
-      threshold: 'never',
+      threshold: 'show-all',
       displayMode: 'nested',
       now: NOW,
     });
     expect(result.visible).toHaveLength(2);
     expect(result.autoHidden).toHaveLength(0);
+  });
+
+  it('hides all completed tasks when threshold is always', () => {
+    const tasks = [
+      makeTask('t1', { completed: true, completedAt: new Date(NOW - 1000).toISOString() }),
+      makeTask('t2', { completed: false }),
+    ];
+    const result = filterAutoHiddenTasks(tasks, tasks, {
+      threshold: 'always',
+      displayMode: 'nested',
+      now: NOW,
+    });
+    expect(result.autoHidden.map(t => t.id)).toEqual(['t1']);
+    expect(result.visible.map(t => t.id)).toEqual(['t2']);
   });
 
   describe('nested mode', () => {

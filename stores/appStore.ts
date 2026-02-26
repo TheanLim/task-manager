@@ -24,9 +24,8 @@ interface AppStore {
   sortColumn: SortableColumnId | null; // Currently sorted column, null = default order
   sortDirection: SortDirection; // Sort direction
   needsAttentionSort: boolean; // Whether "Needs Attention" sort is active on All Tasks page
-  hideCompletedTasks: boolean; // Whether to hide completed tasks in All Tasks Normal mode
-  autoHideThreshold: AutoHideThreshold; // Time threshold for auto-hiding completed tasks
-  showRecentlyCompleted: boolean; // Whether to show recently auto-hidden completed tasks
+  autoHideThreshold: AutoHideThreshold; // Completed task visibility policy
+  showRecentlyCompleted: boolean; // Whether to show recently completed tasks within threshold
   keyboardShortcuts: Partial<ShortcutMap>; // User overrides only (not the full map)
   
   setActiveProject: (projectId: UUID | null) => void;
@@ -40,7 +39,6 @@ interface AppStore {
   toggleSort: (column: SortableColumnId) => void;
   clearSort: () => void;
   setNeedsAttentionSort: (active: boolean) => void;
-  setHideCompletedTasks: (hide: boolean) => void;
   setAutoHideThreshold: (threshold: AutoHideThreshold) => void;
   setShowRecentlyCompleted: (show: boolean) => void;
   setKeyboardShortcut: (action: ShortcutAction, key: string) => void;
@@ -63,7 +61,6 @@ export const useAppStore = create<AppStore>()(
       sortColumn: null,
       sortDirection: 'asc' as SortDirection,
       needsAttentionSort: false,
-      hideCompletedTasks: false,
       autoHideThreshold: '24h' as AutoHideThreshold,
       showRecentlyCompleted: false,
       keyboardShortcuts: {},
@@ -117,9 +114,11 @@ export const useAppStore = create<AppStore>()(
         ...(active ? { sortColumn: null, sortDirection: 'asc' as SortDirection } : {}),
       }),
       
-      setHideCompletedTasks: (hide) => set({ hideCompletedTasks: hide }),
-      
-      setAutoHideThreshold: (threshold) => set({ autoHideThreshold: threshold }),
+      setAutoHideThreshold: (threshold) => set({
+        autoHideThreshold: threshold,
+        // Reset showRecentlyCompleted when switching to always/show-all — toggle is irrelevant
+        ...((threshold === 'always' || threshold === 'show-all') ? { showRecentlyCompleted: false } : {}),
+      }),
       
       setShowRecentlyCompleted: (show) => set({ showRecentlyCompleted: show }),
       

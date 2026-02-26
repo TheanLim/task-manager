@@ -15,7 +15,8 @@ const THRESHOLD_MS: Record<AutoHideThreshold, number | null> = {
   '24h': 86_400_000,
   '48h': 172_800_000,
   '1w': 604_800_000,
-  never: null,
+  'show-all': null,
+  'always': 0,
 };
 
 export function getThresholdMs(threshold: AutoHideThreshold): number | null {
@@ -38,9 +39,7 @@ export function filterAutoHiddenTasks(
 
   if (thresholdMs == null) {
     return { visible: [...tasks], autoHidden: [] };
-  }
-
-  const allTasksMap = new Map(allTasks.map((t) => [t.id, t]));
+  }  const allTasksMap = new Map(allTasks.map((t) => [t.id, t]));
   const visible: Task[] = [];
   const autoHidden: Task[] = [];
 

@@ -4,7 +4,7 @@ import { z } from 'zod';
 export const PrioritySchema = z.enum(['none', 'low', 'medium', 'high']);
 export const ViewModeSchema = z.enum(['list', 'board', 'calendar']);
 export const TimeManagementSystemSchema = z.enum(['none', 'dit', 'af4', 'fvp']);
-export const AutoHideThresholdSchema = z.enum(['24h', '48h', '1w', 'never']);
+export const AutoHideThresholdSchema = z.enum(['24h', '48h', '1w', 'show-all', 'always']);
 
 // Entity schemas
 export const ProjectSchema = z.object({

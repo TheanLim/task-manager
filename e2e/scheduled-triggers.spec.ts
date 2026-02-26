@@ -795,7 +795,7 @@ test.describe('Phase 5c: Power User Features', () => {
         },
         [
           JSON.stringify({ state: { projects: [{ id: 'proj-empty', name: 'Empty', description: '', viewMode: 'list', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }], tasks: [], sections: [], dependencies: [] }, version: 1 }),
-          JSON.stringify({ state: { settings: { activeProjectId: 'proj-empty', timeManagementSystem: 'none', showOnlyActionableTasks: false, theme: 'system' }, projectTabs: {}, globalTasksDisplayMode: 'nested', columnOrder: ['dueDate', 'priority', 'assignee', 'tags'], sortColumn: null, sortDirection: 'asc', needsAttentionSort: false, hideCompletedTasks: false, autoHideThreshold: '24h', showRecentlyCompleted: false, keyboardShortcuts: {} }, version: 1 }),
+          JSON.stringify({ state: { settings: { activeProjectId: 'proj-empty', timeManagementSystem: 'none', showOnlyActionableTasks: false, theme: 'system' }, projectTabs: {}, globalTasksDisplayMode: 'nested', columnOrder: ['dueDate', 'priority', 'assignee', 'tags'], sortColumn: null, sortDirection: 'asc', needsAttentionSort: false, autoHideThreshold: '24h', showRecentlyCompleted: false, keyboardShortcuts: {} }, version: 1 }),
         ] as const,
       )
       await page.reload()

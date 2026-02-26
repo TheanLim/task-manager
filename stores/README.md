@@ -28,7 +28,7 @@ Persisted UI settings. Key state:
 - `columnOrder` — drag-reorderable task table columns
 - `sortColumn` / `sortDirection` — current sort state (tri-state: asc → desc → clear)
 - `needsAttentionSort` — special sort mode for All Tasks page
-- `hideCompletedTasks` / `autoHideThreshold` / `showRecentlyCompleted` — completed task visibility
+- `autoHideThreshold` / `showRecentlyCompleted` — completed task visibility policy (`show-all`, `24h`, `48h`, `1w`, `always`)
 - `keyboardShortcuts` — user overrides only (merged with defaults at read time)
 - `projectTabs` — per-project active tab memory
 

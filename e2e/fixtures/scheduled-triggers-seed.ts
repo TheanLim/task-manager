@@ -462,7 +462,7 @@ const appStorePayload = {
     projectTabs: {}, globalTasksDisplayMode: 'nested',
     columnOrder: ['dueDate', 'priority', 'assignee', 'tags'],
     sortColumn: null, sortDirection: 'asc', needsAttentionSort: false,
-    hideCompletedTasks: false, autoHideThreshold: '24h', showRecentlyCompleted: false, keyboardShortcuts: {},
+    autoHideThreshold: '24h', showRecentlyCompleted: false, keyboardShortcuts: {},
   },
   version: 1,
 }

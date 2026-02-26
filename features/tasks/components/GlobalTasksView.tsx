@@ -49,7 +49,6 @@ export function GlobalTasksView({
   const { tasks, sections, projects } = useDataStore();
   const { globalTasksDisplayMode } = useAppStore();
   const needsAttentionSort = useAppStore((s) => s.needsAttentionSort);
-  const hideCompletedTasks = useAppStore((s) => s.hideCompletedTasks);
   const autoHideThreshold = useAppStore((s) => s.autoHideThreshold);
   const showRecentlyCompleted = useAppStore((s) => s.showRecentlyCompleted);
 
@@ -199,41 +198,37 @@ export function GlobalTasksView({
     return { displayTasks: allTasks, displaySections: allSections };
   }, [projectTasks, unlinkedTasks, unlinkedSections, virtualFromProjectsSection, globalTasksDisplayMode, projects]);
 
-  // Filter completed tasks based on mode
-  // Priority: Review Queue / Hide Completed → hide ALL completed
-  // Recently Completed → show ONLY auto-hidden tasks
-  // Normal → apply time-based auto-hide filter
   const filteredTasks = useMemo(() => {
-    if (needsAttentionSort || hideCompletedTasks) {
-      // Review Queue or Hide Completed: hide all completed (existing behavior)
+    // Review Queue or Always hide: filter out all completed tasks
+    if (needsAttentionSort || autoHideThreshold === 'always') {
       return displayTasks.filter(t => !t.completed);
     }
+    // Show recently completed: only completed tasks within the threshold window
     if (showRecentlyCompleted) {
-      // Show only completed tasks within the threshold window.
-      // When threshold is 'never' there's no auto-hide, so filter to all completed directly.
-      if (autoHideThreshold === 'never') {
+      if (autoHideThreshold === 'show-all') {
         return displayTasks.filter(t => t.completed);
       }
       const result = filterAutoHiddenTasks(displayTasks, tasks, {
         threshold: autoHideThreshold,
         displayMode: globalTasksDisplayMode,
       });
-      // Only show completed tasks still within the threshold — aged-out ones are excluded
       return result.visible.filter(t => t.completed);
     }
-    if (autoHideThreshold === 'never') {
+    // Show all: no auto-hiding
+    if (autoHideThreshold === 'show-all') {
       return displayTasks;
     }
+    // Time-based threshold: hide aged-out completed tasks
     const result = filterAutoHiddenTasks(displayTasks, tasks, {
       threshold: autoHideThreshold,
       displayMode: globalTasksDisplayMode,
     });
     return result.visible;
-  }, [displayTasks, tasks, needsAttentionSort, hideCompletedTasks,
+  }, [displayTasks, tasks, needsAttentionSort,
       autoHideThreshold, showRecentlyCompleted, globalTasksDisplayMode]);
 
   // Determine whether to hide completed subtasks in TaskRow
-  const shouldHideCompletedSubtasks = needsAttentionSort || hideCompletedTasks;
+  const shouldHideCompletedSubtasks = needsAttentionSort || autoHideThreshold === 'always';
 
   // Reinsert callback — delegates to TaskService
   const handleReinsert = useCallback((taskId: string) => {

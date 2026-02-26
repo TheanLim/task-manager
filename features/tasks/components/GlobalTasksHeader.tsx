@@ -8,12 +8,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Separator } from '@/components/ui/separator';
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { AutoHideThreshold } from '@/lib/schemas';
@@ -22,22 +19,22 @@ interface GlobalTasksHeaderProps {
   onAddTask: () => void;
 }
 
-const THRESHOLD_LABELS: Record<AutoHideThreshold, string> = {
-  '24h': '24 hours',
-  '48h': '48 hours',
-  '1w': '1 week',
-  'never': 'Never',
-};
+const THRESHOLD_OPTIONS: { value: AutoHideThreshold; label: string }[] = [
+  { value: 'show-all',  label: 'Show all' },
+  { value: '24h',       label: 'Hide after 24 hours' },
+  { value: '48h',       label: 'Hide after 48 hours' },
+  { value: '1w',        label: 'Hide after 1 week' },
+  { value: 'always',    label: 'Always hide' },
+];
 
 /**
  * Header component for Global Tasks View.
- * Layout: [Completed · 24h] [Nested/Flat] [Review Queue] [+ Add Task]
+ * Layout: [Completed · <status>] [Nested/Flat] [Review Queue] [+ Add Task]
  */
 export function GlobalTasksHeader({ onAddTask }: GlobalTasksHeaderProps) {
   const {
     globalTasksDisplayMode, setGlobalTasksDisplayMode,
     needsAttentionSort, setNeedsAttentionSort,
-    hideCompletedTasks, setHideCompletedTasks,
     autoHideThreshold, setAutoHideThreshold,
     showRecentlyCompleted, setShowRecentlyCompleted,
   } = useAppStore();
@@ -45,46 +42,28 @@ export function GlobalTasksHeader({ onAddTask }: GlobalTasksHeaderProps) {
   const isSmallScreen = useMediaQuery('(max-width: 767px)');
 
   const completedStatusLabel = (() => {
-    if (hideCompletedTasks) return 'Hidden';
-    if (showRecentlyCompleted) return 'Showing done';
-    if (autoHideThreshold === 'never') return 'All visible';
-    return THRESHOLD_LABELS[autoHideThreshold];
+    if (autoHideThreshold === 'always') return 'Hidden';
+    if (autoHideThreshold === 'show-all') return 'All';
+    if (showRecentlyCompleted) return 'Recent';
+    const labels: Record<string, string> = { '24h': '24h', '48h': '48h', '1w': '1 week' };
+    return labels[autoHideThreshold] ?? autoHideThreshold;
   })();
 
-  // Shared toolbar buttons rendered inline on desktop, inside dropdown on mobile
+  // Show recently completed toggle only for time-based thresholds
+  const showToggle = autoHideThreshold !== 'always' && autoHideThreshold !== 'show-all';
+
   const completedButton = (
     <Popover>
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className={isSmallScreen ? 'w-full justify-start' : ''}>
           <CheckCircle2 className="h-4 w-4 mr-2" />
-          {'Completed \u00b7 ' + completedStatusLabel}
+          {`Completed \u00b7 ${completedStatusLabel}`}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-64" align="end">
-        <div className="space-y-4">
-          <p className="text-sm font-medium">Completed Tasks</p>
-
-          {/* Hide all completed */}
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="hide-completed"
-              checked={hideCompletedTasks}
-              onCheckedChange={(checked) => {
-                setHideCompletedTasks(checked === true);
-                // Reset showRecentlyCompleted — contradictory to hide all
-                if (checked === true) setShowRecentlyCompleted(false);
-              }}
-            />
-            <Label htmlFor="hide-completed" className="text-sm font-normal cursor-pointer">
-              Hide all completed
-            </Label>
-          </div>
-
-          <Separator />
-
-          {/* Auto-hide threshold */}
+        <div className="space-y-3">
           <div className="space-y-2">
-            <Label className="text-xs text-muted-foreground">Auto-hide after</Label>
+            <Label className="text-sm font-medium">Completed tasks</Label>
             <Select
               value={autoHideThreshold}
               onValueChange={(v) => setAutoHideThreshold(v as AutoHideThreshold)}
@@ -93,27 +72,23 @@ export function GlobalTasksHeader({ onAddTask }: GlobalTasksHeaderProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {(Object.keys(THRESHOLD_LABELS) as AutoHideThreshold[]).map((key) => (
-                  <SelectItem key={key} value={key}>{THRESHOLD_LABELS[key]}</SelectItem>
+                {THRESHOLD_OPTIONS.map(({ value, label }) => (
+                  <SelectItem key={value} value={value}>{label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          {/* Show recently done — hidden when hideCompletedTasks is on */}
-          {!hideCompletedTasks && (
-            <>
-              <Separator />
-              <Button
-                variant={showRecentlyCompleted ? 'default' : 'ghost'}
-                size="sm"
-                className="w-full justify-start"
-                onClick={() => setShowRecentlyCompleted(!showRecentlyCompleted)}
-              >
-                <History className="h-4 w-4 mr-2" />
-                {showRecentlyCompleted ? 'Showing completed' : 'Show recently done'}
-              </Button>
-            </>
+          {showToggle && (
+            <Button
+              variant={showRecentlyCompleted ? 'default' : 'ghost'}
+              size="sm"
+              className="w-full justify-start"
+              onClick={() => setShowRecentlyCompleted(!showRecentlyCompleted)}
+            >
+              <History className="h-4 w-4 mr-2" />
+              {showRecentlyCompleted ? 'Showing recently completed' : 'Show recently completed'}
+            </Button>
           )}
         </div>
       </PopoverContent>
@@ -182,7 +157,6 @@ export function GlobalTasksHeader({ onAddTask }: GlobalTasksHeaderProps) {
 
         <div className="ml-auto flex items-center gap-2">
           {isSmallScreen ? (
-            /* Mobile: wrap toolbar buttons in a dropdown menu */
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon" className="h-8 w-8">
@@ -198,7 +172,6 @@ export function GlobalTasksHeader({ onAddTask }: GlobalTasksHeaderProps) {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            /* Desktop: inline buttons */
             <>
               {!needsAttentionSort && completedButton}
               {displayModeButton}
@@ -206,7 +179,6 @@ export function GlobalTasksHeader({ onAddTask }: GlobalTasksHeaderProps) {
             </>
           )}
 
-          {/* Add task button — always visible */}
           <Button onClick={onAddTask} size="sm">
             <Plus className="mr-2 h-4 w-4" />
             Add Task

@@ -229,7 +229,6 @@ const appStorePayload = {
     sortColumn: null,
     sortDirection: 'asc',
     needsAttentionSort: false,
-    hideCompletedTasks: false,
     autoHideThreshold: '24h',
     showRecentlyCompleted: false,
     keyboardShortcuts: {},
