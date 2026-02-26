@@ -10,6 +10,8 @@ import { TaskCalendar } from '@/features/tasks/components/TaskCalendar';
 import { AutomationTab } from '@/features/automations/components/AutomationTab';
 import { RuleDialog, type PrefillTrigger } from '@/features/automations/components/wizard/RuleDialog';
 import { InlineEditable } from '@/components/InlineEditable';
+import { Button } from '@/components/ui/button';
+import { Plus } from 'lucide-react';
 import { ShareButton } from '@/features/sharing/components/ShareButton';
 import { useDataStore, automationRuleRepository } from '@/stores/dataStore';
 import { useAppStore } from '@/stores/appStore';
@@ -139,13 +141,21 @@ export function ProjectView({
           displayClassName="text-2xl font-bold"
           className="text-2xl font-bold"
         />
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
           <ShareButton
             variant="button"
             projectId={activeProject.id}
             projectName={activeProject.name}
             onShowToast={(message, type) => onShowToast(message, type)}
           />
+          <Button
+            onClick={() => onNewTask()}
+            size="sm"
+            className="bg-accent-brand hover:bg-accent-brand-hover text-white"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            New Task
+          </Button>
         </div>
       </div>
 
