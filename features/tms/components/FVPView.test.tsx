@@ -227,7 +227,7 @@ describe('FVPView', () => {
       const btn = screen.getByRole('button', { name: /resume preselection/i });
       expect(btn).toBeTruthy();
       // Should be outline variant (not filled)
-      expect(btn.className).toContain('w-full');
+      expect(btn.className).toContain('flex-1');
     });
 
     it('dispatches START_PRESELECTION when "Resume Preselection" is clicked', () => {

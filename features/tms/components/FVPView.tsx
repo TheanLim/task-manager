@@ -3,7 +3,7 @@
 import { useMemo, useRef, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Button } from '@/components/ui/button';
-import { ListTodo, PartyPopper, Sparkles, Circle } from 'lucide-react';
+import { ListTodo, PartyPopper, Sparkles, Circle, RotateCcw } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { TaskList } from '@/features/tasks/components/TaskList';
 import { TMSEmptyState } from './shared/TMSEmptyState';
@@ -252,6 +252,17 @@ export function FVPView({
                       ↺ Re-enter
                     </Button>
                   </motion.div>
+                  <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.95 }} transition={SPRING_BOUNCY}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground hover:text-foreground text-xs gap-1"
+                      onClick={(e) => { e.stopPropagation(); handleStartPreselection(); }}
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      Restart
+                    </Button>
+                  </motion.div>
                 </motion.div>
               </div>
             </motion.div>
@@ -329,6 +340,17 @@ export function FVPView({
                 </Button>
               </motion.div>
             </div>
+            <div className="flex justify-end mt-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-foreground text-xs gap-1"
+                onClick={handleStartPreselection}
+              >
+                <RotateCcw className="h-3 w-3" />
+                Restart
+              </Button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -343,13 +365,24 @@ export function FVPView({
             exit={{ opacity: 0, y: -8 }}
             transition={SPRING_GENTLE}
           >
-            <Button
-              variant="outline"
-              className="w-full border-accent-brand/30 text-accent-brand hover:bg-accent-brand/10"
-              onClick={handleStartPreselection}
-            >
-              Resume Preselection ({undottedTasks.length} remaining)
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1 border-accent-brand/30 text-accent-brand hover:bg-accent-brand/10"
+                onClick={handleStartPreselection}
+              >
+                Resume Preselection ({undottedTasks.length} remaining)
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-foreground text-xs gap-1 shrink-0"
+                onClick={handleStartPreselection}
+              >
+                <RotateCcw className="h-3 w-3" />
+                Restart
+              </Button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
