@@ -22,6 +22,46 @@ vi.mock('../stores/tmsStore', () => ({
   useTMSStore: useTMSStoreMock,
 }));
 
+vi.mock('@/stores/dataStore', () => ({
+  useDataStore: vi.fn(() => ({
+    getSubtasks: vi.fn(() => []),
+    updateTask: vi.fn(),
+    updateSection: vi.fn(),
+    deleteSection: vi.fn(),
+    projects: [],
+  })),
+  sectionService: { createWithDefaults: vi.fn() },
+}));
+
+vi.mock('@/stores/appStore', () => ({
+  useAppStore: vi.fn((selector?: any) => {
+    const state = {
+      columnOrder: ['dueDate', 'priority'],
+      setColumnOrder: vi.fn(),
+      sortColumn: null,
+      sortDirection: 'asc',
+      toggleSort: vi.fn(),
+      keyboardShortcuts: {},
+    };
+    if (typeof selector === 'function') return selector(state);
+    return state;
+  }),
+  DEFAULT_COLUMN_ORDER: ['dueDate', 'priority', 'assignee', 'tags'],
+}));
+
+vi.mock('@/features/keyboard/hooks/useKeyboardNavigation', () => ({
+  useKeyboardNavigation: () => ({
+    activeCell: null,
+    getCellProps: () => ({}),
+    onTableKeyDown: vi.fn(),
+    savedCell: null,
+  }),
+}));
+
+vi.mock('@/features/keyboard/stores/keyboardNavStore', () => ({
+  useKeyboardNavStore: vi.fn(() => null),
+}));
+
 // Import AFTER mocking
 import { FVPView } from './FVPView';
 
@@ -102,7 +142,7 @@ describe('FVPView', () => {
       renderFVPView(tasks, state, dispatch);
 
       fireEvent.click(screen.getByRole('button', { name: /start preselection/i }));
-      expect(dispatch).toHaveBeenCalledWith({ type: 'START_PRESELECTION' });
+      expect(dispatch).toHaveBeenCalledWith({ type: 'START_PRESELECTION', tasks });
     });
   });
 
@@ -196,18 +236,19 @@ describe('FVPView', () => {
       const t2 = makeTask({ id: 't2' });
       // t1 dotted, t2 undotted, scanPosition past end → preselection complete
       const state = makeFVPState({ dottedTasks: ['t1'], scanPosition: 99 });
+      const tasks = [t1, t2];
 
-      renderFVPView([t1, t2], state, dispatch);
+      renderFVPView(tasks, state, dispatch);
 
       fireEvent.click(screen.getByRole('button', { name: /resume preselection/i }));
-      expect(dispatch).toHaveBeenCalledWith({ type: 'START_PRESELECTION' });
+      expect(dispatch).toHaveBeenCalledWith({ type: 'START_PRESELECTION', tasks });
     });
   });
 
   // ── Unified task list — dotted indicator ──────────────────────────────────
 
   describe('unified task list', () => {
-    it('dotted tasks have teal dot indicator', () => {
+    it('dotted tasks have accent-brand dot indicator', () => {
       const t1 = makeTask({ id: 't1', description: 'Dotted task' });
       const t2 = makeTask({ id: 't2', description: 'Undotted task' });
       // t1 is dotted, scanPosition past end (preselection complete)
@@ -215,8 +256,8 @@ describe('FVPView', () => {
 
       const { container } = renderFVPView([t1, t2], state);
 
-      // The teal dot: w-2 h-2 rounded-full bg-primary
-      const dots = container.querySelectorAll('.bg-primary.rounded-full');
+      // The dot: rounded-full bg-accent-brand
+      const dots = container.querySelectorAll('.bg-accent-brand.rounded-full');
       expect(dots.length).toBeGreaterThan(0);
     });
   });

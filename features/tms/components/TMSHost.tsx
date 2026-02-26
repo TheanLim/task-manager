@@ -187,7 +187,7 @@ export function TMSHost({ tasks, onTaskClick, onTaskComplete }: TMSHostProps) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="shrink-0">
+      <div className="shrink-0 relative z-10">
         <div className="flex items-start gap-2">
           <div className="flex-1">
             <TMSTabBar

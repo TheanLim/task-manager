@@ -107,7 +107,7 @@ export function FVPView({
     prevPreselectionDone.current = preselectionDone;
   }, [preselectionDone]);
 
-  const handleStartPreselection = () => fvpDispatch({ type: 'START_PRESELECTION' });
+  const handleStartPreselection = () => fvpDispatch({ type: 'START_PRESELECTION', tasks });
   const handleDot = () => { if (scanCandidate) fvpDispatch({ type: 'DOT_TASK', task: scanCandidate, tasks }); };
   const handleSkip = () => { if (scanCandidate) fvpDispatch({ type: 'SKIP_CANDIDATE', task: scanCandidate, tasks }); };
   const handleCompleteCurrent = () => {

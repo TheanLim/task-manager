@@ -5,8 +5,14 @@
 import { Task } from '@/types';
 import type { FVPState } from './types';
 
-export function initialize(_tasks: Task[], _fvpState: FVPState): Partial<FVPState> {
-  return { dottedTasks: [], scanPosition: 1 };
+export function initialize(tasks: Task[], _fvpState: FVPState): Partial<FVPState> {
+  const firstIncomplete = tasks.find(t => !t.completed);
+  if (!firstIncomplete) {
+    return { dottedTasks: [], scanPosition: 1 };
+  }
+  const incompleteList = tasks.filter(t => !t.completed);
+  const firstIndex = incompleteList.findIndex(t => t.id === firstIncomplete.id);
+  return { dottedTasks: [firstIncomplete.id], scanPosition: firstIndex + 1 };
 }
 
 export function onTaskCreated(_task: Task, _fvpState: FVPState): Partial<FVPState> {

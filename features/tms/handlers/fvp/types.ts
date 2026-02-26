@@ -12,7 +12,7 @@ export interface FVPState {
 }
 
 export type FVPAction =
-  | { type: 'START_PRESELECTION' }
+  | { type: 'START_PRESELECTION'; tasks: Task[] }
   | { type: 'DOT_TASK'; task: Task; tasks: Task[] }
   | { type: 'SKIP_CANDIDATE'; task: Task; tasks: Task[] }
   | { type: 'COMPLETE_CURRENT'; tasks: Task[] }

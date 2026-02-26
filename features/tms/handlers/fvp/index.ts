@@ -69,7 +69,7 @@ export const FVPHandler: TimeManagementSystemHandler<FVPState, FVPAction> = {
 
   reduce(state, action) {
     switch (action.type) {
-      case 'START_PRESELECTION': return initialize([], state);
+      case 'START_PRESELECTION': return initialize(action.tasks, state);
       case 'DOT_TASK': return dotTask(action.task, action.tasks, state);
       case 'SKIP_CANDIDATE': return skipTask(action.task, action.tasks, state);
       case 'COMPLETE_CURRENT': return completeCurrentTask(action.tasks, state);

@@ -32,10 +32,46 @@ const makeTask = (id: string, completed = false): Task => ({
 // ─── initialize ──────────────────────────────────────────────────────────────
 
 describe('FVPHandler.initialize', () => {
-  it('resets to clean state with scanPosition=1', () => {
-    const state = makeState({ dottedTasks: ['t1', 't2'], scanPosition: 5 });
-    const delta = FVP.initialize([], state);
-    expect(delta).toEqual({ dottedTasks: [], scanPosition: 1 });
+  it('auto-dots the first incomplete task as the baseline', () => {
+    const tasks = ['t1', 't2', 't3'].map(id => makeTask(id));
+    const state = makeState();
+    const delta = FVP.initialize(tasks, state);
+    expect(delta.dottedTasks).toEqual(['t1']);
+    expect(delta.scanPosition).toBe(1);
+  });
+
+  it('skips completed tasks when finding the first to auto-dot', () => {
+    const t1 = makeTask('t1', true);
+    const t2 = makeTask('t2');
+    const t3 = makeTask('t3');
+    const state = makeState();
+    const delta = FVP.initialize([t1, t2, t3], state);
+    expect(delta.dottedTasks).toEqual(['t2']);
+    // scanPosition = 1 because t2 is at index 0 in the incomplete list [t2, t3],
+    // so scan starts at index 1 (t3) — the next candidate after the auto-dotted task
+    expect(delta.scanPosition).toBe(1);
+  });
+
+  it('returns empty dottedTasks when all tasks are completed', () => {
+    const tasks = ['t1', 't2'].map(id => makeTask(id, true));
+    const state = makeState();
+    const delta = FVP.initialize(tasks, state);
+    expect(delta.dottedTasks).toEqual([]);
+    expect(delta.scanPosition).toBe(1);
+  });
+
+  it('returns empty dottedTasks when task list is empty', () => {
+    const delta = FVP.initialize([], makeState());
+    expect(delta.dottedTasks).toEqual([]);
+    expect(delta.scanPosition).toBe(1);
+  });
+
+  it('clears previous dotted state and re-dots the first incomplete task', () => {
+    const tasks = ['t1', 't2', 't3'].map(id => makeTask(id));
+    const state = makeState({ dottedTasks: ['t2', 't3'], scanPosition: 5 });
+    const delta = FVP.initialize(tasks, state);
+    expect(delta.dottedTasks).toEqual(['t1']);
+    expect(delta.scanPosition).toBe(1);
   });
 });
 
@@ -328,10 +364,11 @@ import { FVPHandler } from '.';
 describe('FVPHandler (handler object interface)', () => {
   describe('reduce', () => {
     describe('START_PRESELECTION', () => {
-      it('resets dottedTasks to [] and scanPosition to 1', () => {
+      it('auto-dots the first incomplete task and sets scanPosition to 1', () => {
+        const tasks = ['t1', 't2', 't3'].map(id => makeTask(id));
         const state: FVPState = { dottedTasks: ['t1', 't2'], scanPosition: 5 };
-        const delta = FVPHandler.reduce(state, { type: 'START_PRESELECTION' });
-        expect(delta.dottedTasks).toEqual([]);
+        const delta = FVPHandler.reduce(state, { type: 'START_PRESELECTION', tasks });
+        expect(delta.dottedTasks).toEqual(['t1']);
         expect(delta.scanPosition).toBe(1);
       });
     });
