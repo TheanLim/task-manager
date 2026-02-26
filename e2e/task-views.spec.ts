@@ -8,8 +8,8 @@ async function createProjectWithTask(page: import('@playwright/test').Page) {
   await dialog.getByRole('button', { name: /create|save/i }).click()
   await sidebar.getByText('View Test Project').click()
 
-  // Create a task via the header "New Task" button
-  await page.locator('header').getByRole('button', { name: /new task/i }).click()
+  // Create a task via the project header "New Task" button
+  await page.locator('main').getByRole('button', { name: /new task/i }).click()
   const taskDialog = page.getByRole('dialog')
   const descInput = taskDialog.locator('input, textarea, [contenteditable]').first()
   await descInput.fill('View test task')

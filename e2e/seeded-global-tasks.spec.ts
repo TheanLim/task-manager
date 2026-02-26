@@ -7,9 +7,10 @@ test.describe('Seeded: Global Tasks View', () => {
     await page.goto('/?view=tasks')
   })
 
-  test('shows "From Projects" section with project tasks', async ({ page }) => {
+  test('shows "Tasks" section with project tasks', async ({ page }) => {
     const main = page.locator('main')
-    await expect(main.getByText('From Projects')).toBeVisible()
+    // The virtual section grouping project tasks is labelled "Tasks"
+    await expect(main.getByText('Tasks').first()).toBeVisible()
     // Tasks from both projects should appear
     await expect(main.getByText('Set up CI pipeline')).toBeVisible()
     await expect(main.getByText('Beta project kickoff')).toBeVisible()

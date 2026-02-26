@@ -20,20 +20,20 @@ test.describe('Task Management', () => {
     await page.goto('/')
   })
 
-  test('"New Task" button appears in header when project is active', async ({ page }) => {
+  test('"New Task" button appears in project header when project is active', async ({ page }) => {
     await createProjectAndNavigate(page, 'Task Test Project')
 
-    // "New Task" button in header (text visible on sm+ viewports)
-    const header = page.locator('header')
-    await expect(header.getByRole('button', { name: /new task/i })).toBeVisible({ timeout: 10000 })
+    // "New Task" button is in the project header (inside main content area)
+    const main = page.locator('main')
+    await expect(main.getByRole('button', { name: /new task/i })).toBeVisible({ timeout: 10000 })
   })
 
   test('can open the new task dialog', async ({ page }) => {
     await createProjectAndNavigate(page, 'Dialog Test Project')
 
-    // Click "New Task" in header
-    const header = page.locator('header')
-    await header.getByRole('button', { name: /new task/i }).click()
+    // Click "New Task" in project header
+    const main = page.locator('main')
+    await main.getByRole('button', { name: /new task/i }).click()
 
     // Task dialog should appear
     const dialog = page.getByRole('dialog')
@@ -43,7 +43,7 @@ test.describe('Task Management', () => {
   test('task dialog has required fields', async ({ page }) => {
     await createProjectAndNavigate(page, 'Fields Test Project')
 
-    await page.locator('header').getByRole('button', { name: /new task/i }).click()
+    await page.locator('main').getByRole('button', { name: /new task/i }).click()
 
     const dialog = page.getByRole('dialog')
 
@@ -61,7 +61,7 @@ test.describe('Task Management', () => {
   test('can create a task and see it in the list', async ({ page }) => {
     await createProjectAndNavigate(page, 'Create Task Project')
 
-    await page.locator('header').getByRole('button', { name: /new task/i }).click()
+    await page.locator('main').getByRole('button', { name: /new task/i }).click()
 
     const dialog = page.getByRole('dialog')
 

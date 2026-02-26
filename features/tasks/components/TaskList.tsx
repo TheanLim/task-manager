@@ -689,7 +689,8 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
               return (
                 <React.Fragment key={section.id}>
                   {/* Section Header Row */}
-                  <tr 
+                  <tr
+                    data-section-name={section.name}
                     className={`
                       group border-b
                       ${draggedSectionId === section.id ? 'opacity-50' : ''}
