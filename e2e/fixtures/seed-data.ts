@@ -48,10 +48,12 @@ export const TASK_IDS = {
   subtask2: 'task-sub-002',
   unlinkedTask: 'task-unlinked-001',
   project2Task: 'task-p2-001',
+  agedDoneTask: 'task-done-aged-001',
 } as const
 
 const NOW = '2026-02-14T10:00:00.000Z'
 const RECENT_COMPLETED = new Date(Date.now() - 3600_000).toISOString() // 1 hour ago — always within 24h auto-hide window
+const AGED_COMPLETED = new Date(Date.now() - 3 * 86_400_000).toISOString() // 3 days ago — always past 24h threshold
 
 // ── Projects ────────────────────────────────────────────────────────────────
 const projects = [
@@ -146,6 +148,9 @@ const tasks = [
 
   // Task in second project
   makeTask({ id: TASK_IDS.project2Task, projectId: PROJECT_2_ID, sectionId: SECTION_2_IDS.todo, description: 'Beta project kickoff', order: 0 }),
+
+  // Completed task aged past 24h threshold (auto-hidden in normal view)
+  makeTask({ id: TASK_IDS.agedDoneTask, sectionId: SECTION_IDS.done, description: 'Old completed task', completed: true, completedAt: AGED_COMPLETED, order: 1 }),
 ]
 
 // ── Automation Rules ─────────────────────────────────────────────────────────

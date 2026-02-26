@@ -164,6 +164,70 @@ describe('filterAutoHiddenTasks', () => {
     });
   });
 
+  describe('showRecentlyCompleted semantics', () => {
+    // These tests document the contract that GlobalTasksView relies on:
+    // when showRecentlyCompleted is on, the view shows only completed tasks
+    // still within the threshold window (result.visible.filter(completed)).
+    // Aged-out tasks (autoHidden) are excluded — the threshold is respected.
+
+    it('recently completed task (within threshold) lands in visible, not autoHidden', () => {
+      const recentlyCompleted = makeTask('t1', {
+        completed: true,
+        completedAt: new Date(NOW - 3_600_000).toISOString(), // 1h ago, within 24h
+      });
+
+      const result = filterAutoHiddenTasks([recentlyCompleted], [recentlyCompleted], {
+        threshold: '24h',
+        displayMode: 'nested',
+        now: NOW,
+      });
+
+      expect(result.visible.map((t) => t.id)).toEqual(['t1']);
+      expect(result.autoHidden).toHaveLength(0);
+    });
+
+    it('aged-out completed task (past threshold) lands in autoHidden, not visible', () => {
+      const agedOut = makeTask('t1', {
+        completed: true,
+        completedAt: new Date(NOW - 86_400_000 - 1000).toISOString(), // just past 24h
+      });
+
+      const result = filterAutoHiddenTasks([agedOut], [agedOut], {
+        threshold: '24h',
+        displayMode: 'nested',
+        now: NOW,
+      });
+
+      expect(result.autoHidden.map((t) => t.id)).toEqual(['t1']);
+      expect(result.visible).toHaveLength(0);
+    });
+
+    it('showRecentlyCompleted shows only visible completed — aged-out excluded', () => {
+      const recent = makeTask('recent', {
+        completed: true,
+        completedAt: new Date(NOW - 3_600_000).toISOString(), // 1h ago
+      });
+      const agedOut = makeTask('aged', {
+        completed: true,
+        completedAt: new Date(NOW - 86_400_000 - 1000).toISOString(), // past 24h
+      });
+      const incomplete = makeTask('active');
+
+      const all = [recent, agedOut, incomplete];
+      const result = filterAutoHiddenTasks(all, all, {
+        threshold: '24h',
+        displayMode: 'nested',
+        now: NOW,
+      });
+
+      // GlobalTasksView uses result.visible.filter(t => t.completed) for showRecentlyCompleted
+      const recentlyDone = result.visible.filter(t => t.completed);
+      expect(recentlyDone.map((t) => t.id)).toEqual(['recent']);
+      // aged-out is in autoHidden — not shown
+      expect(result.autoHidden.map((t) => t.id)).toEqual(['aged']);
+    });
+  });
+
   describe('flat mode', () => {
     it('evaluates parent tasks independently', () => {
       const old = makeTask('p1', {

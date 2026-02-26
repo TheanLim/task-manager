@@ -168,6 +168,23 @@ test.describe('All Tasks: Header Controls', () => {
     await expect(main.getByText('Implement auth flow')).not.toBeVisible()
   })
 
+  test('Show recently done with 24h threshold does NOT show tasks older than 24h', async ({ page }) => {
+    const main = page.locator('main')
+
+    // "Old completed task" was completed 3 days ago — past the 24h threshold.
+    // In normal view it's auto-hidden (not visible).
+    // In "Show recently done" mode it should also NOT appear — the threshold applies.
+    await main.getByRole('button', { name: /completed/i }).click()
+    await page.getByRole('button', { name: /show recently done/i }).click()
+    await page.keyboard.press('Escape')
+
+    // Recently completed (1h ago) — should be visible
+    await expect(main.getByText('Design database schema')).toBeVisible()
+
+    // Aged-out (3 days ago) — should NOT be visible with 24h threshold
+    await expect(main.getByText('Old completed task')).not.toBeVisible()
+  })
+
   test('Show recently done button is hidden when Hide all completed is checked', async ({ page }) => {
     const main = page.locator('main')
 
@@ -193,7 +210,7 @@ test.describe('All Tasks: Header Controls', () => {
     await expect(main.getByText('Set up CI pipeline')).not.toBeVisible()
 
     // Now open again and check "Hide all completed"
-    await main.getByRole('button', { name: /completed/i }).click()
+    await main.getByRole('button', { name: /^Completed/i }).click()
     const popover2 = page.locator('[data-radix-popper-content-wrapper]')
     await popover2.getByRole('checkbox', { name: /hide all completed/i }).click()
     await page.keyboard.press('Escape')

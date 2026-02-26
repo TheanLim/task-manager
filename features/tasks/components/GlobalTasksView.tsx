@@ -209,8 +209,8 @@ export function GlobalTasksView({
       return displayTasks.filter(t => !t.completed);
     }
     if (showRecentlyCompleted) {
-      // Show only completed tasks (all of them — aged-out + recently done)
-      // When threshold is 'never' there's no auto-hide, so just filter to completed directly
+      // Show only completed tasks within the threshold window.
+      // When threshold is 'never' there's no auto-hide, so filter to all completed directly.
       if (autoHideThreshold === 'never') {
         return displayTasks.filter(t => t.completed);
       }
@@ -218,7 +218,8 @@ export function GlobalTasksView({
         threshold: autoHideThreshold,
         displayMode: globalTasksDisplayMode,
       });
-      return [...result.autoHidden, ...result.visible.filter(t => t.completed)];
+      // Only show completed tasks still within the threshold — aged-out ones are excluded
+      return result.visible.filter(t => t.completed);
     }
     if (autoHideThreshold === 'never') {
       return displayTasks;
