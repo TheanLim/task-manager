@@ -133,4 +133,113 @@ test.describe('All Tasks: Header Controls', () => {
     // Reinsert button should NOT be visible
     await expect(row.getByLabel('Move to bottom')).not.toBeVisible()
   })
+
+  test('Show recently done includes tasks completed within the threshold (not just aged-out)', async ({ page }) => {
+    const main = page.locator('main')
+
+    // "Design database schema" is completed 1h ago (within 24h threshold) — visible by default
+    await expect(main.getByText('Design database schema')).toBeVisible()
+
+    // Open Completed popover and click "Show recently done"
+    await main.getByRole('button', { name: /completed/i }).click()
+    await page.getByRole('button', { name: /show recently done/i }).click()
+
+    // The recently completed task (within threshold) must still be visible —
+    // this was the bug: it disappeared because only autoHidden tasks were shown
+    await expect(main.getByText('Design database schema')).toBeVisible()
+
+    // Incomplete tasks should NOT be visible in this mode
+    await expect(main.getByText('Set up CI pipeline')).not.toBeVisible()
+  })
+
+  test('Show recently done hides incomplete tasks but shows all completed', async ({ page }) => {
+    const main = page.locator('main')
+
+    // Seed has one completed task: "Design database schema" (1h ago, within 24h)
+    // Enable "Show recently done"
+    await main.getByRole('button', { name: /completed/i }).click()
+    await page.getByRole('button', { name: /show recently done/i }).click()
+
+    // Completed task visible
+    await expect(main.getByText('Design database schema')).toBeVisible()
+
+    // Incomplete tasks hidden
+    await expect(main.getByText('Set up CI pipeline')).not.toBeVisible()
+    await expect(main.getByText('Implement auth flow')).not.toBeVisible()
+  })
+
+  test('Show recently done button is hidden when Hide all completed is checked', async ({ page }) => {
+    const main = page.locator('main')
+
+    // Open popover and check "Hide all completed"
+    await main.getByRole('button', { name: /completed/i }).click()
+    const popover = page.locator('[data-radix-popper-content-wrapper]')
+    await popover.getByRole('checkbox', { name: /hide all completed/i }).click()
+
+    // "Show recently done" button should not be visible inside the popover
+    await expect(popover.getByRole('button', { name: /show recently done/i })).not.toBeVisible()
+  })
+
+  test('Checking Hide all completed resets showRecentlyCompleted', async ({ page }) => {
+    const main = page.locator('main')
+
+    // First enable "Show recently done"
+    await main.getByRole('button', { name: /completed/i }).click()
+    const popover = page.locator('[data-radix-popper-content-wrapper]')
+    await popover.getByRole('button', { name: /show recently done/i }).click()
+    await page.keyboard.press('Escape')
+
+    // Confirm we're in "show recently done" mode — incomplete tasks hidden
+    await expect(main.getByText('Set up CI pipeline')).not.toBeVisible()
+
+    // Now open again and check "Hide all completed"
+    await main.getByRole('button', { name: /completed/i }).click()
+    const popover2 = page.locator('[data-radix-popper-content-wrapper]')
+    await popover2.getByRole('checkbox', { name: /hide all completed/i }).click()
+    await page.keyboard.press('Escape')
+
+    // Completed task hidden, incomplete visible
+    await expect(main.getByText('Design database schema')).not.toBeVisible()
+    await expect(main.getByText('Set up CI pipeline')).toBeVisible()
+
+    // Uncheck "Hide all completed" — showRecentlyCompleted was reset, so normal view resumes
+    await main.getByRole('button', { name: /completed/i }).click()
+    const popover3 = page.locator('[data-radix-popper-content-wrapper]')
+    await popover3.getByRole('checkbox', { name: /hide all completed/i }).click()
+    await page.keyboard.press('Escape')
+
+    // Both completed and incomplete tasks visible (not stuck in "show recently done" mode)
+    await expect(main.getByText('Design database schema')).toBeVisible()
+    await expect(main.getByText('Set up CI pipeline')).toBeVisible()
+  })
+
+  test('Show recently done button is visible when autoHideThreshold is never', async ({ page }) => {
+    const main = page.locator('main')
+
+    // Set threshold to "never" via the popover's Select
+    await main.getByRole('button', { name: /completed/i }).click()
+    const popover = page.locator('[data-radix-popper-content-wrapper]')
+    await popover.getByRole('combobox').click()
+    await page.getByRole('option', { name: 'Never' }).click()
+
+    // "Show recently done" button should still be visible
+    await expect(popover.getByRole('button', { name: /show recently done|show completed/i })).toBeVisible()
+  })
+
+  test('Show recently done with threshold never shows all completed tasks', async ({ page }) => {
+    const main = page.locator('main')
+
+    // Set threshold to "never" and enable show recently done
+    await main.getByRole('button', { name: /completed/i }).click()
+    const popover = page.locator('[data-radix-popper-content-wrapper]')
+    await popover.getByRole('combobox').click()
+    await page.getByRole('option', { name: 'Never' }).click()
+    await popover.getByRole('button', { name: /show recently done|show completed/i }).click()
+    await page.keyboard.press('Escape')
+
+    // Completed task should be visible
+    await expect(main.getByText('Design database schema')).toBeVisible()
+    // Incomplete tasks should be hidden
+    await expect(main.getByText('Set up CI pipeline')).not.toBeVisible()
+  })
 })

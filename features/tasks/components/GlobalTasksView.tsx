@@ -208,17 +208,25 @@ export function GlobalTasksView({
       // Review Queue or Hide Completed: hide all completed (existing behavior)
       return displayTasks.filter(t => !t.completed);
     }
-    if (autoHideThreshold === 'never' && !showRecentlyCompleted) {
+    if (showRecentlyCompleted) {
+      // Show only completed tasks (all of them — aged-out + recently done)
+      // When threshold is 'never' there's no auto-hide, so just filter to completed directly
+      if (autoHideThreshold === 'never') {
+        return displayTasks.filter(t => t.completed);
+      }
+      const result = filterAutoHiddenTasks(displayTasks, tasks, {
+        threshold: autoHideThreshold,
+        displayMode: globalTasksDisplayMode,
+      });
+      return [...result.autoHidden, ...result.visible.filter(t => t.completed)];
+    }
+    if (autoHideThreshold === 'never') {
       return displayTasks;
     }
     const result = filterAutoHiddenTasks(displayTasks, tasks, {
       threshold: autoHideThreshold,
       displayMode: globalTasksDisplayMode,
     });
-    if (showRecentlyCompleted) {
-      // Show only the auto-hidden tasks
-      return result.autoHidden;
-    }
     return result.visible;
   }, [displayTasks, tasks, needsAttentionSort, hideCompletedTasks,
       autoHideThreshold, showRecentlyCompleted, globalTasksDisplayMode]);

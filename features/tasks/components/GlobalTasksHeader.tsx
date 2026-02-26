@@ -69,7 +69,11 @@ export function GlobalTasksHeader({ onAddTask }: GlobalTasksHeaderProps) {
             <Checkbox
               id="hide-completed"
               checked={hideCompletedTasks}
-              onCheckedChange={(checked) => setHideCompletedTasks(checked === true)}
+              onCheckedChange={(checked) => {
+                setHideCompletedTasks(checked === true);
+                // Reset showRecentlyCompleted — contradictory to hide all
+                if (checked === true) setShowRecentlyCompleted(false);
+              }}
             />
             <Label htmlFor="hide-completed" className="text-sm font-normal cursor-pointer">
               Hide all completed
@@ -96,8 +100,8 @@ export function GlobalTasksHeader({ onAddTask }: GlobalTasksHeaderProps) {
             </Select>
           </div>
 
-          {/* Show recently done */}
-          {autoHideThreshold !== 'never' && (
+          {/* Show recently done — hidden when hideCompletedTasks is on */}
+          {!hideCompletedTasks && (
             <>
               <Separator />
               <Button
