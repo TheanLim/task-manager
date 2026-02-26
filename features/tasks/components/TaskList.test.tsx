@@ -62,6 +62,50 @@ describe('TaskList', () => {
     }
   ];
 
+  it('does not render "Unsectioned" header for tasks without a section', () => {
+    const unsectionedTask: Task = {
+      id: 'task-u',
+      projectId: null,
+      parentTaskId: null,
+      sectionId: null,
+      description: 'Floating task',
+      notes: '',
+      assignee: '',
+      priority: Priority.NONE,
+      tags: [],
+      dueDate: null,
+      completed: false,
+      completedAt: null,
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    render(
+      <TaskList
+        tasks={[unsectionedTask]}
+        sections={[]}
+        onTaskClick={vi.fn()}
+        onTaskComplete={vi.fn()}
+        onAddTask={vi.fn()}
+      />
+    );
+    expect(screen.queryByText(/unsectioned/i)).not.toBeInTheDocument();
+    expect(screen.getByText('Floating task')).toBeInTheDocument();
+  });
+
+  it('does not render "Add Section" button', () => {
+    render(
+      <TaskList
+        tasks={mockTasks}
+        sections={mockSections}
+        onTaskClick={vi.fn()}
+        onTaskComplete={vi.fn()}
+        onAddTask={vi.fn()}
+      />
+    );
+    expect(screen.queryByText(/add section/i)).not.toBeInTheDocument();
+  });
+
   it('should render empty state when no tasks', () => {
     const onTaskClick = vi.fn();
     const onTaskComplete = vi.fn();
@@ -195,6 +239,109 @@ describe('TaskList', () => {
     // Subtask should not be visible initially (it's collapsed by default)
     // Note: In the actual implementation, subtasks are collapsed by default in TaskRow
     expect(screen.queryByText('Subtask 1')).not.toBeInTheDocument();
+  });
+
+  describe('readonlySectionIds', () => {
+    const readonlySection: Section = {
+      id: '__from_projects__',
+      projectId: null,
+      name: 'Tasks',
+      order: 0,
+      collapsed: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const regularSection: Section = {
+      id: 'section-1',
+      projectId: null,
+      name: 'My Section',
+      order: 1,
+      collapsed: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const task: Task = {
+      id: 'task-1',
+      projectId: null,
+      parentTaskId: null,
+      sectionId: '__from_projects__',
+      description: 'A task',
+      notes: '',
+      assignee: '',
+      priority: Priority.NONE,
+      tags: [],
+      dueDate: null,
+      completed: false,
+      completedAt: null,
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    it('renders readonly section name as plain text, not InlineEditable', () => {
+      render(
+        <TaskList
+          tasks={[task]}
+          sections={[readonlySection]}
+          onTaskClick={vi.fn()}
+          onTaskComplete={vi.fn()}
+          onAddTask={vi.fn()}
+          readonlySectionIds={new Set(['__from_projects__'])}
+        />
+      );
+      // Name should appear as plain text
+      expect(screen.getByText('Tasks')).toBeInTheDocument();
+      // No contenteditable for the section name
+      const editables = document.querySelectorAll('[contenteditable]');
+      // None of the editables should contain "Tasks"
+      const tasksTitleEditable = Array.from(editables).find(el => el.textContent === 'Tasks');
+      expect(tasksTitleEditable).toBeUndefined();
+    });
+
+    it('does not render collapse button for readonly section', () => {
+      render(
+        <TaskList
+          tasks={[task]}
+          sections={[readonlySection]}
+          onTaskClick={vi.fn()}
+          onTaskComplete={vi.fn()}
+          onAddTask={vi.fn()}
+          readonlySectionIds={new Set(['__from_projects__'])}
+        />
+      );
+      // ChevronDown/ChevronRight buttons should not be present for readonly section
+      // The section header row should not have a collapse toggle
+      expect(screen.queryByTitle('Collapse section')).not.toBeInTheDocument();
+    });
+
+    it('does not render options menu for readonly section', () => {
+      render(
+        <TaskList
+          tasks={[task]}
+          sections={[readonlySection]}
+          onTaskClick={vi.fn()}
+          onTaskComplete={vi.fn()}
+          onAddTask={vi.fn()}
+          readonlySectionIds={new Set(['__from_projects__'])}
+        />
+      );
+      expect(screen.queryByTitle('Section options')).not.toBeInTheDocument();
+    });
+
+    it('still renders options menu for regular (non-readonly) section', () => {
+      const regularTask = { ...task, id: 'task-2', sectionId: 'section-1' };
+      render(
+        <TaskList
+          tasks={[regularTask]}
+          sections={[regularSection]}
+          onTaskClick={vi.fn()}
+          onTaskComplete={vi.fn()}
+          onAddTask={vi.fn()}
+          readonlySectionIds={new Set(['__from_projects__'])}
+        />
+      );
+      expect(screen.getByTitle('Section options')).toBeInTheDocument();
+    });
   });
 
   describe('default sort by last action time (initialSortByProject)', () => {

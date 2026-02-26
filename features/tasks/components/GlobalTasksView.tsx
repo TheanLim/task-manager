@@ -74,11 +74,11 @@ export function GlobalTasksView({
   // (it doesn't exist in the repository, so updateSection won't persist it)
   const [fromProjectsCollapsed, setFromProjectsCollapsed] = useState(false);
 
-  // Create virtual "From Projects" section
+  // Create virtual "Tasks" section (groups all project-linked tasks)
   const virtualFromProjectsSection: Section = useMemo(() => ({
     id: FROM_PROJECTS_SECTION_ID,
     projectId: null,
-    name: 'From Projects',
+    name: 'Tasks',
     order: -1,
     collapsed: fromProjectsCollapsed,
     createdAt: new Date().toISOString(),
@@ -237,6 +237,9 @@ export function GlobalTasksView({
     }
   }, [sections, updateSection]);
 
+  // The virtual "Tasks" section is read-only — no edit/delete/drag/collapse
+  const readonlySectionIds = useMemo(() => new Set([FROM_PROJECTS_SECTION_ID]), []);
+
   // Empty state
   if (tasks.length === 0) {
     return (
@@ -267,6 +270,7 @@ export function GlobalTasksView({
       onReinsert={needsAttentionSort ? handleReinsert : undefined}
       onToggleSection={handleToggleSection}
       hideCompletedSubtasks={shouldHideCompletedSubtasks}
+      readonlySectionIds={readonlySectionIds}
     />
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Circle, ChevronRight, ChevronDown, MoreVertical, Plus, GripVertical, ArrowUp, ArrowDown, ArrowUpDown, Trash2 } from 'lucide-react';
+import { Circle, ChevronRight, ChevronDown, MoreVertical, GripVertical, ArrowUp, ArrowDown, ArrowUpDown, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,9 +25,8 @@ import { Task, Section } from '@/types';
 import { useState, useRef, useMemo, useCallback } from 'react';
 import { InlineEditable } from '@/components/InlineEditable';
 import { validateSectionName } from '@/lib/validation';
-import { useDataStore, sectionService } from '@/stores/dataStore';
+import { useDataStore } from '@/stores/dataStore';
 import { useAppStore, TaskColumnId, DEFAULT_COLUMN_ORDER } from '@/stores/appStore';
-import { Input } from '@/components/ui/input';
 import { TaskRow } from '@/features/tasks/components/TaskRow';
 import { cn } from '@/lib/utils';
 import { sortTasks as sortTasksFn, sortByLastAction } from '@/features/tasks/services/taskSortService';
@@ -56,6 +55,8 @@ interface TaskListProps {
   onToggleSection?: (sectionId: string) => void;
   hideCompletedSubtasks?: boolean;
   onOpenRuleDialog?: (prefill: { triggerType: TriggerType; sectionId: string }) => void;
+  /** Section IDs that are read-only: no edit, delete, drag, or collapse controls */
+  readonlySectionIds?: Set<string>;
 }
 
 interface ColumnWidths {
@@ -80,7 +81,7 @@ const COLUMN_LABELS: Record<TaskColumnId, string> = {
  * List view component for displaying tasks grouped by collapsible sections
  * with table-like task rows and draggable column headers
  */
-export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTask, onViewSubtasks, onSubtaskButtonClick, onAddSubtask, selectedTaskId, showProjectColumn = false, onProjectClick, flatMode = false, initialSortByProject = false, showReinsertButton = false, onReinsert, onToggleSection, hideCompletedSubtasks = false, onOpenRuleDialog }: TaskListProps) {
+export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTask, onViewSubtasks, onSubtaskButtonClick, onAddSubtask, selectedTaskId, showProjectColumn = false, onProjectClick, flatMode = false, initialSortByProject = false, showReinsertButton = false, onReinsert, onToggleSection, hideCompletedSubtasks = false, onOpenRuleDialog, readonlySectionIds }: TaskListProps) {
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverTaskId, setDragOverTaskId] = useState<string | null>(null);
   const [draggedSectionId, setDraggedSectionId] = useState<string | null>(null);
@@ -88,8 +89,6 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
   const [sectionWasExpanded, setSectionWasExpanded] = useState<boolean>(false);
   const [taskWasExpanded, setTaskWasExpanded] = useState<boolean>(false);
   const [userHasReordered, setUserHasReordered] = useState<boolean>(false);
-  const [isAddingSection, setIsAddingSection] = useState(false);
-  const [newSectionName, setNewSectionName] = useState('');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [sectionToDelete, setSectionToDelete] = useState<string | null>(null);
   const { updateTask, updateSection, deleteSection, projects } = useDataStore();
@@ -281,19 +280,6 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
       setSectionToDelete(null);
     }
     setShowDeleteDialog(false);
-  };
-
-  const handleAddSection = () => {
-    if (!newSectionName.trim()) return;
-    const projectId = sections[0]?.projectId || null;
-    sectionService.createWithDefaults(newSectionName.trim(), projectId, sections.length);
-    setNewSectionName('');
-    setIsAddingSection(false);
-  };
-
-  const handleCancelAddSection = () => {
-    setNewSectionName('');
-    setIsAddingSection(false);
   };
 
   const handleAddTask = (sectionId: string) => {
@@ -698,6 +684,7 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
             {/* Render sections */}
             {sections.sort((a, b) => a.order - b.order).map(section => {
               const sectionTasks = tasksBySection[section.id] || [];
+              const isReadonly = readonlySectionIds?.has(section.id) ?? false;
 
               return (
                 <React.Fragment key={section.id}>
@@ -708,80 +695,90 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                       ${draggedSectionId === section.id ? 'opacity-50' : ''}
                       ${dragOverSectionId === section.id ? 'ring-2 ring-primary' : ''}
                     `}
-                    draggable={true}
-                    onDragStart={(e) => handleSectionDragStart(e, section.id)}
-                    onDragOver={(e) => {
+                    draggable={!isReadonly}
+                    onDragStart={!isReadonly ? (e) => handleSectionDragStart(e, section.id) : undefined}
+                    onDragOver={!isReadonly ? (e) => {
                       e.preventDefault();
                       e.stopPropagation();
                       if (draggedSectionId && draggedSectionId !== section.id) {
                         setDragOverSectionId(section.id);
                       }
-                    }}
-                    onDragLeave={handleSectionDragLeave}
-                    onDrop={(e) => handleSectionDrop(e, section.id)}
-                    onDragEnd={handleSectionDragEnd}
+                    } : undefined}
+                    onDragLeave={!isReadonly ? handleSectionDragLeave : undefined}
+                    onDrop={!isReadonly ? (e) => handleSectionDrop(e, section.id) : undefined}
+                    onDragEnd={!isReadonly ? handleSectionDragEnd : undefined}
                   >
                     <td className="pt-6 pb-3 px-3 sticky left-0 z-10 bg-background">
                       <div className="flex items-center gap-2">
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground flex-shrink-0">
-                          <GripVertical className="h-4 w-4" />
-                        </div>
-                        <button
-                          onClick={() => toggleSectionCollapsed(section.id)}
-                          className="text-left hover:opacity-80 flex-shrink-0"
-                        >
-                          {section.collapsed ? (
-                            <ChevronRight className="h-4 w-4" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4" />
-                          )}
-                        </button>
-                        <InlineEditable
-                          value={section.name}
-                          onSave={(newName) => handleRenameSection(section.id, newName)}
-                          validate={validateSectionName}
-                          placeholder="Section name"
-                          displayClassName="font-semibold truncate"
-                          inputClassName="font-semibold"
-                        />
+                        {!isReadonly && (
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground flex-shrink-0">
+                            <GripVertical className="h-4 w-4" />
+                          </div>
+                        )}
+                        {!isReadonly && (
+                          <button
+                            onClick={() => toggleSectionCollapsed(section.id)}
+                            className="text-left hover:opacity-80 flex-shrink-0"
+                          >
+                            {section.collapsed ? (
+                              <ChevronRight className="h-4 w-4" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4" />
+                            )}
+                          </button>
+                        )}
+                        {isReadonly ? (
+                          <span className="font-semibold truncate">{section.name}</span>
+                        ) : (
+                          <InlineEditable
+                            value={section.name}
+                            onSave={(newName) => handleRenameSection(section.id, newName)}
+                            validate={validateSectionName}
+                            placeholder="Section name"
+                            displayClassName="font-semibold truncate"
+                            inputClassName="font-semibold"
+                          />
+                        )}
                         <Badge variant="secondary" className="flex-shrink-0">
                           {sectionTasks.length}
                         </Badge>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={(e) => e.stopPropagation()}
-                              className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                              title="Section options"
-                            >
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteSection(section.id);
-                              }}
-                              className="text-destructive focus:text-destructive"
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete section
-                            </DropdownMenuItem>
-                            {onOpenRuleDialog && (
-                              <>
-                                <DropdownMenuSeparator />
-                                <SectionContextMenuItem
-                                  sectionId={section.id}
-                                  projectId={section.projectId || ''}
-                                  onOpenRuleDialog={onOpenRuleDialog}
-                                />
-                              </>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        {!isReadonly && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => e.stopPropagation()}
+                                className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                                title="Section options"
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteSection(section.id);
+                                }}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete section
+                              </DropdownMenuItem>
+                              {onOpenRuleDialog && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <SectionContextMenuItem
+                                    sectionId={section.id}
+                                    projectId={section.projectId || ''}
+                                    onOpenRuleDialog={onOpenRuleDialog}
+                                  />
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
                       </div>
                     </td>
                     {visibleColumns.map(colId => (
@@ -874,87 +871,42 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
               );
             })}
 
-            {/* Render unsectioned tasks */}
-            {unsectionedTasks.length > 0 && (
-              <>
-                <tr className="bg-muted/50">
-                  <td className="p-3 text-sm font-semibold text-muted-foreground uppercase border-r sticky left-0 z-10 bg-muted/50">
-                    Unsectioned
-                  </td>
-                  {visibleColumns.map((colId, i) => (
-                    <td key={colId} className={cn("bg-muted/50", i < visibleColumns.length - 1 && "border-r")}></td>
-                  ))}
-                </tr>
-                {unsectionedTasks.map((task, index) => (
-                  <TaskRow
-                    key={`${task.id}-${columnOrderKey}`}
-                    task={task}
-                    animationIndex={index}
-                    onComplete={handleTaskComplete}
-                    onClick={onTaskClick}
-                    onViewSubtasks={handleViewSubtasks}
-                    onSubtaskButtonClick={onSubtaskButtonClick}
-                    onAddSubtask={onAddSubtask}
-                    draggable={!showReinsertButton}
-                    onDragStart={handleDragStart}
-                    onDragOver={handleTaskDragOver}
-                    onDragLeave={handleTaskDragLeave}
-                    onDrop={handleTaskDrop}
-                    draggedTaskId={draggedTaskId}
-                    dragOverTaskId={dragOverTaskId}
-                    isSelected={selectedTaskId === task.id}
-                    depth={0}
-                    taskWasExpanded={taskWasExpanded}
-                    onSetTaskWasExpanded={setTaskWasExpanded}
-                    showProjectColumn={showProjectColumn}
-                    projectName={showProjectColumn ? getProjectName(task) : undefined}
-                    onProjectClick={onProjectClick}
-                    flatMode={flatMode}
-                    columnOrder={visibleColumns}
-                    showReinsertButton={showReinsertButton}
-                    onReinsert={onReinsert}
-                    hideCompletedSubtasks={hideCompletedSubtasks}
-                    subtasksExpanded={expandedTaskIds.has(task.id)}
-                    onToggleSubtasks={handleToggleSubtasks}
-                  />
-                ))}
-              </>
-            )}
+            {/* Render unsectioned tasks — no header */}
+            {unsectionedTasks.map((task, index) => (
+              <TaskRow
+                key={`${task.id}-${columnOrderKey}`}
+                task={task}
+                animationIndex={index}
+                onComplete={handleTaskComplete}
+                onClick={onTaskClick}
+                onViewSubtasks={handleViewSubtasks}
+                onSubtaskButtonClick={onSubtaskButtonClick}
+                onAddSubtask={onAddSubtask}
+                draggable={!showReinsertButton}
+                onDragStart={handleDragStart}
+                onDragOver={handleTaskDragOver}
+                onDragLeave={handleTaskDragLeave}
+                onDrop={handleTaskDrop}
+                draggedTaskId={draggedTaskId}
+                dragOverTaskId={dragOverTaskId}
+                isSelected={selectedTaskId === task.id}
+                depth={0}
+                taskWasExpanded={taskWasExpanded}
+                onSetTaskWasExpanded={setTaskWasExpanded}
+                showProjectColumn={showProjectColumn}
+                projectName={showProjectColumn ? getProjectName(task) : undefined}
+                onProjectClick={onProjectClick}
+                flatMode={flatMode}
+                columnOrder={visibleColumns}
+                showReinsertButton={showReinsertButton}
+                onReinsert={onReinsert}
+                hideCompletedSubtasks={hideCompletedSubtasks}
+                subtasksExpanded={expandedTaskIds.has(task.id)}
+                onToggleSubtasks={handleToggleSubtasks}
+              />
+            ))}
           </tbody>
         </table>
-
-        {/* Add Section Button */}
-        <div className="mt-4">
-          {isAddingSection ? (
-            <div className="flex gap-2">
-              <Input
-                value={newSectionName}
-                onChange={(e) => setNewSectionName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleAddSection();
-                  if (e.key === 'Escape') handleCancelAddSection();
-                }}
-                placeholder="Section name"
-                autoFocus
-              />
-              <Button onClick={handleAddSection} disabled={!newSectionName.trim()}>
-                Add
-              </Button>
-              <Button variant="ghost" onClick={handleCancelAddSection}>
-                Cancel
-              </Button>
-            </div>
-          ) : (
-            <Button
-              variant="outline"
-              className="w-full border-dashed"
-              onClick={() => setIsAddingSection(true)}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Section
-            </Button>
-          )}
-        </div>
       </div>
 
       {/* Delete Section Confirmation Dialog */}
