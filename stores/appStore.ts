@@ -23,7 +23,8 @@ interface AppStore {
   columnOrder: TaskColumnId[]; // Persisted column order (excludes 'name' which is always first)
   sortColumn: SortableColumnId | null; // Currently sorted column, null = default order
   sortDirection: SortDirection; // Sort direction
-  needsAttentionSort: boolean; // Whether "Needs Attention" sort is active on All Tasks page
+  // needsAttentionSort removed in T-07 — replaced by tmsStore.activeSystem !== 'none'
+  // Existing persisted blobs with stale 'needsAttentionSort' key rehydrate without error (Zustand ignores unknown keys)
   autoHideThreshold: AutoHideThreshold; // Completed task visibility policy
   showRecentlyCompleted: boolean; // Whether to show recently completed tasks within threshold
   keyboardShortcuts: Partial<ShortcutMap>; // User overrides only (not the full map)
@@ -38,7 +39,6 @@ interface AppStore {
   setColumnOrder: (order: TaskColumnId[]) => void;
   toggleSort: (column: SortableColumnId) => void;
   clearSort: () => void;
-  setNeedsAttentionSort: (active: boolean) => void;
   setAutoHideThreshold: (threshold: AutoHideThreshold) => void;
   setShowRecentlyCompleted: (show: boolean) => void;
   setKeyboardShortcut: (action: ShortcutAction, key: string) => void;
@@ -60,7 +60,6 @@ export const useAppStore = create<AppStore>()(
       columnOrder: DEFAULT_COLUMN_ORDER,
       sortColumn: null,
       sortDirection: 'asc' as SortDirection,
-      needsAttentionSort: false,
       autoHideThreshold: '24h' as AutoHideThreshold,
       showRecentlyCompleted: false,
       keyboardShortcuts: {},
@@ -97,22 +96,16 @@ export const useAppStore = create<AppStore>()(
         if (state.sortColumn === column) {
           // Same column: toggle direction, or clear if already desc
           if (state.sortDirection === 'asc') {
-            return { sortDirection: 'desc' as SortDirection, needsAttentionSort: false };
+            return { sortDirection: 'desc' as SortDirection };
           }
           // Already desc, clear the sort
-          return { sortColumn: null, sortDirection: 'asc' as SortDirection, needsAttentionSort: false };
+          return { sortColumn: null, sortDirection: 'asc' as SortDirection };
         }
-        // New column: set ascending, disable needs attention
-        return { sortColumn: column, sortDirection: 'asc' as SortDirection, needsAttentionSort: false };
+        // New column: set ascending
+        return { sortColumn: column, sortDirection: 'asc' as SortDirection };
       }),
       
       clearSort: () => set({ sortColumn: null, sortDirection: 'asc' as SortDirection }),
-      
-      setNeedsAttentionSort: (active) => set({
-        needsAttentionSort: active,
-        // Clear column sort when enabling needs attention
-        ...(active ? { sortColumn: null, sortDirection: 'asc' as SortDirection } : {}),
-      }),
       
       setAutoHideThreshold: (threshold) => set({
         autoHideThreshold: threshold,

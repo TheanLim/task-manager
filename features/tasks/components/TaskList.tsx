@@ -803,7 +803,12 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                   </tr>
 
                   {/* Section Tasks */}
-                  {!section.collapsed && sectionTasks.length > 0 && sectionTasks.map((task, index) => (
+                  {!section.collapsed && sectionTasks.length > 0 && sectionTasks.map((task, index) => {
+                    const taskTmsProps = tmsTaskProps?.(task);
+                    const isCurrentCandidate = taskTmsProps?.tmsVariant === 'current';
+                    const isTmsActive = !!tmsTaskProps;
+                    const rowOpacity = isTmsActive && !isCurrentCandidate ? 'opacity-60' : '';
+                    return (
                     <TaskRow
                       key={`${task.id}-${columnOrderKey}`}
                       task={task}
@@ -834,9 +839,11 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                       hideCompletedSubtasks={hideCompletedSubtasks}
                       subtasksExpanded={expandedTaskIds.has(task.id)}
                       onToggleSubtasks={handleToggleSubtasks}
-                      {...(tmsTaskProps ? tmsTaskProps(task) : {})}
+                      className={rowOpacity}
+                      {...(taskTmsProps ?? {})}
                     />
-                  ))}
+                    );
+                  })}
 
                   {/* Add Task Button Row */}
                   {!section.collapsed && (
@@ -889,7 +896,12 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
             })}
 
             {/* Render unsectioned tasks — no header */}
-            {unsectionedTasks.map((task, index) => (
+            {unsectionedTasks.map((task, index) => {
+              const taskTmsProps = tmsTaskProps?.(task);
+              const isCurrentCandidate = taskTmsProps?.tmsVariant === 'current';
+              const isTmsActive = !!tmsTaskProps;
+              const rowOpacity = isTmsActive && !isCurrentCandidate ? 'opacity-60' : '';
+              return (
               <TaskRow
                 key={`${task.id}-${columnOrderKey}`}
                 task={task}
@@ -920,9 +932,11 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                 hideCompletedSubtasks={hideCompletedSubtasks}
                 subtasksExpanded={expandedTaskIds.has(task.id)}
                 onToggleSubtasks={handleToggleSubtasks}
-                {...(tmsTaskProps ? tmsTaskProps(task) : {})}
+                className={rowOpacity}
+                {...(taskTmsProps ?? {})}
               />
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

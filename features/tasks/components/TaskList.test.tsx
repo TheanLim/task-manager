@@ -469,4 +469,94 @@ describe('TaskList', () => {
       expect(oldestEl.compareDocumentPosition(nullEl) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
   });
+
+  describe('TMS dimming via tmsTaskProps', () => {
+    const section: Section = {
+      id: 'section-1',
+      projectId: null,
+      name: 'To Do',
+      order: 0,
+      collapsed: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const makeTask = (id: string, order: number): Task => ({
+      id,
+      projectId: null,
+      parentTaskId: null,
+      sectionId: 'section-1',
+      description: `Task ${id}`,
+      notes: '',
+      assignee: '',
+      priority: Priority.NONE,
+      tags: [],
+      dueDate: null,
+      completed: false,
+      completedAt: null,
+      order,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    const taskA = makeTask('task-a', 0);
+    const taskB = makeTask('task-b', 1);
+
+    it('current candidate row does NOT have opacity-60', () => {
+      const tmsTaskProps = (task: Task) => ({
+        tmsVariant: task.id === 'task-a' ? 'current' as const : 'default' as const,
+      });
+
+      render(
+        <TaskList
+          tasks={[taskA, taskB]}
+          sections={[section]}
+          onTaskClick={vi.fn()}
+          onTaskComplete={vi.fn()}
+          onAddTask={vi.fn()}
+          tmsTaskProps={tmsTaskProps}
+        />
+      );
+
+      const candidateRow = screen.getByText('Task task-a').closest('tr');
+      expect(candidateRow).not.toHaveClass('opacity-60');
+    });
+
+    it('non-candidate rows have opacity-60 when tmsTaskProps is active', () => {
+      const tmsTaskProps = (task: Task) => ({
+        tmsVariant: task.id === 'task-a' ? 'current' as const : 'default' as const,
+      });
+
+      render(
+        <TaskList
+          tasks={[taskA, taskB]}
+          sections={[section]}
+          onTaskClick={vi.fn()}
+          onTaskComplete={vi.fn()}
+          onAddTask={vi.fn()}
+          tmsTaskProps={tmsTaskProps}
+        />
+      );
+
+      const nonCandidateRow = screen.getByText('Task task-b').closest('tr');
+      expect(nonCandidateRow).toHaveClass('opacity-60');
+    });
+
+    it('no opacity-60 on any row when tmsTaskProps is not provided', () => {
+      render(
+        <TaskList
+          tasks={[taskA, taskB]}
+          sections={[section]}
+          onTaskClick={vi.fn()}
+          onTaskComplete={vi.fn()}
+          onAddTask={vi.fn()}
+        />
+      );
+
+      const rowA = screen.getByText('Task task-a').closest('tr');
+      const rowB = screen.getByText('Task task-b').closest('tr');
+      expect(rowA).not.toHaveClass('opacity-60');
+      expect(rowB).not.toHaveClass('opacity-60');
+    });
+  });
 });

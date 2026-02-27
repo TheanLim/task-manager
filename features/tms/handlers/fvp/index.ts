@@ -37,7 +37,7 @@ export const FVPHandler: TimeManagementSystemHandler<FVPState, FVPAction> = {
   stateVersion: 1,
 
   getInitialState() {
-    return { dottedTasks: [], scanPosition: 1 };
+    return { dottedTasks: [], scanPosition: 1, snapshotTaskIds: [] };
   },
 
   validateState(raw) {

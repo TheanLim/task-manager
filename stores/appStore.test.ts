@@ -28,6 +28,16 @@ describe('useAppStore', () => {
         theme: 'system'
       });
     });
+
+    it('needsAttentionSort is not present on the store (removed in T-07)', () => {
+      const { result } = renderHook(() => useAppStore());
+      expect((result.current as any).needsAttentionSort).toBeUndefined();
+    });
+
+    it('setNeedsAttentionSort is not a function on the store (removed in T-07)', () => {
+      const { result } = renderHook(() => useAppStore());
+      expect((result.current as any).setNeedsAttentionSort).toBeUndefined();
+    });
   });
 
   describe('setActiveProject', () => {

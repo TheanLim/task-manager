@@ -11,6 +11,8 @@ import { DependencyDialog } from '@/features/tasks/components/DependencyDialog';
 import { ProjectView } from '@/features/projects/components/ProjectView';
 import { GlobalTasksContainer } from '@/features/tasks/components/GlobalTasksContainer';
 import { TMSHost } from '@/features/tms/components/TMSHost';
+import { NudgeBanner } from '@/features/tms/components/NudgeBanner';
+import { ENABLE_FOCUS_TAB } from '@/features/tms/flags';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
 import { useDataStore, automationService } from '@/stores/dataStore';
@@ -106,15 +108,12 @@ function HomeContent() {
   } = useDataStore();
 
   const { settings, setActiveProject } = useAppStore();
-
-  // Keyboard shortcuts
   const [helpOpen, setHelpOpen] = useState(false);
   const [deleteConfirmTaskId, setDeleteConfirmTaskId] = useState<string | null>(null);
   const keyboardShortcuts = useAppStore(s => s.keyboardShortcuts);
   const shortcutMap = mergeShortcutMaps(getDefaultShortcutMap(), keyboardShortcuts);
   const focusedTaskId = useKeyboardNavStore(s => s.focusedTaskId);
-
-  const needsAttentionSort = useAppStore(s => s.needsAttentionSort);
+  const tmsActiveSystem = useTMSStore(s => s.state.activeSystem);
 
   useGlobalShortcuts({
     onNewTask: () => {
@@ -161,12 +160,21 @@ function HomeContent() {
       }
     },
     onReinsertTask: () => {
-      if (!needsAttentionSort) return; // Only works in Review Queue mode
+      if (useTMSStore.getState().state.activeSystem === 'none') return;
       const taskId = useKeyboardNavStore.getState().focusedTaskId;
       if (taskId) {
         taskService.reinsertTask(taskId);
       }
     },
+    onOpenModeSelector: () => {
+      // no-op — TMSModePill handles opening the popover via its own click handler.
+      // This is a fallback for keyboard-only users when the pill isn't focused.
+    },
+    onExitMode: () => {
+      useTMSStore.getState().setActiveSystem('none');
+    },
+    isModeActive: tmsActiveSystem !== 'none',
+    isModePopoverOpen: false, // Popover state is managed inside TMSModePill
     isTaskFocused: !!focusedTaskId,
     shortcutMap,
   });
@@ -246,6 +254,20 @@ function HomeContent() {
       dm.deselectTask();
     }
   }, [tabFromUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // T-28: redirect to all-tasks when Focus tab flag is disabled
+  useEffect(() => {
+    if (viewFromUrl === 'tms' && !ENABLE_FOCUS_TAB) {
+      router.replace('/?view=tasks');
+    }
+  }, [viewFromUrl, router]);
+
+  // T-29b: write hadFocusTab marker so TMSModePill can show migration tooltip
+  useEffect(() => {
+    if (viewFromUrl === 'tms' && ENABLE_FOCUS_TAB) {
+      localStorage.setItem('hadFocusTab', 'true');
+    }
+  }, [viewFromUrl]);
 
   // TMS initialization is handled by TMSHost (task 4.8) — no need to initialize here.
   // TMSHost calls handler.onActivate when the system is activated via the tab bar.
@@ -519,12 +541,18 @@ function HomeContent() {
         >
           {!hydrated ? (
             <SkeletonTaskList />
+          ) : viewFromUrl === 'tms' && ENABLE_FOCUS_TAB ? (
+            <>
+              <NudgeBanner />
+              <TMSHost
+                tasks={tasks}
+                onTaskClick={handleTaskClick}
+                onTaskComplete={handleTaskComplete}
+              />
+            </>
           ) : viewFromUrl === 'tms' ? (
-            <TMSHost
-              tasks={tasks}
-              onTaskClick={handleTaskClick}
-              onTaskComplete={handleTaskComplete}
-            />
+            // Flag is false — render null while useEffect redirects to all-tasks
+            null
           ) : isGlobalView ? (
             <GlobalTasksContainer
               onTaskClick={handleTaskClick}
@@ -734,7 +762,7 @@ function HomeContent() {
         />
       )}
 
-      <ShortcutHelpOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />
+      <ShortcutHelpOverlay open={helpOpen} onClose={() => setHelpOpen(false)} activeTMSMode={tmsActiveSystem} />
 
       {/* Delete confirmation dialog triggered by 'x' shortcut */}
       <AlertDialog open={!!deleteConfirmTaskId} onOpenChange={(open) => {

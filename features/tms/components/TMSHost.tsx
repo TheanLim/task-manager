@@ -5,17 +5,19 @@
  * Requirements: 4.3
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { toast as sonnerToast } from 'sonner';
 import { Task } from '@/types';
 import { useTMSStore } from '../stores/tmsStore';
 import { useTMSStoreHydrated } from '../hooks/useTMSStoreHydrated';
-import { getTMSHandler, getAllTMSHandlers } from '../registry';
+import { getTMSHandler } from '../registry';
 import { TMSTabBar } from './TMSTabBar';
 import { TMSGuide, TMSGuideHelpButton } from './shared/TMSGuide';
 import { useTMSSystemState } from '../hooks/useTMSSystemState';
 import { useTMSGuide } from '../hooks/useTMSGuide';
+import { useTMSDispatch } from '../hooks/useTMSDispatch';
+import { executeTMSSwitch } from '../services/tmsSwitchService';
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -104,43 +106,45 @@ export function TMSHost({ tasks, onTaskClick, onTaskComplete }: TMSHostProps) {
   const { handler, systemState } = useTMSSystemState(activeSystemId);
   const { isVisible: guideVisible, dismiss: dismissGuide, reopen: reopenGuide } = useTMSGuide(activeSystemId);
 
-  // Build dispatch — calls handler.reduce then applySystemStateDelta
-  const dispatch = useCallback(
-    (action: unknown) => {
-      const delta = handler.reduce(systemState, action);
-      applySystemStateDelta(handler.id, delta as Record<string, unknown>);
-    },
-    [handler, systemState, applySystemStateDelta],
-  );
+  // Build dispatch via shared hook — eliminates duplication with GlobalTasksView
+  const dispatch = useTMSDispatch();
 
   // System switching lifecycle
   const handleSwitch = useCallback(
     (newSystemId: string) => {
       if (newSystemId === activeSystemId) return;
 
-      // 1. Deactivate current system — persist clean state
-      const deactivateDelta = handler.onDeactivate(systemState);
-      applySystemStateDelta(handler.id, deactivateDelta as Record<string, unknown>);
+      const hadExistingState = state.systemStates[newSystemId] !== undefined;
 
-      // 2. Switch active system
-      setActiveSystem(newSystemId);
+      // Delegate pure switch logic to the service
+      const { systemStateUpdates } = executeTMSSwitch(
+        activeSystemId,
+        newSystemId,
+        tasks,
+        state.systemStates as Record<string, Record<string, unknown>>,
+        getTMSHandler,
+      );
 
-      // 3. Activate new system
-      const newHandler = getTMSHandler(newSystemId);
-      const existingState = state.systemStates[newSystemId];
-      const newRaw = existingState ?? newHandler.getInitialState();
-      const newSystemState = newHandler.validateState(newRaw);
-      const activateDelta = newHandler.onActivate(tasks, newSystemState);
-      const mergedState = { ...(newSystemState as Record<string, unknown>), ...(activateDelta as Record<string, unknown>) };
-      setSystemState(newSystemId, mergedState);
-
-      // 4. Show DIT day rollover toast if applicable
-      if (newSystemId === 'dit') {
-        showRolloverToastIfNeeded(activateDelta as Record<string, unknown>);
+      // Apply deactivate delta for the old system (if any)
+      if (systemStateUpdates[activeSystemId]) {
+        applySystemStateDelta(activeSystemId, systemStateUpdates[activeSystemId]!);
       }
 
-      // 5. Set resumedSystemId if the new system already had state
-      if (existingState !== undefined) {
+      // Switch active system
+      setActiveSystem(newSystemId);
+
+      // Apply activate result for the new system (if any)
+      if (systemStateUpdates[newSystemId]) {
+        setSystemState(newSystemId, systemStateUpdates[newSystemId]);
+      }
+
+      // Show DIT day rollover toast — side effect that stays in TMSHost
+      if (newSystemId === 'dit' && systemStateUpdates[newSystemId]) {
+        showRolloverToastIfNeeded(systemStateUpdates[newSystemId]!);
+      }
+
+      // Show resumed banner if the new system already had persisted state
+      if (hadExistingState) {
         if (resumedTimerRef.current) {
           clearTimeout(resumedTimerRef.current);
         }
@@ -152,7 +156,7 @@ export function TMSHost({ tasks, onTaskClick, onTaskComplete }: TMSHostProps) {
         setResumedSystemId(null);
       }
     },
-    [handler, systemState, state.activeSystem, activeSystemId, state.systemStates, applySystemStateDelta, setActiveSystem, setSystemState, tasks, showRolloverToastIfNeeded],
+    [activeSystemId, state.systemStates, tasks, applySystemStateDelta, setActiveSystem, setSystemState, showRolloverToastIfNeeded],
   );
 
   // Clean up timers on unmount

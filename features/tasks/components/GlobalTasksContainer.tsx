@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef } from 'react';
 import { GlobalTasksHeader } from '@/features/tasks/components/GlobalTasksHeader';
 import { GlobalTasksView } from '@/features/tasks/components/GlobalTasksView';
 
@@ -28,15 +29,17 @@ export function GlobalTasksContainer({
   selectedTaskId,
   onProjectClick,
 }: GlobalTasksContainerProps) {
+  const scrollContainerRef = useRef<HTMLElement>(null);
+
   return (
     <>
       {/* Header with display mode toggle */}
       <div className="flex-shrink-0 mb-4">
-        <GlobalTasksHeader onAddTask={() => onAddTask()} />
+        <GlobalTasksHeader onAddTask={() => onAddTask()} scrollContainerRef={scrollContainerRef} />
       </div>
 
       {/* Scrollable task list */}
-      <div className="flex-1 overflow-auto">
+      <div ref={scrollContainerRef as React.RefObject<HTMLDivElement>} className="flex-1 overflow-auto">
         <GlobalTasksView
           onTaskClick={onTaskClick}
           onTaskComplete={onTaskComplete}

@@ -1,7 +1,8 @@
 'use client';
 
+import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Plus, List, ListTree, ListChecks, Eye, Info, CheckCircle2, History, MoreHorizontal } from 'lucide-react';
+import { Plus, List, ListTree, CheckCircle2, History, MoreHorizontal } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { useMediaQuery } from '@/app/hooks/useMediaQuery';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -14,9 +15,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { AutoHideThreshold } from '@/lib/schemas';
+import { TMSModePill } from '@/features/tms/components/TMSModePill';
 
 interface GlobalTasksHeaderProps {
   onAddTask: () => void;
+  scrollContainerRef: React.RefObject<HTMLElement>;
 }
 
 const THRESHOLD_OPTIONS: { value: AutoHideThreshold; label: string }[] = [
@@ -29,12 +32,11 @@ const THRESHOLD_OPTIONS: { value: AutoHideThreshold; label: string }[] = [
 
 /**
  * Header component for Global Tasks View.
- * Layout: [Completed · <status>] [Nested/Flat] [Review Queue] [+ Add Task]
+ * Layout: [Completed · <status>] [Nested/Flat] [TMSModePill] [+ Add Task]
  */
-export function GlobalTasksHeader({ onAddTask }: GlobalTasksHeaderProps) {
+export function GlobalTasksHeader({ onAddTask, scrollContainerRef }: GlobalTasksHeaderProps) {
   const {
     globalTasksDisplayMode, setGlobalTasksDisplayMode,
-    needsAttentionSort, setNeedsAttentionSort,
     autoHideThreshold, setAutoHideThreshold,
     showRecentlyCompleted, setShowRecentlyCompleted,
   } = useAppStore();
@@ -125,31 +127,6 @@ export function GlobalTasksHeader({ onAddTask }: GlobalTasksHeaderProps) {
     </TooltipProvider>
   );
 
-  const reviewQueueButton = (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant={needsAttentionSort ? 'default' : 'outline'}
-            size="sm"
-            className={isSmallScreen ? 'w-full justify-start' : ''}
-            onClick={() => setNeedsAttentionSort(!needsAttentionSort)}
-          >
-            {needsAttentionSort ? <Eye className="h-4 w-4 mr-2" /> : <ListChecks className="h-4 w-4 mr-2" />}
-            {needsAttentionSort ? 'Reviewing' : 'Review Queue'}
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>
-            {needsAttentionSort
-              ? 'Reviewing tasks \u2014 oldest-reviewed on top. Click \u21bb to mark reviewed.'
-              : 'Sort by last reviewed \u2014 oldest first'}
-          </p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  );
-
   return (
     <>
       <div className="flex items-center gap-4 mb-4">
@@ -157,25 +134,27 @@ export function GlobalTasksHeader({ onAddTask }: GlobalTasksHeaderProps) {
 
         <div className="ml-auto flex items-center gap-2">
           {isSmallScreen ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" className="h-8 w-8">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56 p-2 space-y-1">
-                {!needsAttentionSort && (
+            <>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon" className="h-8 w-8">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 p-2 space-y-1">
                   <div>{completedButton}</div>
-                )}
-                <div>{displayModeButton}</div>
-                <div>{reviewQueueButton}</div>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  <div>{displayModeButton}</div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* TMSModePill stays visible on small screens — primary control */}
+              <TMSModePill scrollContainerRef={scrollContainerRef} />
+            </>
           ) : (
             <>
-              {!needsAttentionSort && completedButton}
+              {completedButton}
               {displayModeButton}
-              {reviewQueueButton}
+              <TMSModePill scrollContainerRef={scrollContainerRef} />
             </>
           )}
 
@@ -185,17 +164,6 @@ export function GlobalTasksHeader({ onAddTask }: GlobalTasksHeaderProps) {
           </Button>
         </div>
       </div>
-
-      {needsAttentionSort && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2 px-1">
-          <Info className="h-3.5 w-3.5 flex-shrink-0" />
-          <span>
-            {globalTasksDisplayMode === 'flat'
-              ? 'Each task is sorted individually by last reviewed \u2014 subtasks appear on their own, not grouped under parents'
-              : 'Sorted by last reviewed \u2014 task order here is independent of project views'}
-          </span>
-        </div>
-      )}
     </>
   );
 }

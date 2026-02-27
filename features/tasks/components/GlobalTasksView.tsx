@@ -1,13 +1,29 @@
 'use client';
 
-import { useMemo, useCallback, useState } from 'react';
+import { useMemo, useCallback, useState, useEffect, useRef } from 'react';
 import { TaskList } from '@/features/tasks/components/TaskList';
 import { useDataStore, taskService } from '@/stores/dataStore';
 import { useAppStore } from '@/stores/appStore';
+import { useTMSStore } from '@/features/tms/stores/tmsStore';
 import { Circle } from 'lucide-react';
 import { EmptyState } from '@/components/EmptyState';
 import { Task, Section } from '@/types';
 import { filterAutoHiddenTasks } from '@/features/tasks/services/autoHideService';
+import { useTMSOrderedTasks } from '@/features/tms/hooks/useTMSOrderedTasks';
+import { useFVPSessionState } from '@/features/tms/hooks/useFVPSessionState';
+import { useTMSDispatch } from '@/features/tms/hooks/useTMSDispatch';
+import { useTMSShortcuts } from '@/features/tms/hooks/useTMSShortcuts';
+import { useKeyboardNavStore } from '@/features/keyboard/stores/keyboardNavStore';
+import { TMSInlineNotice } from '@/features/tms/components/TMSInlineNotice';
+import { AF4ActionRow } from '@/features/tms/components/AF4ActionRow';
+import { AF4FlaggedNotice } from '@/features/tms/components/AF4FlaggedNotice';
+import { FVPComparisonPanel } from '@/features/tms/components/FVPComparisonPanel';
+import { FVPSessionButton } from '@/features/tms/components/FVPSessionButton';
+import { DITMoveButtons } from '@/features/tms/components/DITMoveButtons';
+import { tmsCopy } from '@/features/tms/copy/tms-copy';
+import type { AF4State } from '@/features/tms/handlers/af4';
+import type { DITState } from '@/features/tms/handlers/DITHandler';
+import { getScanCandidate } from '@/features/tms/handlers/fvp';
 
 interface GlobalTasksViewProps {
   onTaskClick: (taskId: string) => void;
@@ -48,7 +64,7 @@ export function GlobalTasksView({
 }: GlobalTasksViewProps) {
   const { tasks, sections, projects } = useDataStore();
   const { globalTasksDisplayMode } = useAppStore();
-  const needsAttentionSort = useAppStore((s) => s.needsAttentionSort);
+  const { state: tmsState, setActiveSystem } = useTMSStore();
   const autoHideThreshold = useAppStore((s) => s.autoHideThreshold);
   const showRecentlyCompleted = useAppStore((s) => s.showRecentlyCompleted);
 
@@ -199,8 +215,8 @@ export function GlobalTasksView({
   }, [projectTasks, unlinkedTasks, unlinkedSections, virtualFromProjectsSection, globalTasksDisplayMode, projects]);
 
   const filteredTasks = useMemo(() => {
-    // Review Queue or Always hide: filter out all completed tasks
-    if (needsAttentionSort || autoHideThreshold === 'always') {
+    // TMS active or Always hide: filter out all completed tasks
+    if (tmsState.activeSystem !== 'none' || autoHideThreshold === 'always') {
       return displayTasks.filter(t => !t.completed);
     }
     // Show recently completed: only completed tasks within the threshold window
@@ -224,11 +240,163 @@ export function GlobalTasksView({
       displayMode: globalTasksDisplayMode,
     });
     return result.visible;
-  }, [displayTasks, tasks, needsAttentionSort,
+  }, [displayTasks, tasks, tmsState.activeSystem,
       autoHideThreshold, showRecentlyCompleted, globalTasksDisplayMode]);
 
+  const orderedTasks = useTMSOrderedTasks(filteredTasks);
+  const fvpSession = useFVPSessionState(filteredTasks);
+  const dispatch = useTMSDispatch();
+  const focusedTaskId = useKeyboardNavStore((s) => s.focusedTaskId);
+
+  // AF4 state — read dismissed task IDs for the flagged notice
+  const af4State = useTMSStore(
+    (s) => s.state.systemStates['af4'] as AF4State | undefined,
+  );
+  const dismissedTaskIds = af4State?.dismissedTaskIds ?? [];
+
+  // DIT state — read schedule lists for move button visibility
+  const ditState = useTMSStore(
+    (s) => s.state.systemStates['dit'] as DITState | undefined,
+  );
+
+  // FVP raw state — needed for getScanCandidate inside tmsTaskProps
+  const fvpRawState = useTMSStore(
+    (s) => s.state.systemStates['fvp'] as
+      | { dottedTasks: string[]; scanPosition: number; snapshotTaskIds: string[] }
+      | undefined,
+  );
+
+  // "View changed" notice — fires when Nested/Flat toggle happens while a mode is active
+  const [showViewChangedNotice, setShowViewChangedNotice] = useState(false);
+  const prevDisplayModeRef = useRef(globalTasksDisplayMode);
+
+  useEffect(() => {
+    if (prevDisplayModeRef.current !== globalTasksDisplayMode) {
+      prevDisplayModeRef.current = globalTasksDisplayMode;
+      if (tmsState.activeSystem !== 'none') {
+        setShowViewChangedNotice(true);
+      }
+    }
+  }, [globalTasksDisplayMode, tmsState.activeSystem]);
+
+  // "Queue complete" notice — fires when orderedTasks exhausts while mode is active
+  // ⚠️ 6-second window: when queue exhausts, activeSystem is still non-none but orderedTasks is empty.
+  // The notice fires here; mode resets after the dismiss delay. This is intentional — the notice
+  // is the signal to the user; the mode resets only after they've seen it.
+  const prevOrderedLengthRef = useRef(orderedTasks.length);
+  const [showQueueCompleteNotice, setShowQueueCompleteNotice] = useState(false);
+
+  useEffect(() => {
+    const prev = prevOrderedLengthRef.current;
+    prevOrderedLengthRef.current = orderedTasks.length;
+    if (tmsState.activeSystem !== 'none' && prev > 0 && orderedTasks.length === 0) {
+      setShowQueueCompleteNotice(true);
+    }
+  }, [orderedTasks.length, tmsState.activeSystem]);
+
+  // tmsTaskProps — only passed when a non-standard, non-none mode is active.
+  // Standard mode should NOT dim rows.
+  const tmsTaskProps = useCallback(
+    (tmsState.activeSystem !== 'none' && tmsState.activeSystem !== 'standard')
+      ? (task: Task) => {
+          const isCandidate = orderedTasks.length > 0 && orderedTasks[0].id === task.id;
+          const activeSystem = tmsState.activeSystem;
+
+          // ── AF4 ──────────────────────────────────────────────────────────
+          if (activeSystem === 'af4') {
+            if (!isCandidate) return { tmsVariant: 'default' as const };
+            return {
+              tmsVariant: 'current' as const,
+              actionsSlot: (
+                <AF4ActionRow
+                  task={task}
+                  onMadeProgress={() => dispatch({ type: 'MADE_PROGRESS' })}
+                  onDone={() => {
+                    dispatch({ type: 'MARK_DONE' });
+                    onTaskComplete(task.id, true);
+                  }}
+                  onSkip={() => dispatch({ type: 'SKIP_TASK' })}
+                  onFlag={() => dispatch({ type: 'FLAG_DISMISSED' })}
+                />
+              ),
+            };
+          }
+
+          // ── FVP ──────────────────────────────────────────────────────────
+          if (activeSystem === 'fvp') {
+            const isFirst = orderedTasks.length > 0 && orderedTasks[0].id === task.id;
+
+            if (fvpSession.selectionInProgress && fvpSession.currentX) {
+              // During scan: show comparison panel on the scan candidate
+              const fvpStateForScan = fvpRawState ?? { dottedTasks: [], scanPosition: 1, snapshotTaskIds: [] };
+              const currentScanCandidate = getScanCandidate(filteredTasks, fvpStateForScan);
+
+              if (currentScanCandidate?.id === task.id) {
+                return {
+                  tmsVariant: 'current' as const,
+                  actionsSlot: (
+                    <FVPComparisonPanel
+                      candidate={task}
+                      referenceTask={fvpSession.currentX}
+                      onYes={() => dispatch({ type: 'DOT_TASK', task, tasks: filteredTasks })}
+                      onNo={() => dispatch({ type: 'SKIP_CANDIDATE', task, tasks: filteredTasks })}
+                    />
+                  ),
+                };
+              }
+            } else if (isFirst) {
+              // Not scanning: show Begin/Continue session button on first task
+              const hasDotted = (fvpRawState?.dottedTasks?.length ?? 0) > 0;
+              return {
+                tmsVariant: isCandidate ? 'current' as const : 'default' as const,
+                actionsSlot: (
+                  <FVPSessionButton
+                    hasDottedTasks={hasDotted}
+                    onBegin={() => dispatch({ type: 'START_PRESELECTION', tasks: filteredTasks })}
+                  />
+                ),
+              };
+            }
+
+            return { tmsVariant: isCandidate ? 'current' as const : 'default' as const };
+          }
+
+          // ── DIT ──────────────────────────────────────────────────────────
+          if (activeSystem === 'dit' && ditState) {
+            return {
+              tmsVariant: isCandidate ? 'current' as const : 'default' as const,
+              trailingSlot: (
+                <DITMoveButtons
+                  task={task}
+                  ditState={ditState}
+                  onMoveToToday={(taskId) => dispatch({ type: 'MOVE_TO_TODAY', taskId })}
+                  onMoveToTomorrow={(taskId) => dispatch({ type: 'MOVE_TO_TOMORROW', taskId })}
+                  onMoveToInbox={(taskId) => dispatch({ type: 'REMOVE_FROM_SCHEDULE', taskId })}
+                />
+              ),
+            };
+          }
+
+          return { tmsVariant: isCandidate ? 'current' as const : 'default' as const };
+        }
+      : () => ({}),
+    [dispatch, orderedTasks, tmsState.activeSystem, fvpSession, fvpRawState, ditState, filteredTasks, onTaskComplete],
+  );
+
+  // Wire mode-specific keyboard shortcuts
+  useTMSShortcuts({
+    activeSystem: tmsState.activeSystem,
+    candidateTask: orderedTasks[0] ?? null,
+    allTasks: filteredTasks,
+    selectionInProgress: fvpSession.selectionInProgress,
+    hasDottedTasks: (fvpRawState?.dottedTasks?.length ?? 0) > 0,
+    focusedTaskId,
+    dispatch,
+    onTaskComplete,
+  });
+
   // Determine whether to hide completed subtasks in TaskRow
-  const shouldHideCompletedSubtasks = needsAttentionSort || autoHideThreshold === 'always';
+  const shouldHideCompletedSubtasks = tmsState.activeSystem !== 'none' || autoHideThreshold === 'always';
 
   // Reinsert callback — delegates to TaskService
   const handleReinsert = useCallback((taskId: string) => {
@@ -263,30 +431,82 @@ export function GlobalTasksView({
   }
 
   return (
-    <TaskList
-      tasks={filteredTasks}
-      sections={displaySections}
-      onTaskClick={onTaskClick}
-      onTaskComplete={onTaskComplete}
-      onAddTask={(sectionId) => {
-        // Strip the virtual section ID — tasks added from the Tasks section
-        // are unlinked (no real sectionId), not tied to __from_projects__
-        const realSectionId = sectionId === FROM_PROJECTS_SECTION_ID ? undefined : sectionId;
-        onAddTask(realSectionId);
-      }}
-      onViewSubtasks={onViewSubtasks}
-      onSubtaskButtonClick={onSubtaskButtonClick}
-      onAddSubtask={globalTasksDisplayMode === 'nested' ? onAddSubtask : undefined}
-      selectedTaskId={selectedTaskId}
-      showProjectColumn={true}
-      onProjectClick={onProjectClick}
-      flatMode={globalTasksDisplayMode === 'flat'}
-      initialSortByProject={true}
-      showReinsertButton={needsAttentionSort}
-      onReinsert={needsAttentionSort ? handleReinsert : undefined}
-      onToggleSection={handleToggleSection}
-      hideCompletedSubtasks={shouldHideCompletedSubtasks}
-      readonlySectionIds={readonlySectionIds}
-    />
+    <>
+      {showViewChangedNotice && (
+        <TMSInlineNotice
+          variant="info"
+          message={tmsCopy.inlineNotices.viewChanged}
+          autoDismiss={4000}
+          onDismiss={() => setShowViewChangedNotice(false)}
+        />
+      )}
+      {showQueueCompleteNotice && (
+        <TMSInlineNotice
+          variant="success"
+          message={tmsCopy.inlineNotices.queueComplete}
+          autoDismiss={6000}
+          onDismiss={() => setShowQueueCompleteNotice(false)}
+        />
+      )}
+      {tmsState.activeSystem === 'fvp' && fvpSession.total > 0 && fvpSession.isFiltered && fvpSession.progress === 0 && (
+        <div role="alert">
+          <TMSInlineNotice
+            variant="warning"
+            message={tmsCopy.inlineNotices.noFvpCandidates}
+            actions={[
+              {
+                label: 'Clear filters',
+                onClick: () => { /* TODO: wire to filterStore.clearFilters() when filterStore exists */ },
+                variant: 'secondary',
+              },
+              {
+                label: 'End session',
+                onClick: () => setActiveSystem('none'),
+                variant: 'ghost-destructive',
+              },
+            ]}
+          />
+        </div>
+      )}
+      {tmsState.activeSystem === 'af4' && dismissedTaskIds.length > 0 && (
+        <AF4FlaggedNotice
+          dismissedTaskIds={dismissedTaskIds}
+          tasks={filteredTasks}
+          onResolve={(taskId, resolution) =>
+            dispatch({ type: 'RESOLVE_DISMISSED', taskId, resolution })
+          }
+        />
+      )}
+      <TaskList
+        tasks={orderedTasks}
+        sections={displaySections}
+        onTaskClick={onTaskClick}
+        onTaskComplete={onTaskComplete}
+        onAddTask={(sectionId) => {
+          // Strip the virtual section ID — tasks added from the Tasks section
+          // are unlinked (no real sectionId), not tied to __from_projects__
+          const realSectionId = sectionId === FROM_PROJECTS_SECTION_ID ? undefined : sectionId;
+          onAddTask(realSectionId);
+        }}
+        onViewSubtasks={onViewSubtasks}
+        onSubtaskButtonClick={onSubtaskButtonClick}
+        onAddSubtask={globalTasksDisplayMode === 'nested' ? onAddSubtask : undefined}
+        selectedTaskId={selectedTaskId}
+        showProjectColumn={true}
+        onProjectClick={onProjectClick}
+        flatMode={globalTasksDisplayMode === 'flat'}
+        initialSortByProject={true}
+        showReinsertButton={tmsState.activeSystem !== 'none'}
+        onReinsert={tmsState.activeSystem !== 'none' ? handleReinsert : undefined}
+        onToggleSection={handleToggleSection}
+        hideCompletedSubtasks={shouldHideCompletedSubtasks}
+        readonlySectionIds={readonlySectionIds}
+        tmsTaskProps={
+          (tmsState.activeSystem === 'none' || tmsState.activeSystem === 'standard')
+            ? undefined
+            : tmsTaskProps
+        }
+      />
+    </>
   );
 }

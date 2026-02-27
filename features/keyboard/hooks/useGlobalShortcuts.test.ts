@@ -1,5 +1,38 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { renderHook } from '@testing-library/react';
+import { fireEvent } from '@testing-library/dom';
 import * as fc from 'fast-check';
+import { useGlobalShortcuts } from './useGlobalShortcuts';
+import type { ShortcutMap } from '../types';
+import { getDefaultShortcutMap } from '../services/shortcutService';
+
+// Minimal shortcut map for tests
+function makeShortcutMap(): ShortcutMap {
+  return getDefaultShortcutMap();
+}
+
+// Default no-op options — override only what each test needs
+function makeOptions(overrides: Partial<Parameters<typeof useGlobalShortcuts>[0]> = {}): Parameters<typeof useGlobalShortcuts>[0] {
+  return {
+    onNewTask: vi.fn(),
+    onSearch: vi.fn(),
+    onHelp: vi.fn(),
+    onEditTask: vi.fn(),
+    onOpenTask: vi.fn(),
+    onToggleComplete: vi.fn(),
+    onDeleteTask: vi.fn(),
+    onAddSubtask: vi.fn(),
+    onReinsertTask: vi.fn(),
+    onOpenModeSelector: vi.fn(),
+    onExitMode: vi.fn(),
+    isModeActive: false,
+    isModePopoverOpen: false,
+    isTaskFocused: false,
+    shortcutMap: makeShortcutMap(),
+    enabled: true,
+    ...overrides,
+  };
+}
 
 // Feature: keyboard-navigation, Property 11: Escape priority order
 // **Validates: Requirements 12.1, 12.2**
@@ -73,5 +106,95 @@ describe('Property 11: Escape priority order', () => {
       ),
       { numRuns: 100 },
     );
+  });
+});
+
+// --- T-24: Shift+R opens mode selector ---
+
+describe('T-24: tms.openModeSelector shortcut (Shift+R)', () => {
+  beforeEach(() => {
+    document.body.focus();
+  });
+
+  it('calls onOpenModeSelector when Shift+R is pressed on body', () => {
+    const onOpenModeSelector = vi.fn();
+    renderHook(() => useGlobalShortcuts(makeOptions({ onOpenModeSelector })));
+
+    fireEvent.keyDown(document, { key: 'R', code: 'KeyR', shiftKey: true });
+
+    expect(onOpenModeSelector).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT call onOpenModeSelector when focus is in an <input>', () => {
+    const onOpenModeSelector = vi.fn();
+    renderHook(() => useGlobalShortcuts(makeOptions({ onOpenModeSelector })));
+
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+
+    fireEvent.keyDown(document, { key: 'R', code: 'KeyR', shiftKey: true });
+
+    expect(onOpenModeSelector).not.toHaveBeenCalled();
+    document.body.removeChild(input);
+  });
+
+  it('does NOT call onOpenModeSelector when focus is in a <textarea>', () => {
+    const onOpenModeSelector = vi.fn();
+    renderHook(() => useGlobalShortcuts(makeOptions({ onOpenModeSelector })));
+
+    const textarea = document.createElement('textarea');
+    document.body.appendChild(textarea);
+    textarea.focus();
+
+    fireEvent.keyDown(document, { key: 'R', code: 'KeyR', shiftKey: true });
+
+    expect(onOpenModeSelector).not.toHaveBeenCalled();
+    document.body.removeChild(textarea);
+  });
+});
+
+// --- T-25: Escape exits active mode ---
+
+describe('T-25: Escape exits active mode', () => {
+  beforeEach(() => {
+    document.body.focus();
+  });
+
+  afterEach(() => {
+    document.body.focus();
+  });
+
+  it('calls onExitMode when isModeActive=true and isModePopoverOpen=false', () => {
+    const onExitMode = vi.fn();
+    renderHook(() =>
+      useGlobalShortcuts(makeOptions({ onExitMode, isModeActive: true, isModePopoverOpen: false })),
+    );
+
+    fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' });
+
+    expect(onExitMode).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT call onExitMode when isModePopoverOpen=true', () => {
+    const onExitMode = vi.fn();
+    renderHook(() =>
+      useGlobalShortcuts(makeOptions({ onExitMode, isModeActive: true, isModePopoverOpen: true })),
+    );
+
+    fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' });
+
+    expect(onExitMode).not.toHaveBeenCalled();
+  });
+
+  it('does NOT call onExitMode when isModeActive=false', () => {
+    const onExitMode = vi.fn();
+    renderHook(() =>
+      useGlobalShortcuts(makeOptions({ onExitMode, isModeActive: false, isModePopoverOpen: false })),
+    );
+
+    fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' });
+
+    expect(onExitMode).not.toHaveBeenCalled();
   });
 });

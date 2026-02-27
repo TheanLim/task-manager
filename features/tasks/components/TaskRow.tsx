@@ -67,6 +67,12 @@ interface TaskRowProps {
   actionsSlot?: React.ReactNode;
   /** Slot rendered inline in the name cell before the view-details button (e.g. DIT move buttons). Shows on hover. */
   trailingSlot?: React.ReactNode;
+  /** Extra CSS classes applied to the root <tr> element (e.g. opacity-60 for TMS dimming). */
+  className?: string;
+  /** FVP: true when this task was added after the FVP session started (not in snapshot) */
+  isNotInFvpSession?: boolean;
+  /** FVP: true when this task is in the FVP snapshot but outside the current filter */
+  isOutsideFvpFilter?: boolean;
 }
 
 export function TaskRow({
@@ -77,7 +83,8 @@ export function TaskRow({
   projectName, onProjectClick, flatMode = false, columnOrder,
   showReinsertButton = false, onReinsert, hideCompletedSubtasks = false,
   subtasksExpanded: controlledExpanded, onToggleSubtasks, animationIndex,
-  tmsVariant, leadingSlot, actionsSlot, trailingSlot,
+  tmsVariant, leadingSlot, actionsSlot, trailingSlot, className,
+  isNotInFvpSession, isOutsideFvpFilter,
 }: TaskRowProps) {
   const [localExpanded, setLocalExpanded] = useState(false);
   // Use controlled state if provided, otherwise fall back to local state
@@ -202,10 +209,21 @@ export function TaskRow({
 
   return (
     <>
+      {isOutsideFvpFilter && (
+        <tr className="border-b">
+          <td colSpan={1 + columnOrder.length} className="px-3 py-1">
+            <div className="flex items-center gap-2 text-xs text-zinc-500">
+              <div className="flex-1 border-t border-dashed border-zinc-700" />
+              <span>FVP candidate · outside current filter</span>
+              <div className="flex-1 border-t border-dashed border-zinc-700" />
+            </div>
+          </td>
+        </tr>
+      )}
       <tr
         data-task-id={task.id}
         role="row"
-        className={cn("border-b hover:bg-accent hover:shadow-elevation-base group transition-colors", task.completed && "opacity-60", isDragging && "opacity-50", isDragOver && "ring-2 ring-primary", animationIndex !== undefined && "animate-fade-in-up", tmsVariantClass)}
+        className={cn("border-b hover:bg-accent hover:shadow-elevation-base group transition-colors", task.completed && "opacity-60", isDragging && "opacity-50", isDragOver && "ring-2 ring-primary", animationIndex !== undefined && "animate-fade-in-up", tmsVariantClass, className)}
         style={animationIndex !== undefined ? { animationDelay: `${Math.min(animationIndex * 30, 300)}ms` } : undefined}
         draggable={draggable}
         onDragStart={onDragStart ? (e) => { if (hasSubtasks && subtasksExpanded) { onSetTaskWasExpanded?.(true); setSubtasksExpanded(false); } onDragStart(e, task.id); } : undefined}
@@ -244,6 +262,14 @@ export function TaskRow({
 
               <div className="flex-1 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                 <InlineEditable value={task.description} onSave={(v) => updateTask(task.id, { description: v })} validate={validateTaskDescription} placeholder="Task description" displayClassName={cn(task.completed && "line-through text-muted-foreground")} />
+                {isNotInFvpSession && (
+                  <span
+                    className="text-xs text-zinc-500 border border-zinc-700 rounded px-1.5 py-0.5 flex-shrink-0"
+                    aria-label="This task was added after the FVP session started"
+                  >
+                    Not in session
+                  </span>
+                )}
                 {flatMode && (task as TaskWithFlatMetadata)._flatModeParentName && (
                   <Tooltip><TooltipTrigger asChild>
                     <Badge variant="outline" className="text-xs text-muted-foreground cursor-pointer hover:bg-accent transition-colors" onClick={(e) => { e.stopPropagation(); const pid = (task as TaskWithFlatMetadata)._flatModeParentId; if (pid) { const el = document.querySelector(`[data-task-id="${pid}"]`) as HTMLElement; if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('!bg-primary/20'); const sc = el.querySelector('td.sticky') as HTMLElement; if (sc) sc.classList.add('!bg-primary/20'); setTimeout(() => { el.classList.remove('!bg-primary/20'); if (sc) sc.classList.remove('!bg-primary/20'); }, 2000); } } }}>

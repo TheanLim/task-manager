@@ -207,12 +207,14 @@ describe('TMSHost', () => {
 
       act(() => { fireEvent.click(screen.getByTestId('switch-to-fvp')); });
 
-      // The initial mount effect calls onActivate:dit, then the switch fires the rest
+      // The initial mount effect calls onActivate:dit, then the switch fires the rest.
+      // In the extracted service, both lifecycle hooks run before store mutations,
+      // so setActiveSystem fires after onActivate (not between deactivate and activate).
       expect(callOrder).toEqual([
         'onActivate:dit',
         'onDeactivate:dit',
-        'setActiveSystem:fvp',
         'onActivate:fvp',
+        'setActiveSystem:fvp',
       ]);
     });
 

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useTMSStore, migrateTMSState } from './tmsStore';
+import { FVPHandler } from '@/features/tms/handlers/fvp';
 
 describe('useTMSStore', () => {
   beforeEach(() => {
@@ -10,6 +11,27 @@ describe('useTMSStore', () => {
         systemStates: {},
         systemStateVersions: {},
       },
+    });
+  });
+
+  // ─── FVP initial state ──────────────────────────────────────────────────────
+
+  describe('FVP initial state (via FVPHandler)', () => {
+    it('FVP handler getInitialState includes snapshotTaskIds: []', () => {
+      const initial = FVPHandler.getInitialState();
+      expect(initial.snapshotTaskIds).toEqual([]);
+    });
+
+    it('applySystemStateDelta merges snapshotTaskIds correctly', () => {
+      useTMSStore.getState().applySystemStateDelta('fvp', { snapshotTaskIds: ['a', 'b'] });
+      const fvp = useTMSStore.getState().state.systemStates['fvp'] as any;
+      expect(fvp.snapshotTaskIds).toEqual(['a', 'b']);
+    });
+
+    it('clearSystemState removes fvp key entirely', () => {
+      useTMSStore.getState().applySystemStateDelta('fvp', { snapshotTaskIds: ['a'] });
+      useTMSStore.getState().clearSystemState('fvp');
+      expect(useTMSStore.getState().state.systemStates['fvp']).toBeUndefined();
     });
   });
 
@@ -214,5 +236,33 @@ describe('migrateTMSState', () => {
     const migratedAF4 = result.systemStates['af4'] as Record<string, unknown>;
     expect(migratedAF4).toBeDefined();
     expect(migratedAF4).not.toHaveProperty('passStartPosition');
+  });
+
+  it('v1 FVP blob without snapshotTaskIds: migration defaults snapshotTaskIds to []', () => {
+    const persistedState = {
+      activeSystem: 'fvp',
+      dit: null,
+      af4: null,
+      fvp: v1FVP, // v1FVP has no snapshotTaskIds
+    };
+    const result = migrateTMSState(persistedState, 1);
+    const migratedFVP = result.systemStates['fvp'] as Record<string, unknown>;
+    expect(migratedFVP).toBeDefined();
+    expect(migratedFVP.snapshotTaskIds).toEqual([]);
+    // Original fields preserved
+    expect(migratedFVP.dottedTasks).toEqual(v1FVP.dottedTasks);
+    expect(migratedFVP.scanPosition).toBe(v1FVP.scanPosition);
+  });
+
+  it('v1 FVP blob with existing snapshotTaskIds: migration preserves the existing value', () => {
+    const persistedState = {
+      activeSystem: 'fvp',
+      dit: null,
+      af4: null,
+      fvp: { ...v1FVP, snapshotTaskIds: ['t10', 't11'] },
+    };
+    const result = migrateTMSState(persistedState, 1);
+    const migratedFVP = result.systemStates['fvp'] as Record<string, unknown>;
+    expect(migratedFVP.snapshotTaskIds).toEqual(['t10', 't11']);
   });
 });

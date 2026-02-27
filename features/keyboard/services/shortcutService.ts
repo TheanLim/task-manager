@@ -32,6 +32,8 @@ export function getDefaultShortcutMap(): ShortcutMap {
     'tms.moveToToday': { key: 't', label: 'Move to Today', category: 'Task Actions', description: 'Move the focused task to the Today list (DIT)' },
     'tms.moveToTomorrow': { key: 'w', label: 'Move to Tomorrow', category: 'Task Actions', description: 'Move the focused task to the Tomorrow list (DIT)' },
     'tms.moveToInbox': { key: 'i', label: 'Move to Inbox', category: 'Task Actions', description: 'Move the focused task back to the Inbox (DIT)' },
+    // TMS — mode selector
+    'tms.openModeSelector': { key: 'shift+r', label: 'Open mode selector', category: 'Global', description: 'Open the review mode selector' },
   };
 }
 

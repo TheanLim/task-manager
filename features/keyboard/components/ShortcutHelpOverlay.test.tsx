@@ -150,4 +150,99 @@ describe('ShortcutHelpOverlay', () => {
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(mockOnClose).toHaveBeenCalledTimes(1);
   });
+
+  describe('Review mode section', () => {
+    it('renders "Review mode" section header', () => {
+      render(<ShortcutHelpOverlay open={true} onClose={mockOnClose} />);
+      expect(screen.getByText('Review mode')).toBeInTheDocument();
+    });
+
+    it('renders entry for "Open the review mode selector"', () => {
+      render(<ShortcutHelpOverlay open={true} onClose={mockOnClose} />);
+      expect(screen.getByText('Open the review mode selector')).toBeInTheDocument();
+    });
+
+    it('renders entry for "Exit the active review mode"', () => {
+      render(<ShortcutHelpOverlay open={true} onClose={mockOnClose} />);
+      expect(screen.getByText('Exit the active review mode')).toBeInTheDocument();
+    });
+
+    it('renders "Esc" key for exit review mode entry', () => {
+      render(<ShortcutHelpOverlay open={true} onClose={mockOnClose} />);
+      const escKbd = screen.getByText('Esc', { selector: 'kbd' });
+      expect(escKbd).toBeInTheDocument();
+    });
+
+    it('Review mode section appears after existing sections and before "Edit shortcuts…"', () => {
+      render(<ShortcutHelpOverlay open={true} onClose={mockOnClose} />);
+      const allText = document.body.textContent ?? '';
+      const navIdx = allText.indexOf('Navigation');
+      const globalIdx = allText.indexOf('Global');
+      const taskActionsIdx = allText.indexOf('Task Actions');
+      const reviewModeIdx = allText.indexOf('Review mode');
+      const editShortcutsIdx = allText.indexOf('Edit shortcuts…');
+
+      expect(navIdx).toBeLessThan(reviewModeIdx);
+      expect(globalIdx).toBeLessThan(reviewModeIdx);
+      expect(taskActionsIdx).toBeLessThan(reviewModeIdx);
+      expect(reviewModeIdx).toBeLessThan(editShortcutsIdx);
+    });
+  });
+
+  // ── Property 7: mode-specific shortcut sections ───────────────────────────
+
+  describe('AF4 mode shortcuts', () => {
+    it('renders AF4 section when activeTMSMode is af4', () => {
+      render(<ShortcutHelpOverlay open={true} onClose={mockOnClose} activeTMSMode="af4" />);
+      expect(screen.getByText('AF4')).toBeInTheDocument();
+    });
+
+    it('renders all four AF4 shortcut entries', () => {
+      render(<ShortcutHelpOverlay open={true} onClose={mockOnClose} activeTMSMode="af4" />);
+      expect(screen.getByText('Made Progress on candidate')).toBeInTheDocument();
+      expect(screen.getByText('Done — mark candidate complete')).toBeInTheDocument();
+      expect(screen.getByText('Skip candidate')).toBeInTheDocument();
+      expect(screen.getByText('Flag candidate as stubborn')).toBeInTheDocument();
+    });
+
+    it('does NOT render AF4 section when activeTMSMode is fvp', () => {
+      render(<ShortcutHelpOverlay open={true} onClose={mockOnClose} activeTMSMode="fvp" />);
+      expect(screen.queryByText('AF4')).toBeNull();
+    });
+
+    it('does NOT render AF4 section when activeTMSMode is undefined', () => {
+      render(<ShortcutHelpOverlay open={true} onClose={mockOnClose} />);
+      expect(screen.queryByText('AF4')).toBeNull();
+    });
+
+    it('does NOT render AF4 section when activeTMSMode is none', () => {
+      render(<ShortcutHelpOverlay open={true} onClose={mockOnClose} activeTMSMode="none" />);
+      expect(screen.queryByText('AF4')).toBeNull();
+    });
+  });
+
+  describe('FVP mode shortcuts', () => {
+    it('renders FVP section when activeTMSMode is fvp', () => {
+      render(<ShortcutHelpOverlay open={true} onClose={mockOnClose} activeTMSMode="fvp" />);
+      expect(screen.getByText('FVP')).toBeInTheDocument();
+    });
+
+    it('renders all four FVP shortcut entries', () => {
+      render(<ShortcutHelpOverlay open={true} onClose={mockOnClose} activeTMSMode="fvp" />);
+      expect(screen.getByText('Yes — prioritise candidate')).toBeInTheDocument();
+      expect(screen.getByText('No — skip candidate')).toBeInTheDocument();
+      expect(screen.getByText('Begin / restart preselection')).toBeInTheDocument();
+      expect(screen.getByText('Done — complete top dotted task')).toBeInTheDocument();
+    });
+
+    it('does NOT render FVP section when activeTMSMode is af4', () => {
+      render(<ShortcutHelpOverlay open={true} onClose={mockOnClose} activeTMSMode="af4" />);
+      expect(screen.queryByText('FVP')).toBeNull();
+    });
+
+    it('does NOT render FVP section when activeTMSMode is undefined', () => {
+      render(<ShortcutHelpOverlay open={true} onClose={mockOnClose} />);
+      expect(screen.queryByText('FVP')).toBeNull();
+    });
+  });
 });

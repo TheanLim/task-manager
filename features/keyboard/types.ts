@@ -12,7 +12,8 @@ export type ShortcutAction =
   | 'task.reinsert'
   | 'task.saveEdit' | 'task.cancelEdit'
   // TMS-specific
-  | 'tms.moveToToday' | 'tms.moveToTomorrow' | 'tms.moveToInbox';
+  | 'tms.moveToToday' | 'tms.moveToTomorrow' | 'tms.moveToInbox'
+  | 'tms.openModeSelector';
 
 /** A single shortcut binding */
 export interface ShortcutBinding {

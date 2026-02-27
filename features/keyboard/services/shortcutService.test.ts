@@ -10,10 +10,10 @@ import { isInputContext } from './inputContext';
 import type { ShortcutMap, ShortcutAction } from '../types';
 
 describe('getDefaultShortcutMap', () => {
-  it('returns all 24 actions', () => {
+  it('returns all 25 actions', () => {
     const map = getDefaultShortcutMap();
     const actions = Object.keys(map);
-    expect(actions).toHaveLength(24);
+    expect(actions).toHaveLength(25);
   });
 
   it('contains all expected action keys', () => {
@@ -27,6 +27,7 @@ describe('getDefaultShortcutMap', () => {
       'task.delete', 'task.addSubtask', 'task.reinsert',
       'task.saveEdit', 'task.cancelEdit',
       'tms.moveToToday', 'tms.moveToTomorrow', 'tms.moveToInbox',
+      'tms.openModeSelector',
     ];
     for (const action of expectedActions) {
       expect(map[action]).toBeDefined();
@@ -34,6 +35,16 @@ describe('getDefaultShortcutMap', () => {
       expect(map[action].label).toBeTruthy();
       expect(map[action].category).toBeTruthy();
     }
+  });
+
+  it('tms.openModeSelector maps to shift+r', () => {
+    const map = getDefaultShortcutMap();
+    expect(map['tms.openModeSelector'].key).toBe('shift+r');
+  });
+
+  it('task.reinsert still maps to r (no regression)', () => {
+    const map = getDefaultShortcutMap();
+    expect(map['task.reinsert'].key).toBe('r');
   });
 
   it('each binding has a valid category', () => {
@@ -67,7 +78,7 @@ describe('mergeShortcutMaps', () => {
       'global.newTask': { key: 't', label: 'New task', category: 'Global' as const, description: 'Create a new task' },
     };
     const merged = mergeShortcutMaps(defaults, override);
-    expect(Object.keys(merged)).toHaveLength(24);
+    expect(Object.keys(merged)).toHaveLength(25);
     expect(merged['global.search'].key).toBe('/');
   });
 
@@ -198,6 +209,7 @@ const ALL_ACTIONS: ShortcutAction[] = [
   'task.delete', 'task.addSubtask', 'task.reinsert',
   'task.saveEdit', 'task.cancelEdit',
   'tms.moveToToday', 'tms.moveToTomorrow', 'tms.moveToInbox',
+  'tms.openModeSelector',
 ];
 
 const SAMPLE_KEYS = [
@@ -220,7 +232,7 @@ const arbBinding = (category: 'Navigation' | 'Global' | 'Task Actions') =>
 
 /** Build a ShortcutMap by assigning random keys to each action (may create duplicates) */
 const arbShortcutMapWithPossibleDuplicates: fc.Arbitrary<ShortcutMap> = fc.tuple(
-  // Generate a random key for each of the 24 actions
+  // Generate a random key for each of the 25 actions
   ...ALL_ACTIONS.map(() => fc.constantFrom(...SAMPLE_KEYS)),
 ).map((keys) => {
   const defaults = getDefaultShortcutMap();
@@ -298,7 +310,7 @@ describe('Property 7: Shortcut map merge preserves overrides and fills defaults'
       }),
     );
 
-  it('merged result has all 24 actions, persisted values win, missing use defaults', () => {
+  it('merged result has all 25 actions, persisted values win, missing use defaults', () => {
     fc.assert(
       fc.property(arbPartialMap, (partial) => {
         const defaults = getDefaultShortcutMap();
@@ -306,7 +318,7 @@ describe('Property 7: Shortcut map merge preserves overrides and fills defaults'
 
         // Result contains exactly the same set of actions as defaults
         expect(Object.keys(merged).sort()).toEqual(Object.keys(defaults).sort());
-        expect(Object.keys(merged)).toHaveLength(24);
+        expect(Object.keys(merged)).toHaveLength(25);
 
         for (const action of ALL_ACTIONS) {
           if (action in partial && defaults[action].customizable !== false) {

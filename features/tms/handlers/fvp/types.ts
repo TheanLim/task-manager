@@ -4,11 +4,13 @@ import { Task } from '@/types';
 export const FVPStateSchema = z.object({
   dottedTasks: z.array(z.string().min(1)),
   scanPosition: z.number(),
+  snapshotTaskIds: z.array(z.string().min(1)).default([]),
 });
 
 export interface FVPState {
   dottedTasks: string[];
   scanPosition: number;
+  snapshotTaskIds: string[];
 }
 
 export type FVPAction =

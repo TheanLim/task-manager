@@ -10,17 +10,19 @@ export function migrateTMSState(persistedState: unknown, version: number): TMSSt
     if (af4Raw && 'passStartPosition' in af4Raw) {
       delete af4Raw.passStartPosition;
     }
+    // Default snapshotTaskIds to [] for FVP blobs that predate T-06
+    const fvpRaw = s.fvp ? { snapshotTaskIds: [], ...s.fvp } : null;
     return {
       activeSystem: (s.activeSystem as string) ?? 'none',
       systemStates: {
         ...(s.dit  ? { dit:  s.dit  } : {}),
         ...(af4Raw ? { af4:  af4Raw } : {}),
-        ...(s.fvp  ? { fvp:  s.fvp  } : {}),
+        ...(fvpRaw ? { fvp:  fvpRaw } : {}),
       },
       systemStateVersions: {
         ...(s.dit  ? { dit:  1 } : {}),
         ...(af4Raw ? { af4:  1 } : {}),
-        ...(s.fvp  ? { fvp:  1 } : {}),
+        ...(fvpRaw ? { fvp:  1 } : {}),
       },
     };
   }

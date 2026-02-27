@@ -105,7 +105,6 @@ beforeEach(() => {
       toggleSort: vi.fn(),
       keyboardShortcuts: {},
       globalTasksDisplayMode: 'nested',
-      needsAttentionSort: false,
       hideCompletedTasks: false,
       autoHideThreshold: 'never',
       showRecentlyCompleted: false,

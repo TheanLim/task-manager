@@ -493,6 +493,101 @@ describe('TaskRow Component', () => {
     });
   });
 
+  describe('FVP "Not in session" badge', () => {
+    it('renders badge when isNotInFvpSession=true', () => {
+      renderTaskRow({
+        task: mockTask,
+        onComplete: mockOnComplete,
+        onClick: mockOnClick,
+        onViewSubtasks: mockOnViewSubtasks,
+        isNotInFvpSession: true,
+      });
+      expect(screen.getByText('Not in session')).toBeInTheDocument();
+    });
+
+    it('badge absent when isNotInFvpSession=false', () => {
+      renderTaskRow({
+        task: mockTask,
+        onComplete: mockOnComplete,
+        onClick: mockOnClick,
+        onViewSubtasks: mockOnViewSubtasks,
+        isNotInFvpSession: false,
+      });
+      expect(screen.queryByText('Not in session')).not.toBeInTheDocument();
+    });
+
+    it('badge absent when isNotInFvpSession not provided', () => {
+      renderTaskRow({
+        task: mockTask,
+        onComplete: mockOnComplete,
+        onClick: mockOnClick,
+        onViewSubtasks: mockOnViewSubtasks,
+      });
+      expect(screen.queryByText('Not in session')).not.toBeInTheDocument();
+    });
+
+    it('badge has correct aria-label', () => {
+      renderTaskRow({
+        task: mockTask,
+        onComplete: mockOnComplete,
+        onClick: mockOnClick,
+        onViewSubtasks: mockOnViewSubtasks,
+        isNotInFvpSession: true,
+      });
+      expect(
+        screen.getByLabelText('This task was added after the FVP session started')
+      ).toBeInTheDocument();
+    });
+  });
+
+  describe('FVP outside-filter separator', () => {
+    it('renders separator when isOutsideFvpFilter=true', () => {
+      renderTaskRow({
+        task: mockTask,
+        onComplete: mockOnComplete,
+        onClick: mockOnClick,
+        onViewSubtasks: mockOnViewSubtasks,
+        isOutsideFvpFilter: true,
+      });
+      expect(screen.getByText('FVP candidate · outside current filter')).toBeInTheDocument();
+    });
+
+    it('separator absent when isOutsideFvpFilter=false', () => {
+      renderTaskRow({
+        task: mockTask,
+        onComplete: mockOnComplete,
+        onClick: mockOnClick,
+        onViewSubtasks: mockOnViewSubtasks,
+        isOutsideFvpFilter: false,
+      });
+      expect(screen.queryByText('FVP candidate · outside current filter')).not.toBeInTheDocument();
+    });
+
+    it('separator absent when isOutsideFvpFilter not provided', () => {
+      renderTaskRow({
+        task: mockTask,
+        onComplete: mockOnComplete,
+        onClick: mockOnClick,
+        onViewSubtasks: mockOnViewSubtasks,
+      });
+      expect(screen.queryByText('FVP candidate · outside current filter')).not.toBeInTheDocument();
+    });
+
+    it('separator row appears before the task row in the DOM', () => {
+      const { container } = renderTaskRow({
+        task: mockTask,
+        onComplete: mockOnComplete,
+        onClick: mockOnClick,
+        onViewSubtasks: mockOnViewSubtasks,
+        isOutsideFvpFilter: true,
+      });
+      const rows = container.querySelectorAll('tr');
+      // First row is the separator, second is the task row
+      expect(rows[0]).toHaveTextContent('FVP candidate · outside current filter');
+      expect(rows[1]).toHaveAttribute('data-task-id', 'task-1');
+    });
+  });
+
   describe('Depth and Indentation', () => {
     it('should apply indentation based on depth', () => {
       const { container } = renderTaskRow({

@@ -9,6 +9,8 @@ import type { ShortcutBinding } from '../types';
 interface ShortcutHelpOverlayProps {
   open: boolean;
   onClose: () => void;
+  /** When set, renders a mode-specific shortcut section (AF4 or FVP) in the overlay. */
+  activeTMSMode?: string | null;
 }
 
 const CATEGORIES = ['Navigation', 'Global', 'Task Actions'] as const;
@@ -30,7 +32,7 @@ function formatKeyForDisplay(key: string): string {
   return display;
 }
 
-export function ShortcutHelpOverlay({ open, onClose }: ShortcutHelpOverlayProps) {
+export function ShortcutHelpOverlay({ open, onClose, activeTMSMode }: ShortcutHelpOverlayProps) {
   const previousFocusRef = useRef<Element | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const keyboardShortcuts = useAppStore((s) => s.keyboardShortcuts);
@@ -148,6 +150,70 @@ export function ShortcutHelpOverlay({ open, onClose }: ShortcutHelpOverlayProps)
               </ul>
             </section>
           ))}
+
+          <section key="review-mode">
+            <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3">
+              Review mode
+            </h3>
+            <ul className="space-y-1.5">
+              <li className="flex items-center justify-between py-1">
+                <span className="text-sm text-foreground">Open the review mode selector</span>
+                <kbd className="px-2 py-0.5 rounded bg-muted text-xs font-mono border border-border">
+                  {formatKeyForDisplay(shortcutMap['tms.openModeSelector'].key)}
+                </kbd>
+              </li>
+              <li className="flex items-center justify-between py-1">
+                <span className="text-sm text-foreground">Exit the active review mode</span>
+                <kbd className="px-2 py-0.5 rounded bg-muted text-xs font-mono border border-border">
+                  Esc
+                </kbd>
+              </li>
+            </ul>
+          </section>
+
+          {/* AF4 mode-specific shortcuts — only shown when AF4 is active */}
+          {activeTMSMode === 'af4' && (
+            <section key="af4-shortcuts">
+              <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3">
+                AF4
+              </h3>
+              <ul className="space-y-1.5">
+                {([
+                  { key: 'p', label: 'Made Progress on candidate' },
+                  { key: 'd', label: 'Done — mark candidate complete' },
+                  { key: 's', label: 'Skip candidate' },
+                  { key: 'f', label: 'Flag candidate as stubborn' },
+                ] as const).map(({ key, label }) => (
+                  <li key={key} className="flex items-center justify-between py-1">
+                    <span className="text-sm text-foreground">{label}</span>
+                    <kbd className="px-2 py-0.5 rounded bg-muted text-xs font-mono border border-border">{key}</kbd>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {/* FVP mode-specific shortcuts — only shown when FVP is active */}
+          {activeTMSMode === 'fvp' && (
+            <section key="fvp-shortcuts">
+              <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3">
+                FVP
+              </h3>
+              <ul className="space-y-1.5">
+                {([
+                  { key: 'y', label: 'Yes — prioritise candidate' },
+                  { key: 'n', label: 'No — skip candidate' },
+                  { key: 'b', label: 'Begin / restart preselection' },
+                  { key: 'd', label: 'Done — complete top dotted task' },
+                ] as const).map(({ key, label }) => (
+                  <li key={key} className="flex items-center justify-between py-1">
+                    <span className="text-sm text-foreground">{label}</span>
+                    <kbd className="px-2 py-0.5 rounded bg-muted text-xs font-mono border border-border">{key}</kbd>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           <div className="pt-2 border-t dark:border-white/5">
             <button

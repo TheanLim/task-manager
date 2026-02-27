@@ -16,6 +16,10 @@ interface UseGlobalShortcutsOptions {
   onDeleteTask: () => void;
   onAddSubtask: () => void;
   onReinsertTask: () => void;
+  onOpenModeSelector: () => void;
+  onExitMode: () => void;
+  isModeActive: boolean;
+  isModePopoverOpen: boolean;
   isTaskFocused: boolean;
   shortcutMap: ShortcutMap;
   enabled?: boolean;
@@ -31,6 +35,10 @@ export function useGlobalShortcuts({
   onDeleteTask,
   onAddSubtask,
   onReinsertTask,
+  onOpenModeSelector,
+  onExitMode,
+  isModeActive,
+  isModePopoverOpen,
   isTaskFocused,
   shortcutMap,
   enabled = true,
@@ -129,4 +137,19 @@ export function useGlobalShortcuts({
       }));
     }
   }, { enableOnFormTags: false, preventDefault: false, enabled }, []);
+
+  // T-24: Open mode selector (Shift+R) — suppressed in input context
+  useHotkeys(toHotkeyFormat(shortcutMap['tms.openModeSelector'].key), () => {
+    if (!isInputContext(document.activeElement)) {
+      onOpenModeSelector();
+    }
+  }, hotkeyOpts, [shortcutMap, onOpenModeSelector]);
+
+  // T-25: Escape exits active mode — only when mode is active and popover is closed.
+  // preventDefault: false so other Escape handlers (dialog close, etc.) still fire.
+  useHotkeys('escape', () => {
+    if (isModeActive && !isModePopoverOpen && !isInputContext(document.activeElement)) {
+      onExitMode();
+    }
+  }, { enableOnFormTags: false, preventDefault: false, enabled }, [isModeActive, isModePopoverOpen, onExitMode]);
 }
