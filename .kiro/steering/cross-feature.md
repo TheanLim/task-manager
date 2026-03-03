@@ -21,6 +21,7 @@ When editing files matched by this pattern, check these integration points:
 ## Schema Changes (lib/schemas.ts)
 - Affects: localStorage load validation, import/export, share URLs
 - After changing: test import flow, share flow, and fresh-load behavior
+- `TMSStateSchema` uses generic `systemStates: z.record(z.string(), z.unknown())` — each TMS system owns its own state shape, versioned via `systemStateVersions`
 
 ## Repository Interfaces (lib/repositories/types.ts)
 - Implementations: `localStorageRepositories.ts` + `automationRuleRepository`

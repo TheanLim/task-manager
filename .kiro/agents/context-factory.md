@@ -146,23 +146,31 @@ Future systems, architecture decisions, migration plans.
 
 ## Registration (After Creating the Doc)
 
-### 1. Update subsystem map (`.kiro/scripts/subsystem-map.json`)
+**CRITICAL: These steps are MANDATORY. The doc is not complete until all three are done. The drift detection system is blind to this doc until subsystem-map.json is updated.**
 
-Add the new doc to the relevant subsystem's `steeringDocs` array:
+### 1. Update subsystem map (`.kiro/scripts/subsystem-map.json`) — REQUIRED
+
+Read the current file first, then add the new doc filename to the relevant subsystem's `steeringDocs` array:
 ```json
-"steeringDocs": ["existing-doc.md", "new-doc.md"]
+"tasks": {
+  "steeringDocs": ["tasks-architecture.md"]
+}
 ```
 
-Or create a new subsystem entry if this is a genuinely new area.
+If no matching subsystem exists, create a new entry with `codePatterns` matching the same paths as the `fileMatchPattern` in the steering doc.
 
-### 2. Update routing steering (`.kiro/steering/routing.md`)
+After updating, read back the file to confirm the change was applied.
 
-Add to the subsystem index table:
+### 2. Update routing steering (`.kiro/steering/routing.md`) — REQUIRED
+
+Read the current routing.md, then add a row to the Subsystem Index table:
 ```
 | {Subsystem} | {new-doc}.md | {key paths} |
 ```
 
-### 3. Cross-reference related docs
+After updating, read back the file to confirm.
+
+### 3. Cross-reference related docs — if applicable
 
 If the new doc relates to existing steering docs, add a "Related Docs" reference in both directions.
 
@@ -174,6 +182,6 @@ If the new doc relates to existing steering docs, add a "Related Docs" reference
 - [ ] fileMatchPattern matches real files in the project
 - [ ] All file paths in tables verified to exist
 - [ ] At least one code example or pattern table
-- [ ] subsystem-map.json updated with new doc reference
-- [ ] routing.md subsystem index updated
+- [ ] **subsystem-map.json updated** — read back the file and confirm the doc filename appears in `steeringDocs`
+- [ ] **routing.md subsystem index updated** — read back and confirm the new row exists
 - [ ] Blueprint sections marked "(planned)" if not yet implemented
