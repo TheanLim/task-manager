@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Context Drift Check",
+  "description": "Checks recent git commits for code changes without corresponding steering doc updates. Outputs prioritized warnings that the agent should act on before starting the user's task.",
+  "version": "1",
+  "when": {
+    "type": "promptSubmit"
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "python3 .kiro/scripts/context-drift-check.py"
+  }
+}

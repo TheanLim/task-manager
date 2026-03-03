@@ -1,0 +1,19 @@
+{
+  "enabled": true,
+  "name": "Post-Change Service Review",
+  "description": "Triggers a code review after modifying service layer, store, or repository files. Reviews for architecture conventions including business logic placement, repository pattern usage, Zustand selector granularity, and Zod validation at data boundaries.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "lib/serviceContainer.ts",
+      "lib/schemas.ts",
+      "lib/events/*.ts",
+      "lib/repositories/types.ts"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Service layer, store, or repository files were modified. Review changes for architecture conventions: business logic in services not components, repository pattern for persistence, granular Zustand selectors, Zod validation at boundaries."
+  }
+}
