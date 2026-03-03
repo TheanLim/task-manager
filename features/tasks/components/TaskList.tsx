@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Circle, ChevronRight, ChevronDown, MoreVertical, GripVertical, ArrowUp, ArrowDown, ArrowUpDown, Trash2 } from 'lucide-react';
+import { Circle, ChevronRight, ChevronDown, MoreVertical, GripVertical, ArrowUp, ArrowDown, ArrowUpDown, Trash2, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,7 +25,8 @@ import { Task, Section } from '@/types';
 import { useState, useRef, useMemo, useCallback } from 'react';
 import { InlineEditable } from '@/components/InlineEditable';
 import { validateSectionName } from '@/lib/validation';
-import { useDataStore } from '@/stores/dataStore';
+import { useDataStore, sectionService } from '@/stores/dataStore';
+import { Input } from '@/components/ui/input';
 import { useAppStore, TaskColumnId, DEFAULT_COLUMN_ORDER } from '@/stores/appStore';
 import { TaskRow } from '@/features/tasks/components/TaskRow';
 import { cn } from '@/lib/utils';
@@ -91,6 +92,8 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
   const [userHasReordered, setUserHasReordered] = useState<boolean>(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [sectionToDelete, setSectionToDelete] = useState<string | null>(null);
+  const [isAddingSection, setIsAddingSection] = useState(false);
+  const [newSectionName, setNewSectionName] = useState('');
   const { updateTask, updateSection, deleteSection, projects } = useDataStore();
 
   // Subtask expansion state — lifted from TaskRow for navigation awareness
@@ -284,6 +287,19 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
 
   const handleAddTask = (sectionId: string) => {
     onAddTask(sectionId);
+  };
+
+  const handleAddSection = () => {
+    const projectId = sections[0]?.projectId;
+    if (!projectId || !newSectionName.trim()) return;
+    sectionService.createWithDefaults(newSectionName.trim(), projectId, sections.length);
+    setNewSectionName('');
+    setIsAddingSection(false);
+  };
+
+  const handleCancelAddSection = () => {
+    setNewSectionName('');
+    setIsAddingSection(false);
   };
 
   // --- Task drag-and-drop handlers ---
@@ -906,8 +922,46 @@ export function TaskList({ tasks, sections, onTaskClick, onTaskComplete, onAddTa
                 onToggleSubtasks={handleToggleSubtasks}
               />
             ))}
+
+
           </tbody>
         </table>
+
+        {/* Add Section Button — only shown when sections belong to a project */}
+        {sections.length > 0 && sections[0]?.projectId && (
+          <div className="mt-4 px-3">
+            {isAddingSection ? (
+              <div className="flex gap-2">
+                <Input
+                  value={newSectionName}
+                  onChange={(e) => setNewSectionName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleAddSection();
+                    if (e.key === 'Escape') handleCancelAddSection();
+                  }}
+                  onBlur={handleCancelAddSection}
+                  placeholder="Section name"
+                  autoFocus
+                />
+                <Button onClick={handleAddSection} disabled={!newSectionName.trim()} onMouseDown={(e) => e.preventDefault()}>
+                  Add
+                </Button>
+                <Button variant="ghost" onClick={handleCancelAddSection} onMouseDown={(e) => e.preventDefault()}>
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                className="w-full border-dashed"
+                onClick={() => setIsAddingSection(true)}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Section
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Delete Section Confirmation Dialog */}

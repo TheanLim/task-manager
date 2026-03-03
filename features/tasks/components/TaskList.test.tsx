@@ -93,7 +93,7 @@ describe('TaskList', () => {
     expect(screen.getByText('Floating task')).toBeInTheDocument();
   });
 
-  it('does not render "Add Section" button', () => {
+  it('renders "Add Section" button when sections have a projectId', () => {
     render(
       <TaskList
         tasks={mockTasks}
@@ -103,7 +103,61 @@ describe('TaskList', () => {
         onAddTask={vi.fn()}
       />
     );
+    expect(screen.getByText(/add section/i)).toBeInTheDocument();
+  });
+
+  it('does not render "Add Section" button when sections have no projectId', () => {
+    const sectionsWithoutProject: Section[] = mockSections.map(s => ({
+      ...s,
+      projectId: null,
+    }));
+    render(
+      <TaskList
+        tasks={mockTasks}
+        sections={sectionsWithoutProject}
+        onTaskClick={vi.fn()}
+        onTaskComplete={vi.fn()}
+        onAddTask={vi.fn()}
+      />
+    );
     expect(screen.queryByText(/add section/i)).not.toBeInTheDocument();
+  });
+
+  it('shows input when "Add Section" is clicked and creates section on Enter', () => {
+    render(
+      <TaskList
+        tasks={mockTasks}
+        sections={mockSections}
+        onTaskClick={vi.fn()}
+        onTaskComplete={vi.fn()}
+        onAddTask={vi.fn()}
+      />
+    );
+    fireEvent.click(screen.getByText(/add section/i));
+    const input = screen.getByPlaceholderText('Section name');
+    expect(input).toBeInTheDocument();
+    fireEvent.change(input, { target: { value: 'New Section' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    // After adding, the input should disappear (isAddingSection resets)
+    expect(screen.queryByPlaceholderText('Section name')).not.toBeInTheDocument();
+  });
+
+  it('collapses input back to "Add Section" button when clicking away (blur)', () => {
+    render(
+      <TaskList
+        tasks={mockTasks}
+        sections={mockSections}
+        onTaskClick={vi.fn()}
+        onTaskComplete={vi.fn()}
+        onAddTask={vi.fn()}
+      />
+    );
+    fireEvent.click(screen.getByText(/add section/i));
+    const input = screen.getByPlaceholderText('Section name');
+    expect(input).toBeInTheDocument();
+    fireEvent.blur(input);
+    expect(screen.queryByPlaceholderText('Section name')).not.toBeInTheDocument();
+    expect(screen.getByText(/add section/i)).toBeInTheDocument();
   });
 
   it('should render empty state when no tasks', () => {
