@@ -98,3 +98,25 @@ describe('GlobalRulesSection', () => {
     expect(screen.getByRole('region', { name: 'Active global rules' })).toBeInTheDocument();
   });
 });
+
+// ── ISSUE-6: deep-link from rule name (TDD) ───────────────────────────────────
+
+describe('GlobalRulesSection — deep-link from rule name', () => {
+  it('clicking a rule name calls onNavigateToGlobal with that rule ID', async () => {
+    const user = userEvent.setup();
+    const onNavigate = vi.fn();
+    const rules = [makeGlobalRule('g1', 'Rule Alpha')];
+
+    render(
+      <GlobalRulesSection
+        globalRules={rules}
+        projectSections={projectSections}
+        onNavigateToGlobal={onNavigate}
+      />
+    );
+
+    // Rule name should be clickable
+    await user.click(screen.getByText('Rule Alpha'));
+    expect(onNavigate).toHaveBeenCalledWith('g1');
+  });
+});

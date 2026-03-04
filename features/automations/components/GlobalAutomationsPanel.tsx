@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -35,12 +36,39 @@ export function GlobalAutomationsPanel() {
   const { rules, createRule, updateRule, deleteRule } = useGlobalAutomationRules();
   const { projects, sections } = useDataStore();
   const { highlightRuleId } = useAppStore();
+  const setHighlightRuleId = useAppStore((s) => s.setHighlightRuleId);
+  const router = useRouter();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [ruleToDelete, setRuleToDelete] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'rules' | 'log'>('rules');
+  // Tracks which rule is currently highlighted (for brief flash animation)
+  const [flashRuleId, setFlashRuleId] = useState<string | null>(null);
+
+  // When highlightRuleId is set (from deep-link), scroll to the rule, flash it, then clear
+  useEffect(() => {
+    if (!highlightRuleId) return;
+
+    // Switch to rules tab
+    setActiveTab('rules');
+
+    // Small delay to let the tab render
+    const timer = setTimeout(() => {
+      const el = document.querySelector(`[data-rule-id="${highlightRuleId}"]`);
+      el?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+      setFlashRuleId(highlightRuleId);
+      // Clear highlight after animation
+      const clearTimer = setTimeout(() => {
+        setFlashRuleId(null);
+        setHighlightRuleId(null);
+      }, 1500);
+      return () => clearTimeout(clearTimer);
+    }, 50);
+
+    return () => clearTimeout(timer);
+  }, [highlightRuleId, setHighlightRuleId]);
 
   const sortedRules = [...rules].sort((a, b) => a.order - b.order);
   const editingRule = editingRuleId ? rules.find((r) => r.id === editingRuleId) ?? null : null;
@@ -99,9 +127,8 @@ export function GlobalAutomationsPanel() {
 
   const handleViewLog = useCallback((ruleId: string) => {
     setActiveTab('log');
-    // Scroll to the rule's entries — handled by highlight state
-    useAppStore.getState().setHighlightRuleId(ruleId);
-  }, []);
+    router.push(`/?view=automations&rule=${ruleId}`);
+  }, [router]);
 
   // No-op handlers for RuleCard props not applicable to global rules
   const noop = useCallback(() => {}, []);
@@ -149,18 +176,26 @@ export function GlobalAutomationsPanel() {
           ) : (
             <div className="flex flex-col gap-2">
               {sortedRules.map((rule) => (
-                <RuleCard
+                <div
                   key={rule.id}
-                  rule={rule}
-                  sections={sections}
-                  projectId=""
-                  isGlobal
-                  onEdit={handleEdit}
-                  onDuplicate={noop}
-                  onDuplicateToProject={noop}
-                  onDelete={handleDeleteClick}
-                  onToggle={handleToggle}
-                />
+                  data-rule-id={rule.id}
+                  className={flashRuleId === rule.id
+                    ? 'rounded-lg ring-2 ring-accent-brand ring-offset-1 transition-all duration-300'
+                    : 'rounded-lg transition-all duration-300'
+                  }
+                >
+                  <RuleCard
+                    rule={rule}
+                    sections={sections}
+                    projectId=""
+                    isGlobal
+                    onEdit={handleEdit}
+                    onDuplicate={noop}
+                    onDuplicateToProject={noop}
+                    onDelete={handleDeleteClick}
+                    onToggle={handleToggle}
+                  />
+                </div>
               ))}
             </div>
           )}
@@ -179,7 +214,7 @@ export function GlobalAutomationsPanel() {
                 <thead className="bg-muted/50">
                   <tr>
                     <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground w-36">Time</th>
-                    <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Rule</th>
+                    <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground min-w-0">Rule</th>
                     <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground w-40">Project</th>
                     <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground w-32">Trigger</th>
                     <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground w-24">Status</th>
@@ -206,9 +241,16 @@ export function GlobalAutomationsPanel() {
                             </Tooltip>
                           </TooltipProvider>
                         </td>
-                        <td className="px-3 py-2">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-sm truncate max-w-[200px]">{entry.ruleName}</span>
+                        <td className="px-3 py-2 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                            <button
+                              type="button"
+                              onClick={() => router.push(`/?view=automations&rule=${entry.ruleId}`)}
+                              className="text-sm font-medium hover:underline underline-offset-2 text-left break-words min-w-0"
+                              title={entry.ruleName}
+                            >
+                              {entry.ruleName}
+                            </button>
                             <GlobalRulesBadge />
                           </div>
                         </td>

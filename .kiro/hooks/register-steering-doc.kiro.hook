@@ -1,0 +1,14 @@
+{
+  "enabled": true,
+  "name": "Register New Steering Doc",
+  "description": "When a new fileMatch steering doc is created in .kiro/steering/, automatically registers it in subsystem-map.json and routing.md so drift detection can track it.",
+  "version": "1",
+  "when": {
+    "type": "fileCreated",
+    "patterns": [".kiro/steering/*.md"]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A new steering doc was created in .kiro/steering/. Check its frontmatter — if it has `inclusion: fileMatch`, register it:\n1. Add its filename to the matching subsystem's `steeringDocs` array in `.kiro/scripts/subsystem-map.json`. If no matching subsystem exists, create one.\n2. Add a row to the Subsystem Index table in `.kiro/steering/routing.md`.\nRead back both files to confirm the changes were applied."
+  }
+}

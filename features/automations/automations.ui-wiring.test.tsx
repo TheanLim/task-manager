@@ -37,6 +37,13 @@ vi.mock('@/stores/appStore', () => ({
   },
 }));
 
+// Mock useRouter for AutomationTab (uses useRouter for navigation)
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), back: vi.fn(), replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => '/',
+}));
+
 vi.mock('@/stores/dataStore', () => ({
   useDataStore: () => ({
     projects: [

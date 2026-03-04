@@ -8,6 +8,13 @@ import type { Section } from '@/lib/schemas';
 // Mock the useAutomationRules hook
 vi.mock('../hooks/useAutomationRules');
 
+// Mock useRouter
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), back: vi.fn(), replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => '/',
+}));
+
 // Mock useGlobalAutomationRules — no global rules by default
 vi.mock('../hooks/useGlobalAutomationRules', () => ({
   useGlobalAutomationRules: () => ({ rules: [], createRule: vi.fn(), updateRule: vi.fn(), deleteRule: vi.fn() }),

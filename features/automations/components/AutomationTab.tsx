@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { Zap, AlertTriangle, ChevronDown } from 'lucide-react';
 import {
   DndContext,
@@ -41,7 +42,6 @@ import { GlobalRulesSection } from './GlobalRulesSection';
 import { useAutomationRules } from '../hooks/useAutomationRules';
 import { useRuleActions } from '../hooks/useRuleActions';
 import { useGlobalAutomationRules } from '../hooks/useGlobalAutomationRules';
-import { useAppStore } from '@/stores/appStore';
 import type { Section } from '@/lib/schemas';
 
 const MAX_RULES_WARNING_THRESHOLD = 10;
@@ -62,7 +62,12 @@ export function AutomationTab({ projectId, sections, onShowToast }: AutomationTa
   const { rules, duplicateRule, duplicateToProject, deleteRule, toggleRule, reorderRules, bulkSetEnabled } = useAutomationRules(projectId);
   const ruleActions = useRuleActions(rules, sections, projectId, onShowToast);
   const { rules: globalRules } = useGlobalAutomationRules();
-  const { setActiveView, setHighlightRuleId } = useAppStore();
+  const router = useRouter();
+
+  const navigateToGlobal = useCallback((ruleId?: string) => {
+    const url = ruleId ? `/?view=automations&rule=${ruleId}` : '/?view=automations';
+    router.push(url);
+  }, [router]);
 
   // Sort rules by order for display
   const sortedRules = [...rules].sort((a, b) => a.order - b.order);
@@ -158,10 +163,7 @@ export function AutomationTab({ projectId, sections, onShowToast }: AutomationTa
           <GlobalRulesSection
             globalRules={globalRules}
             projectSections={sections}
-            onNavigateToGlobal={(ruleId) => {
-              setActiveView('global-automations');
-              if (ruleId) setHighlightRuleId(ruleId);
-            }}
+            onNavigateToGlobal={navigateToGlobal}
           />
         )}
         <EmptyState
@@ -242,10 +244,7 @@ export function AutomationTab({ projectId, sections, onShowToast }: AutomationTa
               <GlobalRulesSection
                 globalRules={globalRules}
                 projectSections={sections}
-                onNavigateToGlobal={(ruleId) => {
-                  setActiveView('global-automations');
-                  if (ruleId) setHighlightRuleId(ruleId);
-                }}
+                onNavigateToGlobal={navigateToGlobal}
               />
             )}
             {sortedRules.map((rule) => (

@@ -43,7 +43,14 @@ export function GlobalRuleCard({ rule, projectSections, onNavigateToGlobal }: Gl
       {/* Rule name + badge */}
       <div className="flex items-center gap-2 flex-wrap">
         <Globe className="w-3.5 h-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
-        <span className="text-sm font-medium">{rule.name}</span>
+        <button
+          type="button"
+          onClick={() => onNavigateToGlobal(rule.id)}
+          className="text-sm font-medium hover:underline underline-offset-2 text-left"
+          aria-label={`Manage global rule: ${rule.name}`}
+        >
+          {rule.name}
+        </button>
         <GlobalRulesBadge />
       </div>
 

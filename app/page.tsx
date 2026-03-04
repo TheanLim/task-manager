@@ -111,6 +111,7 @@ function HomeContent() {
   const { settings, setActiveProject } = useAppStore();
   const activeView = useAppStore((s) => s.activeView);
   const setActiveView = useAppStore((s) => s.setActiveView);
+  const setHighlightRuleId = useAppStore((s) => s.setHighlightRuleId);
   const skipCount = useGlobalAutomationSkipCount();
 
   // Keyboard shortcuts
@@ -227,8 +228,22 @@ function HomeContent() {
     };
   }, [showToast]);
 
-  // --- Sync URL with active project and handle invalid project IDs ---
+  // --- Sync URL → activeView + project state (URL is source of truth) ---
   useEffect(() => {
+    // Derive the correct view from the URL and sync activeView to match.
+    // This handles forward navigation, back/forward browser buttons, and direct URL entry.
+    if (viewFromUrl === 'automations') {
+      if (activeView !== 'global-automations') setActiveView('global-automations');
+      const ruleIdFromUrl = searchParams.get('rule');
+      if (ruleIdFromUrl) setHighlightRuleId(ruleIdFromUrl);
+      return;
+    }
+
+    // Any other URL (project, tasks, landing) → ensure we're NOT in automations view
+    if (activeView === 'global-automations') {
+      setActiveView('project');
+    }
+
     if (projectIdFromUrl) {
       const project = getProjectById(projectIdFromUrl);
       if (project) {
@@ -243,7 +258,7 @@ function HomeContent() {
         setActiveProject(null);
       }
     }
-  }, [projectIdFromUrl, getProjectById, settings.activeProjectId, setActiveProject, router]);
+  }, [projectIdFromUrl, viewFromUrl, searchParams, getProjectById, settings.activeProjectId, setActiveProject, activeView, setActiveView, setHighlightRuleId, router]);
 
   const activeProject = projects.find(p => p.id === settings.activeProjectId);
   const projectTasks = activeProject ? tasks.filter(t => t.projectId === activeProject.id) : [];
@@ -508,17 +523,21 @@ function HomeContent() {
               projects={projects}
               activeProjectId={settings.activeProjectId}
               onProjectSelect={(projectId) => {
+                router.push(`/?project=${projectId}&tab=list`);
                 setActiveView('project');
                 setActiveProject(projectId);
               }}
-              onTasksClick={() => setActiveView('project')}
+              onTasksClick={() => {
+                router.push('/?view=tasks');
+                setActiveView('project');
+              }}
               onNewProject={handleNewProject}
             />
             {/* Global Automations nav item */}
             <div className="mt-4 pt-4 border-t">
               <button
                 type="button"
-                onClick={() => setActiveView('global-automations')}
+                onClick={() => router.push('/?view=automations')}
                 className={`flex items-center gap-2 w-full rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent ${activeView === 'global-automations' ? 'bg-accent font-medium' : 'text-muted-foreground'}`}
                 aria-label="Global Automations"
               >
