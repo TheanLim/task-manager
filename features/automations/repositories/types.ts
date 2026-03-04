@@ -10,9 +10,13 @@ import type { AutomationRule } from '../types';
 export interface AutomationRuleRepository extends Repository<AutomationRule> {
   /**
    * Find all automation rules scoped to a specific project.
-   *
-   * @param projectId - The project ID to filter by
-   * @returns Array of automation rules belonging to the project
+   * Excludes global rules (projectId === null).
    */
   findByProjectId(projectId: string): AutomationRule[];
+
+  /**
+   * Find all global rules (projectId === null).
+   * Global rules apply across all projects.
+   */
+  findGlobal(): AutomationRule[];
 }

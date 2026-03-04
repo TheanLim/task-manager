@@ -31,6 +31,7 @@ vi.mock('@/stores/dataStore', () => ({
   }),
   automationRuleRepository: {
     findByProjectId: () => [],
+    findGlobal: () => [],
     subscribe: () => () => {},
   },
 }));

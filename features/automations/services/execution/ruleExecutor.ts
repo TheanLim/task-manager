@@ -1,11 +1,17 @@
 import type { TaskRepository, SectionRepository } from '@/lib/repositories/types';
 import type { AutomationRuleRepository } from '../../repositories/types';
 import type { TaskService } from '@/features/tasks/services/taskService';
-import type { RuleAction, DomainEvent, ExecutionLogEntry } from '../../types';
+import type { RuleAction, DomainEvent, ExecutionLogEntry, AutomationRule } from '../../types';
 import type { Clock } from '../scheduler/clock';
 import { isScheduledTrigger } from '../../types';
 import { getActionHandler, type ActionContext } from './actionHandlers';
 import { describeSchedule } from '../preview/scheduleDescriptions';
+
+/** Action types that reference a section by ID and need the cross-project guard. */
+const SECTION_REF_ACTION_TYPES = new Set([
+  'move_card_to_top_of_section',
+  'move_card_to_bottom_of_section',
+]);
 
 /**
  * RuleExecutor applies actions produced by the rule engine.
@@ -69,6 +75,12 @@ export class RuleExecutor {
     triggeringEvent: DomainEvent,
     scheduledAgg?: Map<string, { taskNames: string[]; actionDescription: string; triggerDescription: string }>
   ): DomainEvent[] {
+    // Guard: for global rules with section-based actions, check the section exists
+    // in the firing project. If not, log a skipped entry and bail out.
+    if (!this.checkSectionExists(action, triggeringEvent.projectId)) {
+      return [];
+    }
+
     const handler = getActionHandler(action.actionType);
     const events = handler.execute(action, triggeringEvent, this.ctx);
 
@@ -109,6 +121,55 @@ export class RuleExecutor {
     }
 
     return events;
+  }
+
+  /**
+   * Guard: for global rules with section-referencing actions, verify the section
+   * exists in the firing project. Returns false (and writes a skipped log entry)
+   * when the section is missing. Returns true for all other cases.
+   */
+  private checkSectionExists(action: RuleAction, firingProjectId: string): boolean {
+    if (!SECTION_REF_ACTION_TYPES.has(action.actionType)) return true;
+
+    const rule = this.ruleRepo.findById(action.ruleId);
+    if (!rule || rule.projectId !== null) return true; // only guard global rules
+
+    const sectionId = action.params?.sectionId as string | undefined;
+    if (!sectionId) return true;
+
+    if (this.sectionRepo.findById(sectionId)) return true;
+
+    // Section not found — write a skipped entry and signal the caller to bail
+    const sectionName = (action.params?.sectionName as string | undefined)
+      ?? (rule.action.sectionName)
+      ?? sectionId;
+    this.pushSkippedLogEntry(rule, sectionName, firingProjectId);
+    return false;
+  }
+
+  /**
+   * Write a skipped execution log entry for a global rule whose section was not
+   * found in the firing project.
+   */
+  private pushSkippedLogEntry(rule: AutomationRule, sectionName: string, firingProjectId: string): void {
+    const entry: ExecutionLogEntry = {
+      timestamp: new Date().toISOString(),
+      triggerDescription: this.getTriggerDescription(rule.id),
+      actionDescription: `Section '${sectionName}' not found`,
+      taskName: '',
+      executionType: 'skipped',
+      isGlobal: true,
+      firingProjectId,
+      skipReason: `Section '${sectionName}' not found in project '${firingProjectId}'`,
+      ruleId: rule.id,
+    };
+
+    const recentExecutions = [...(rule.recentExecutions ?? []), entry];
+    const trimmed = recentExecutions.length > 20
+      ? recentExecutions.slice(recentExecutions.length - 20)
+      : recentExecutions;
+
+    this.ruleRepo.update(rule.id, { recentExecutions: trimmed });
   }
 
   /**
@@ -192,9 +253,12 @@ export class RuleExecutor {
     const rule = this.ruleRepo.findById(ruleId);
     if (!rule) return 'Unknown trigger';
 
-    const sectionName = rule.trigger.sectionId
-      ? this.sectionRepo.findById(rule.trigger.sectionId)?.name ?? 'unknown section'
-      : '';
+    const trigger = rule.trigger as any;
+    const sectionName = trigger.sectionId
+      ? this.sectionRepo.findById(trigger.sectionId)?.name
+        ?? trigger.sectionName
+        ?? 'unknown section'
+      : trigger.sectionName ?? '';
 
     switch (rule.trigger.type) {
       case 'card_moved_into_section':

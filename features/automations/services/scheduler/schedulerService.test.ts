@@ -21,6 +21,7 @@ function createInMemoryRuleRepo(rules: AutomationRule[]) {
     replaceAll: vi.fn(),
     subscribe: vi.fn(() => vi.fn()),
     findByProjectId: (pid: string) => [...map.values()].filter((r) => r.projectId === pid),
+    findGlobal: () => [...map.values()].filter((r) => r.projectId === null),
   };
 }
 
@@ -289,6 +290,7 @@ describe('SchedulerService', () => {
       replaceAll: vi.fn(),
       subscribe: vi.fn(() => vi.fn()),
       findByProjectId: vi.fn(() => []),
+      findGlobal: vi.fn(() => []),
     };
     const taskRepo = createInMemoryTaskRepo();
     const onRuleFired = vi.fn();
@@ -953,5 +955,51 @@ describe('one-time auto-disable (Phase 5c)', () => {
     // lastEvaluatedAt should be preserved (set to now), NOT cleared
     const trigger = updatedRule?.trigger as any;
     expect(trigger?.lastEvaluatedAt).toBe(new Date(nowMs).toISOString());
+  });
+});
+
+// Feature: global-automations, TASK-7: Scheduler skips global rules in Phase 1
+describe('SchedulerService — global rules skipped in Phase 1', () => {
+  it('does not fire a global rule (projectId: null) even if it has a scheduled trigger', () => {
+    const clock = new FakeClock(BASE_TIME);
+
+    // A global rule with a scheduled trigger — should be ignored by the scheduler
+    const globalRule = {
+      ...makeIntervalRule({ id: 'global-sched-1' }),
+      projectId: null,
+    } as any;
+
+    const ruleRepo = createInMemoryRuleRepo([globalRule]);
+    const taskRepo = createInMemoryTaskRepo();
+    const onRuleFired = vi.fn();
+
+    const scheduler = new SchedulerService(clock, ruleRepo as any, taskRepo as any, onRuleFired);
+    scheduler.tick();
+
+    expect(onRuleFired).not.toHaveBeenCalled();
+  });
+
+  it('still fires project-scoped scheduled rules when global rules are present', () => {
+    const clock = new FakeClock(BASE_TIME);
+
+    const globalRule = {
+      ...makeIntervalRule({ id: 'global-sched-1' }),
+      projectId: null,
+    } as any;
+
+    const projectRule = makeIntervalRule({ id: 'project-sched-1' }); // projectId: 'proj-1'
+
+    const ruleRepo = createInMemoryRuleRepo([globalRule, projectRule]);
+    const taskRepo = createInMemoryTaskRepo();
+    const onRuleFired = vi.fn();
+
+    const scheduler = new SchedulerService(clock, ruleRepo as any, taskRepo as any, onRuleFired);
+    scheduler.tick();
+
+    // Only the project-scoped rule fires
+    expect(onRuleFired).toHaveBeenCalledTimes(1);
+    expect(onRuleFired).toHaveBeenCalledWith(
+      expect.objectContaining({ rule: expect.objectContaining({ id: 'project-sched-1' }) })
+    );
   });
 });

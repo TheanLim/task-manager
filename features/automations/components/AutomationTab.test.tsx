@@ -8,6 +8,19 @@ import type { Section } from '@/lib/schemas';
 // Mock the useAutomationRules hook
 vi.mock('../hooks/useAutomationRules');
 
+// Mock useGlobalAutomationRules — no global rules by default
+vi.mock('../hooks/useGlobalAutomationRules', () => ({
+  useGlobalAutomationRules: () => ({ rules: [], createRule: vi.fn(), updateRule: vi.fn(), deleteRule: vi.fn() }),
+}));
+
+// Mock useAppStore for setActiveView / setHighlightRuleId
+vi.mock('@/stores/appStore', () => ({
+  useAppStore: (selector?: (s: any) => any) => {
+    const state = { activeView: 'project', setActiveView: vi.fn(), setHighlightRuleId: vi.fn(), highlightRuleId: null };
+    return selector ? selector(state) : state;
+  },
+}));
+
 // Mock bulkScheduleService from service container
 const mockPauseAllScheduled = vi.fn().mockReturnValue({ pausedCount: 0, pausedRuleIds: [] });
 const mockResumeAllScheduled = vi.fn().mockReturnValue({ resumedCount: 0, resumedRuleIds: [] });

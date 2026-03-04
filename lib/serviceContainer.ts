@@ -79,6 +79,10 @@ import type { ScheduleEvaluation } from '@/features/automations/services/schedul
  * Creates a schedule.fired domain event and feeds it through handleEvent.
  */
 function onScheduledRuleFired({ rule, evaluation }: { rule: AutomationRule; evaluation: ScheduleEvaluation }): void {
+  // Global rules (projectId: null) are not scheduled in Phase 1 — the scheduler
+  // filters them out before calling this callback, but guard defensively.
+  if (rule.projectId === null) return;
+
   if (evaluation.matchingTaskIds && evaluation.matchingTaskIds.length > 0) {
     // Due-date-relative: one event per matching task
     for (const taskId of evaluation.matchingTaskIds) {

@@ -27,7 +27,9 @@ interface AppStore {
   autoHideThreshold: AutoHideThreshold; // Completed task visibility policy
   showRecentlyCompleted: boolean; // Whether to show recently completed tasks within threshold
   keyboardShortcuts: Partial<ShortcutMap>; // User overrides only (not the full map)
-  
+  activeView: 'project' | 'global-automations'; // Top-level navigation view
+  highlightRuleId: string | null; // Rule to scroll-to and highlight in the global automations panel
+
   setActiveProject: (projectId: UUID | null) => void;
   setTimeManagementSystem: (system: TimeManagementSystem) => void;
   setShowOnlyActionableTasks: (show: boolean) => void;
@@ -44,6 +46,8 @@ interface AppStore {
   setKeyboardShortcut: (action: ShortcutAction, key: string) => void;
   resetKeyboardShortcut: (action: ShortcutAction) => void;
   resetKeyboardShortcuts: () => void;
+  setActiveView: (view: 'project' | 'global-automations') => void;
+  setHighlightRuleId: (ruleId: string | null) => void;
 }
 
 export const useAppStore = create<AppStore>()(
@@ -64,6 +68,8 @@ export const useAppStore = create<AppStore>()(
       autoHideThreshold: '24h' as AutoHideThreshold,
       showRecentlyCompleted: false,
       keyboardShortcuts: {},
+      activeView: 'project' as const,
+      highlightRuleId: null,
       
       setActiveProject: (projectId) => set((state) => ({
         settings: { ...state.settings, activeProjectId: projectId }
@@ -140,6 +146,10 @@ export const useAppStore = create<AppStore>()(
         return { keyboardShortcuts: rest };
       }),
       resetKeyboardShortcuts: () => set({ keyboardShortcuts: {} }),
+
+      setActiveView: (view) => set({ activeView: view }),
+
+      setHighlightRuleId: (ruleId) => set({ highlightRuleId: ruleId }),
     }),
     {
       name: 'task-management-settings',

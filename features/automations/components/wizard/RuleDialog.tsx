@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, useEffect } from 'react';
+import { useCallback, useRef, useEffect, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -19,6 +19,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Globe, Info } from 'lucide-react';
 import { RuleDialogStepTrigger } from './RuleDialogStepTrigger';
 import { RuleDialogStepFilters } from './RuleDialogStepFilters';
 import { RuleDialogStepAction } from './RuleDialogStepAction';
@@ -28,9 +30,9 @@ import { useAutomationRules } from '../../hooks/useAutomationRules';
 import { useWizardState } from '../../hooks/useWizardState';
 import type { PrefillTrigger } from '../../hooks/useWizardState';
 import { buildRuleUpdates, buildNewRuleData } from '../../services/rules/ruleSaveService';
+import { findProjectsMissingSection } from '../../services/rules/sectionUtils';
 import type { AutomationRule } from '../../types';
-import type { Section } from '@/lib/schemas';
-import { useState } from 'react';
+import type { Project, Section } from '@/lib/schemas';
 
 export type { PrefillTrigger };
 
@@ -41,6 +43,12 @@ interface RuleDialogProps {
   sections: Section[];
   editingRule?: AutomationRule | null;
   prefillTrigger?: PrefillTrigger | null;
+  /** When true, renders global rule UI: scope pill, section coverage warning, exclude picker */
+  isGlobal?: boolean;
+  /** All projects — used for section coverage check (isGlobal only) */
+  allProjects?: Project[];
+  /** All sections across all projects — used for section coverage check (isGlobal only) */
+  allSections?: Section[];
 }
 
 export function RuleDialog({
@@ -50,6 +58,9 @@ export function RuleDialog({
   sections,
   editingRule,
   prefillTrigger,
+  isGlobal = false,
+  allProjects = [],
+  allSections = [],
 }: RuleDialogProps) {
   const { rules, createRule, updateRule } = useAutomationRules(projectId);
 
@@ -87,7 +98,7 @@ export function RuleDialog({
     if (editingRule) {
       updateRule(editingRule.id, buildRuleUpdates({ ...commonParams, editingRule }));
     } else {
-      createRule(buildNewRuleData({ ...commonParams, projectId }));
+      createRule(buildNewRuleData({ ...commonParams, projectId: isGlobal ? null : projectId }));
     }
 
     wizard.resetDirty();
@@ -150,13 +161,25 @@ export function RuleDialog({
           <div className="p-6 sm:p-6 max-sm:p-4 flex-shrink-0">
             <DialogHeader>
               <DialogTitle>
-                {editingRule ? 'Edit Automation Rule' : 'Create Automation Rule'}
+                {editingRule
+                  ? isGlobal ? 'Edit Global Rule' : 'Edit Automation Rule'
+                  : isGlobal ? 'New Global Rule' : 'Create Automation Rule'}
               </DialogTitle>
               <DialogDescription>
-                {editingRule
-                  ? 'Modify the trigger, filters, and action for this automation rule.'
-                  : 'Create a new automation rule to automatically perform actions when certain events occur.'}
+                {isGlobal
+                  ? 'This rule will apply to all your projects.'
+                  : editingRule
+                    ? 'Modify the trigger, filters, and action for this automation rule.'
+                    : 'Create a new automation rule to automatically perform actions when certain events occur.'}
               </DialogDescription>
+              {isGlobal && (
+                <div className="flex items-center gap-1.5 mt-1" role="status">
+                  <Badge variant="secondary" className="text-xs">
+                    <Globe className="w-3 h-3 mr-1" aria-hidden="true" />
+                    Scope: All Projects
+                  </Badge>
+                </div>
+              )}
             </DialogHeader>
 
             {/* Step Indicator */}
@@ -222,11 +245,34 @@ export function RuleDialog({
 
             <div className="space-y-6 pb-6">
               {wizard.currentStep === 0 && (
-                <RuleDialogStepTrigger
-                  trigger={wizard.trigger}
-                  onTriggerChange={wizard.handleTriggerChange}
-                  sections={sections}
-                />
+                <>
+                  <RuleDialogStepTrigger
+                    trigger={wizard.trigger}
+                    onTriggerChange={wizard.handleTriggerChange}
+                    sections={sections}
+                    isGlobal={isGlobal}
+                  />
+                  {/* Section coverage warning for global rules */}
+                  {isGlobal && wizard.trigger.sectionId && (() => {
+                    const selectedSection = allSections.find((s) => s.id === wizard.trigger.sectionId);
+                    if (!selectedSection) return null;
+                    const missing = findProjectsMissingSection(selectedSection.name, allProjects, allSections);
+                    if (missing.length === 0) {
+                      return (
+                        <p className="text-xs text-muted-foreground flex items-start gap-1.5 mt-1">
+                          <Info className="w-3 h-3 mt-0.5 shrink-0" aria-hidden="true" />
+                          This rule will run in all projects that have a section named &ldquo;{selectedSection.name}&rdquo;.
+                        </p>
+                      );
+                    }
+                    return (
+                      <p className="text-xs text-amber-600 dark:text-amber-400 flex items-start gap-1.5 mt-1">
+                        <Info className="w-3 h-3 mt-0.5 shrink-0" aria-hidden="true" />
+                        {missing.length} of your {allProjects.length} projects don&apos;t have a section named &ldquo;{selectedSection.name}&rdquo;. This rule will be skipped for those projects.
+                      </p>
+                    );
+                  })()}
+                </>
               )}
 
               {wizard.currentStep === 1 && (

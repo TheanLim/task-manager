@@ -123,6 +123,8 @@ export interface RuleAction {
   params: {
     /** Target section ID for move actions */
     sectionId?: string;
+    /** Target section name for move actions (used as fallback in log descriptions) */
+    sectionName?: string;
     /** Position for move actions */
     position?: 'top' | 'bottom';
     /** Date option for set_due_date action */

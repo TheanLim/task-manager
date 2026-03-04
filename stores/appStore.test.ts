@@ -286,3 +286,65 @@ describe('useAppStore', () => {
     });
   });
 });
+
+// Feature: global-automations, TASK-8: activeView + highlightRuleId
+describe('activeView and highlightRuleId', () => {
+  beforeEach(() => {
+    useAppStore.setState({
+      activeView: 'project',
+      highlightRuleId: null,
+    });
+  });
+
+  it('initial activeView is "project"', () => {
+    const { result } = renderHook(() => useAppStore());
+    expect(result.current.activeView).toBe('project');
+  });
+
+  it('setActiveView("global-automations") updates activeView', () => {
+    const { result } = renderHook(() => useAppStore());
+
+    act(() => {
+      result.current.setActiveView('global-automations');
+    });
+
+    expect(result.current.activeView).toBe('global-automations');
+  });
+
+  it('setActiveView("project") switches back to project view', () => {
+    const { result } = renderHook(() => useAppStore());
+
+    act(() => {
+      result.current.setActiveView('global-automations');
+      result.current.setActiveView('project');
+    });
+
+    expect(result.current.activeView).toBe('project');
+  });
+
+  it('initial highlightRuleId is null', () => {
+    const { result } = renderHook(() => useAppStore());
+    expect(result.current.highlightRuleId).toBeNull();
+  });
+
+  it('setHighlightRuleId stores the ruleId', () => {
+    const { result } = renderHook(() => useAppStore());
+
+    act(() => {
+      result.current.setHighlightRuleId('rule-abc');
+    });
+
+    expect(result.current.highlightRuleId).toBe('rule-abc');
+  });
+
+  it('setHighlightRuleId(null) clears the ruleId', () => {
+    const { result } = renderHook(() => useAppStore());
+
+    act(() => {
+      result.current.setHighlightRuleId('rule-abc');
+      result.current.setHighlightRuleId(null);
+    });
+
+    expect(result.current.highlightRuleId).toBeNull();
+  });
+});

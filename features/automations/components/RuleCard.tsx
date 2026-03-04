@@ -27,6 +27,8 @@ import { RulePreview } from './RulePreview';
 import { RuleCardExecutionLog } from './RuleCardExecutionLog';
 import { ScheduleHistoryView } from './schedule/ScheduleHistoryView';
 import { ProjectPickerDialog } from './ProjectPickerDialog';
+import { GlobalRulesBadge } from './GlobalRulesBadge';
+import { SectionMismatchWarning } from './SectionMismatchWarning';
 import { TRIGGER_META, ACTION_META } from '../services/preview/ruleMetadata';
 import { formatRelativeTime } from '../services/preview/formatters';
 import { computeNextRunDescription } from '../services/preview/scheduleDescriptions';
@@ -38,6 +40,8 @@ interface RuleCardProps {
   rule: AutomationRule;
   sections: Section[];
   projectId: string;
+  /** When true, renders global-rule UI: badge, scope line, section mismatch warning */
+  isGlobal?: boolean;
   onEdit: (ruleId: string) => void;
   onDuplicate: (ruleId: string) => void;
   onDuplicateToProject: (ruleId: string, targetProjectId: string) => void;
@@ -67,6 +71,7 @@ export function RuleCard({
   rule,
   sections,
   projectId,
+  isGlobal = false,
   onEdit,
   onDuplicate,
   onDuplicateToProject,
@@ -139,6 +144,7 @@ export function RuleCard({
                   )}
                   {rule.name}
                 </h3>
+                {isGlobal && <GlobalRulesBadge />}
                 {!rule.enabled && isFiredOneTime && (
                   <Badge variant="outline" className="text-xs text-muted-foreground">
                     Fired
@@ -261,6 +267,9 @@ export function RuleCard({
 
           {/* Stats */}
           <div className="text-xs text-muted-foreground">
+            {isGlobal && (
+              <span className="mr-2">Applies to: All Projects ·</span>
+            )}
             Ran {rule.executionCount} {rule.executionCount === 1 ? 'time' : 'times'} · Last
             fired {rule.lastExecutedAt ? formatRelativeTime(rule.lastExecutedAt) : 'Never'}
           </div>
@@ -278,6 +287,25 @@ export function RuleCard({
           ) : (
             <RuleCardExecutionLog entries={rule.recentExecutions ?? []} />
           )}
+
+          {/* Section mismatch warning for global rules */}
+          {isGlobal && (() => {
+            const skippedEntries = (rule.recentExecutions ?? []).filter(
+              (e) => e.executionType === 'skipped' && e.skipReason?.includes('not found')
+            );
+            if (skippedEntries.length === 0) return null;
+            // Extract section name from the most recent skip reason
+            const match = skippedEntries[skippedEntries.length - 1]?.skipReason?.match(/Section '(.+)' not found/);
+            const sectionName = match?.[1] ?? 'unknown section';
+            // Count distinct projects
+            const projectIds = new Set(skippedEntries.map((e) => e.firingProjectId).filter(Boolean));
+            return (
+              <SectionMismatchWarning
+                skippedCount={projectIds.size || skippedEntries.length}
+                sectionName={sectionName}
+              />
+            );
+          })()}
         </div>
       </CardContent>
 

@@ -1502,3 +1502,206 @@ describe('bulkPausedAt schema on AutomationRuleSchema', () => {
     expect(result.success).toBe(false);
   });
 });
+
+// Feature: global-automations, TASK-1: Schema tests
+// **Validates: ISSUE-1, ISSUE-2, ISSUE-4, ISSUE-5 resolutions**
+describe('Global automations schema changes', () => {
+  const baseRule = {
+    id: 'rule-1',
+    projectId: 'proj-1',
+    name: 'Test Rule',
+    trigger: { type: 'card_moved_into_section', sectionId: null },
+    filters: [],
+    action: {
+      type: 'mark_card_complete',
+      sectionId: null,
+      dateOption: null,
+      position: null,
+      cardTitle: null,
+      cardDateOption: null,
+      specificMonth: null,
+      specificDay: null,
+      monthTarget: null,
+    },
+    enabled: true,
+    brokenReason: null,
+    executionCount: 0,
+    lastExecutedAt: null,
+    recentExecutions: [],
+    order: 0,
+    createdAt: '2025-01-15T10:00:00.000Z',
+    updatedAt: '2025-01-15T10:00:00.000Z',
+  };
+
+  describe('AutomationRuleSchema — projectId nullable', () => {
+    it('accepts projectId: null (global rule)', () => {
+      const result = AutomationRuleSchema.safeParse({ ...baseRule, projectId: null });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.projectId).toBeNull();
+      }
+    });
+
+    it('accepts projectId: non-null string (project-scoped rule — regression)', () => {
+      const result = AutomationRuleSchema.safeParse({ ...baseRule, projectId: 'proj-abc' });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.projectId).toBe('proj-abc');
+      }
+    });
+
+    it('rejects projectId: empty string', () => {
+      const result = AutomationRuleSchema.safeParse({ ...baseRule, projectId: '' });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('AutomationRuleSchema — excludedProjectIds', () => {
+    it('defaults to [] when field is absent', () => {
+      const result = AutomationRuleSchema.safeParse(baseRule);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.excludedProjectIds).toEqual([]);
+      }
+    });
+
+    it('accepts a populated excludedProjectIds array', () => {
+      const result = AutomationRuleSchema.safeParse({
+        ...baseRule,
+        excludedProjectIds: ['proj-a', 'proj-b'],
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.excludedProjectIds).toEqual(['proj-a', 'proj-b']);
+      }
+    });
+
+    it('rejects excludedProjectIds containing an empty string', () => {
+      const result = AutomationRuleSchema.safeParse({
+        ...baseRule,
+        excludedProjectIds: ['proj-a', ''],
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('accepts excludedProjectIds: [] explicitly', () => {
+      const result = AutomationRuleSchema.safeParse({
+        ...baseRule,
+        excludedProjectIds: [],
+      });
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe('ExecutionLogEntrySchema — global rule fields', () => {
+    const baseEntry = {
+      timestamp: '2025-01-15T10:00:00.000Z',
+      triggerDescription: 'Card moved into section',
+      actionDescription: 'Mark complete',
+      taskName: 'My task',
+    };
+
+    it('accepts entry without new fields (backward compatibility)', () => {
+      const result = ExecutionLogEntrySchema.safeParse(baseEntry);
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts isGlobal: true', () => {
+      const result = ExecutionLogEntrySchema.safeParse({ ...baseEntry, isGlobal: true });
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.isGlobal).toBe(true);
+    });
+
+    it('accepts firingProjectId as a non-empty string', () => {
+      const result = ExecutionLogEntrySchema.safeParse({ ...baseEntry, firingProjectId: 'proj-1' });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects firingProjectId as empty string', () => {
+      const result = ExecutionLogEntrySchema.safeParse({ ...baseEntry, firingProjectId: '' });
+      expect(result.success).toBe(false);
+    });
+
+    it('accepts skipReason as a string', () => {
+      const result = ExecutionLogEntrySchema.safeParse({
+        ...baseEntry,
+        executionType: 'skipped',
+        skipReason: "Section 'Done' not found in project 'Client Work'",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts ruleId as a non-empty string', () => {
+      const result = ExecutionLogEntrySchema.safeParse({ ...baseEntry, ruleId: 'rule-abc' });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects ruleId as empty string', () => {
+      const result = ExecutionLogEntrySchema.safeParse({ ...baseEntry, ruleId: '' });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('TriggerSchema — sectionName optional field', () => {
+    it('accepts card_moved_into_section with sectionName', () => {
+      const result = TriggerSchema.safeParse({
+        type: 'card_moved_into_section',
+        sectionId: 'sec-1',
+        sectionName: 'Done',
+      });
+      expect(result.success).toBe(true);
+      if (result.success) expect((result.data as any).sectionName).toBe('Done');
+    });
+
+    it('accepts card_moved_into_section without sectionName (backward compat)', () => {
+      const result = TriggerSchema.safeParse({
+        type: 'card_moved_into_section',
+        sectionId: 'sec-1',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts card_moved_out_of_section with sectionName', () => {
+      const result = TriggerSchema.safeParse({
+        type: 'card_moved_out_of_section',
+        sectionId: null,
+        sectionName: 'In Progress',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts card_marked_complete with sectionName', () => {
+      const result = TriggerSchema.safeParse({
+        type: 'card_marked_complete',
+        sectionId: null,
+        sectionName: 'Done',
+      });
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe('ActionSchema — sectionName optional field', () => {
+    const baseAction = {
+      type: 'move_card_to_top_of_section',
+      sectionId: 'sec-1',
+      dateOption: null,
+      position: null,
+      cardTitle: null,
+      cardDateOption: null,
+      specificMonth: null,
+      specificDay: null,
+      monthTarget: null,
+    };
+
+    it('accepts action with sectionName', () => {
+      const result = ActionSchema.safeParse({ ...baseAction, sectionName: 'Done' });
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.sectionName).toBe('Done');
+    });
+
+    it('accepts action without sectionName (backward compat)', () => {
+      const result = ActionSchema.safeParse(baseAction);
+      expect(result.success).toBe(true);
+    });
+  });
+});

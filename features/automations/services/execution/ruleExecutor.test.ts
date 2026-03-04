@@ -112,6 +112,10 @@ class MockAutomationRuleRepository implements AutomationRuleRepository {
     return this.findAll().filter(r => r.projectId === projectId);
   }
 
+  findGlobal(): AutomationRule[] {
+    return this.findAll().filter(r => r.projectId === null);
+  }
+
   create(rule: AutomationRule): AutomationRule {
     this.rules.set(rule.id, rule);
     return rule;

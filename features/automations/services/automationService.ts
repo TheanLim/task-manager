@@ -119,7 +119,15 @@ export class AutomationService {
     if (event.depth >= this.maxDepth) return;
 
     const currentDedupSet = dedupSet ?? new Set<string>();
-    const rules = this.ruleRepo.findByProjectId(event.projectId);
+
+    // Execution order: global rules fire first (baseline), project rules fire second (override).
+    // Project rules have the last word when both rules act on the same entity.
+    // This is hardcoded in Phase 1. Phase 2 adds a user-configurable order setting.
+    const globalRules = this.ruleRepo.findGlobal().filter(
+      (rule) => !rule.excludedProjectIds.includes(event.projectId)
+    );
+    const projectRules = this.ruleRepo.findByProjectId(event.projectId);
+    const rules = [...globalRules, ...projectRules];
 
     const context: EvaluationContext = {
       allTasks: this.taskRepo.findAll(),

@@ -106,8 +106,10 @@ export class SchedulerService {
       return;
     }
 
+    // Phase 1: global rules (projectId === null) are not scheduled.
+    // Scheduled global triggers are deferred to Phase 3.
     const nowMs = this.clock.now();
-    const results = evaluateScheduledRules(nowMs, rules, tasks);
+    const results = evaluateScheduledRules(nowMs, rules.filter(r => r.projectId !== null), tasks);
     let totalTasksAffected = 0;
     let rulesFiredCount = results.length;
 
@@ -147,12 +149,13 @@ export class SchedulerService {
     }
 
     // Update lastEvaluatedAt for non-fired rules to prevent stale catch-up windows
-    this.updateNonFiredRules(rules, results.map((r) => r.rule.id), nowMs);
+    // Only applies to project-scoped rules (global rules are not scheduled in Phase 1)
+    this.updateNonFiredRules(rules.filter(r => r.projectId !== null), results.map((r) => r.rule.id), nowMs);
 
     if (results.length > 0 && this.onTickComplete) {
       this.onTickComplete({
         rulesEvaluated: rules.filter(
-          (r) => r.enabled && r.brokenReason === null && isScheduledTrigger(r.trigger)
+          (r) => r.projectId !== null && r.enabled && r.brokenReason === null && isScheduledTrigger(r.trigger)
         ).length,
         rulesFired: rulesFiredCount,
         totalTasksAffected,

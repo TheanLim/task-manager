@@ -21,6 +21,8 @@ interface ProjectListProps {
   activeProjectId: string | null;
   onProjectSelect: (projectId: string) => void;
   onNewProject: () => void;
+  /** Called when the user clicks "All Tasks" — use to reset any top-level view state */
+  onTasksClick?: () => void;
 }
 
 /**
@@ -30,7 +32,8 @@ export function ProjectList({
   projects,
   activeProjectId,
   onProjectSelect,
-  onNewProject
+  onNewProject,
+  onTasksClick,
 }: ProjectListProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -61,6 +64,7 @@ export function ProjectList({
   };
 
   const handleTasksClick = () => {
+    onTasksClick?.();
     router.push('/?view=tasks');
   };
 

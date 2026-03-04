@@ -151,6 +151,10 @@ export class LocalStorageAutomationRuleRepository implements AutomationRuleRepos
     return this.rules.filter((rule) => rule.projectId === projectId);
   }
 
+  findGlobal(): AutomationRule[] {
+    return this.rules.filter((rule) => rule.projectId === null);
+  }
+
   create(item: AutomationRule): void {
     // Validate with Zod before adding
     const validated = AutomationRuleSchema.parse(item);

@@ -37,8 +37,11 @@ import { EmptyState } from '@/components/EmptyState';
 import { RuleCard } from './RuleCard';
 import { RuleDialog } from './wizard/RuleDialog';
 import { DryRunDialog } from './schedule/DryRunDialog';
+import { GlobalRulesSection } from './GlobalRulesSection';
 import { useAutomationRules } from '../hooks/useAutomationRules';
 import { useRuleActions } from '../hooks/useRuleActions';
+import { useGlobalAutomationRules } from '../hooks/useGlobalAutomationRules';
+import { useAppStore } from '@/stores/appStore';
 import type { Section } from '@/lib/schemas';
 
 const MAX_RULES_WARNING_THRESHOLD = 10;
@@ -58,6 +61,8 @@ interface AutomationTabProps {
 export function AutomationTab({ projectId, sections, onShowToast }: AutomationTabProps) {
   const { rules, duplicateRule, duplicateToProject, deleteRule, toggleRule, reorderRules, bulkSetEnabled } = useAutomationRules(projectId);
   const ruleActions = useRuleActions(rules, sections, projectId, onShowToast);
+  const { rules: globalRules } = useGlobalAutomationRules();
+  const { setActiveView, setHighlightRuleId } = useAppStore();
 
   // Sort rules by order for display
   const sortedRules = [...rules].sort((a, b) => a.order - b.order);
@@ -149,6 +154,16 @@ export function AutomationTab({ projectId, sections, onShowToast }: AutomationTa
   if (rules.length === 0) {
     return (
       <>
+        {globalRules.length > 0 && (
+          <GlobalRulesSection
+            globalRules={globalRules}
+            projectSections={sections}
+            onNavigateToGlobal={(ruleId) => {
+              setActiveView('global-automations');
+              if (ruleId) setHighlightRuleId(ruleId);
+            }}
+          />
+        )}
         <EmptyState
           icon={Zap}
           title="Automate repetitive work"
@@ -222,6 +237,17 @@ export function AutomationTab({ projectId, sections, onShowToast }: AutomationTa
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={sortedRules.map((r) => r.id)} strategy={verticalListSortingStrategy}>
           <div className="space-y-3">
+            {/* Global rules section — read-only, above local rules */}
+            {globalRules.length > 0 && (
+              <GlobalRulesSection
+                globalRules={globalRules}
+                projectSections={sections}
+                onNavigateToGlobal={(ruleId) => {
+                  setActiveView('global-automations');
+                  if (ruleId) setHighlightRuleId(ruleId);
+                }}
+              />
+            )}
             {sortedRules.map((rule) => (
               <RuleCard
                 key={rule.id}

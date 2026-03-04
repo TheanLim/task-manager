@@ -26,6 +26,17 @@ import type { Section } from '@/lib/schemas';
 
 vi.mock('./hooks/useAutomationRules');
 
+vi.mock('./hooks/useGlobalAutomationRules', () => ({
+  useGlobalAutomationRules: () => ({ rules: [], createRule: vi.fn(), updateRule: vi.fn(), deleteRule: vi.fn() }),
+}));
+
+vi.mock('@/stores/appStore', () => ({
+  useAppStore: (selector?: (s: any) => any) => {
+    const state = { activeView: 'project', setActiveView: vi.fn(), setHighlightRuleId: vi.fn(), highlightRuleId: null };
+    return selector ? selector(state) : state;
+  },
+}));
+
 vi.mock('@/stores/dataStore', () => ({
   useDataStore: () => ({
     projects: [

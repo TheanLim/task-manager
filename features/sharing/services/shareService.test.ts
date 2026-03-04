@@ -156,6 +156,7 @@ function createMockRuleRepo(initialRules: AutomationRule[] = []) {
     findAll: () => [...rules.values()],
     findById: (id: string) => rules.get(id),
     findByProjectId: (pid: string) => [...rules.values()].filter((r) => r.projectId === pid),
+    findGlobal: () => [...rules.values()].filter((r) => r.projectId === null),
     create: (item: AutomationRule) => { rules.set(item.id, item); },
     update: (id: string, updates: Partial<AutomationRule>) => {
       const existing = rules.get(id);

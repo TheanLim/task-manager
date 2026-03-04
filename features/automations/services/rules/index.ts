@@ -11,3 +11,5 @@ export type { RuleSaveParams, RuleUpdateParams, NewRuleParams } from './ruleSave
 export { validateOneTimeReEnable } from './ruleValidation';
 export { dryRunScheduledRule } from './dryRunService';
 export type { DryRunResult } from './dryRunService';
+export { findProjectsMissingSection } from './sectionUtils';
+export { countGlobalRulesWithActiveSkips } from './skipSelectors';

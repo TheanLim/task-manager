@@ -23,6 +23,7 @@ function createInMemoryRuleRepo(rules: AutomationRule[]): AutomationRuleReposito
     replaceAll: vi.fn(),
     subscribe: vi.fn(() => vi.fn()),
     findByProjectId: (pid: string) => [...map.values()].filter((r) => r.projectId === pid),
+    findGlobal: () => [...map.values()].filter((r) => r.projectId === null),
   } as any;
 }
 

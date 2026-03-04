@@ -52,7 +52,7 @@ export function dryRunScheduledRule(
   const syntheticEvent: DomainEvent = {
     type: 'schedule.fired',
     entityId: '',
-    projectId: rule.projectId,
+    projectId: rule.projectId ?? '', // global rules (null) don't run dry-run in Phase 1
     changes: { triggerType: rule.trigger.type },
     previousValues: {},
     triggeredByRule: rule.id,

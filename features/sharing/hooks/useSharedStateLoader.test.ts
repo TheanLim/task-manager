@@ -77,7 +77,7 @@ let testTaskRepo: LocalStorageTaskRepository;
 let testSectionRepo: LocalStorageSectionRepository;
 let testDependencyRepo: LocalStorageDependencyRepository;
 
-let mockAutomationRuleRepo: { create: ReturnType<typeof vi.fn>; findAll: ReturnType<typeof vi.fn>; findByProjectId: ReturnType<typeof vi.fn> };
+let mockAutomationRuleRepo: { create: ReturnType<typeof vi.fn>; findAll: ReturnType<typeof vi.fn>; findByProjectId: ReturnType<typeof vi.fn>; findGlobal: ReturnType<typeof vi.fn> };
 
 vi.mock('@/stores/dataStore', () => ({
   get projectRepository() { return testProjectRepo; },
@@ -97,7 +97,7 @@ describe('handleLoadSharedState', () => {
     testTaskRepo = new LocalStorageTaskRepository(testBackend);
     testSectionRepo = new LocalStorageSectionRepository(testBackend);
     testDependencyRepo = new LocalStorageDependencyRepository(testBackend);
-    mockAutomationRuleRepo = { create: vi.fn(), findAll: vi.fn(() => []), findByProjectId: vi.fn(() => []) };
+    mockAutomationRuleRepo = { create: vi.fn(), findAll: vi.fn(() => []), findByProjectId: vi.fn(() => []), findGlobal: vi.fn(() => []) };
     onLoadResult = vi.fn();
     // Mock window.history.replaceState used by clearUrlHash
     vi.spyOn(window.history, 'replaceState').mockImplementation(() => {});

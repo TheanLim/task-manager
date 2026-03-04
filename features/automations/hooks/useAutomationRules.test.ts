@@ -13,6 +13,7 @@ vi.mock('@/stores/dataStore', () => {
     findById: (id: string) => mockRules.find((r) => r.id === id),
     findAll: () => [...mockRules],
     findByProjectId: (projectId: string) => mockRules.filter((r) => r.projectId === projectId),
+    findGlobal: () => mockRules.filter((r) => r.projectId === null),
     create: (rule: AutomationRule) => {
       mockRules.push(rule);
       listeners.forEach((cb) => cb([...mockRules]));

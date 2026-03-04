@@ -180,6 +180,7 @@ const automationRules = [
     order: 0,
     createdAt: NOW,
     updatedAt: NOW,
+    excludedProjectIds: [],
   },
   {
     id: RULE_IDS.autoMove,
@@ -206,6 +207,7 @@ const automationRules = [
     order: 1,
     createdAt: NOW,
     updatedAt: NOW,
+    excludedProjectIds: [],
   },
 ]
 

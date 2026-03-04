@@ -80,6 +80,7 @@ export function useAutomationRules(projectId: string): UseAutomationRulesReturn 
           enabled: false,
           brokenReason: original.brokenReason,
           bulkPausedAt: null,
+          excludedProjectIds: original.excludedProjectIds,
         },
         allRules
       );

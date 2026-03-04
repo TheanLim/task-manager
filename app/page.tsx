@@ -41,6 +41,10 @@ import { useKeyboardNavStore } from '@/features/keyboard/stores/keyboardNavStore
 import { formatAutomationToastMessage } from '@/features/automations/services/preview/toastMessageFormatter';
 import { getUndoSnapshots, performUndoById } from '@/features/automations/services/execution/undoService';
 import { taskRepository } from '@/stores/dataStore';
+import { GlobalAutomationsPanel } from '@/features/automations/components/GlobalAutomationsPanel';
+import { useGlobalAutomationSkipCount } from '@/features/automations/hooks/useGlobalAutomationSkipCount';
+import { Badge } from '@/components/ui/badge';
+import { Zap } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -105,6 +109,9 @@ function HomeContent() {
   } = useDataStore();
 
   const { settings, setActiveProject } = useAppStore();
+  const activeView = useAppStore((s) => s.activeView);
+  const setActiveView = useAppStore((s) => s.setActiveView);
+  const skipCount = useGlobalAutomationSkipCount();
 
   // Keyboard shortcuts
   const [helpOpen, setHelpOpen] = useState(false);
@@ -486,12 +493,39 @@ function HomeContent() {
     <Layout
       sidebar={
         hydrated ? (
-          <ProjectList
-            projects={projects}
-            activeProjectId={settings.activeProjectId}
-            onProjectSelect={setActiveProject}
-            onNewProject={handleNewProject}
-          />
+          <>
+            <ProjectList
+              projects={projects}
+              activeProjectId={settings.activeProjectId}
+              onProjectSelect={(projectId) => {
+                setActiveView('project');
+                setActiveProject(projectId);
+              }}
+              onTasksClick={() => setActiveView('project')}
+              onNewProject={handleNewProject}
+            />
+            {/* Global Automations nav item */}
+            <div className="mt-4 pt-4 border-t">
+              <button
+                type="button"
+                onClick={() => setActiveView('global-automations')}
+                className={`flex items-center gap-2 w-full rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent ${activeView === 'global-automations' ? 'bg-accent font-medium' : 'text-muted-foreground'}`}
+                aria-label="Global Automations"
+              >
+                <Zap className="w-4 h-4 shrink-0" aria-hidden="true" />
+                <span>Automations</span>
+                {skipCount > 0 && (
+                  <Badge
+                    variant="outline"
+                    className="ml-auto h-4 min-w-4 px-1 text-[10px] bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-700"
+                    aria-label={`${skipCount} global rule${skipCount > 1 ? 's have' : ' has'} active skips`}
+                  >
+                    {skipCount}
+                  </Badge>
+                )}
+              </button>
+            </div>
+          </>
         ) : (
           <SkeletonProjectList />
         )
@@ -523,6 +557,8 @@ function HomeContent() {
         >
           {!hydrated ? (
             <SkeletonTaskList />
+          ) : activeView === 'global-automations' ? (
+            <GlobalAutomationsPanel />
           ) : isGlobalView ? (
             <GlobalTasksContainer
               onTaskClick={handleTaskClick}

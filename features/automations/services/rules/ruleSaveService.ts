@@ -27,7 +27,7 @@ export interface RuleUpdateParams extends RuleSaveParams {
 }
 
 export interface NewRuleParams extends RuleSaveParams {
-  projectId: string;
+  projectId: string | null;
 }
 
 // ─── Internals ──────────────────────────────────────────────────────────
@@ -133,5 +133,6 @@ export function buildNewRuleData({ trigger, filters, action, ruleName, sections,
     enabled: true,
     brokenReason: null,
     bulkPausedAt: null,
+    excludedProjectIds: [],
   };
 }

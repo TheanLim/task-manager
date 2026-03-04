@@ -282,30 +282,37 @@ export const TriggerSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('card_moved_into_section'),
     sectionId: z.string().min(1).nullable(),
+    sectionName: z.string().optional(),
   }),
   z.object({
     type: z.literal('card_moved_out_of_section'),
     sectionId: z.string().min(1).nullable(),
+    sectionName: z.string().optional(),
   }),
   z.object({
     type: z.literal('card_marked_complete'),
     sectionId: z.string().min(1).nullable(),
+    sectionName: z.string().optional(),
   }),
   z.object({
     type: z.literal('card_marked_incomplete'),
     sectionId: z.string().min(1).nullable(),
+    sectionName: z.string().optional(),
   }),
   z.object({
     type: z.literal('card_created_in_section'),
     sectionId: z.string().min(1).nullable(),
+    sectionName: z.string().optional(),
   }),
   z.object({
     type: z.literal('section_created'),
     sectionId: z.string().min(1).nullable(),
+    sectionName: z.string().optional(),
   }),
   z.object({
     type: z.literal('section_renamed'),
     sectionId: z.string().min(1).nullable(),
+    sectionName: z.string().optional(),
   }),
   // Scheduled triggers
   z.object({
@@ -356,6 +363,7 @@ export const TriggerSchema = z.discriminatedUnion('type', [
 export const ActionSchema = z.object({
   type: ActionTypeSchema,
   sectionId: z.string().min(1).nullable(),
+  sectionName: z.string().optional(),
   dateOption: RelativeDateOptionSchema.nullable(),
   position: z.enum(['top', 'bottom']).nullable(),
   cardTitle: z.string().min(1).max(200).nullable().default(null),
@@ -374,11 +382,17 @@ export const ExecutionLogEntrySchema = z.object({
   matchCount: z.number().int().optional(),
   details: z.array(z.string()).optional(),
   executionType: z.enum(['event', 'scheduled', 'catch-up', 'manual', 'skipped']).optional(),
+  // Global rule fields (Phase 1 — global automations)
+  ruleId: z.string().min(1).optional(),
+  isGlobal: z.boolean().optional(),
+  firingProjectId: z.string().min(1).optional(),
+  skipReason: z.string().optional(),
 });
 
 export const AutomationRuleSchema = z.object({
   id: z.string().min(1),
-  projectId: z.string().min(1),
+  // null = global rule (applies to all projects); non-null = project-scoped rule
+  projectId: z.string().min(1).nullable(),
   name: z.string().min(1).max(200),
   trigger: TriggerSchema,
   filters: z.array(CardFilterSchema).default([]),
@@ -392,6 +406,8 @@ export const AutomationRuleSchema = z.object({
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
   bulkPausedAt: z.string().datetime().nullable().default(null),
+  // Projects to exclude from this global rule's scope (ignored for project-scoped rules)
+  excludedProjectIds: z.array(z.string().min(1)).default([]),
 });
 
 // Types are inferred and exported from types.ts — import types from there, schemas from here.

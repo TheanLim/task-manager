@@ -13,12 +13,15 @@ interface RuleDialogStepTriggerProps {
   trigger: TriggerConfig;
   onTriggerChange: (trigger: TriggerConfig) => void;
   sections: Section[];
+  /** When true, scheduled triggers are disabled (not available for global rules in Phase 1) */
+  isGlobal?: boolean;
 }
 
 export function RuleDialogStepTrigger({
   trigger,
   onTriggerChange,
   sections,
+  isGlobal = false,
 }: RuleDialogStepTriggerProps) {
   // Group triggers by category
   const cardMoveTriggers = TRIGGER_META.filter((t) => t.category === 'card_move');
@@ -149,28 +152,34 @@ export function RuleDialogStepTrigger({
                   <Info className="h-4 w-4 text-muted-foreground" />
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs">
-                  <p>Scheduled rules run when the app is open. If the app is closed during a scheduled time, the rule catches up on next visit (fires once, not for every missed window).</p>
+                  {isGlobal
+                    ? <p>Scheduled triggers for global rules are coming in a future update.</p>
+                    : <p>Scheduled rules run when the app is open. If the app is closed during a scheduled time, the rule catches up on next visit (fires once, not for every missed window).</p>
+                  }
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Runs when the app is open. Missed schedules catch up on next visit.
+            {isGlobal
+              ? 'Not available for global rules yet.'
+              : 'Runs when the app is open. Missed schedules catch up on next visit.'}
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
           {scheduledTriggers.map((triggerMeta) => (
             <label
               key={triggerMeta.type}
-              className="flex items-start gap-3 cursor-pointer"
+              className={`flex items-start gap-3 ${isGlobal ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
             >
               <input
                 type="radio"
                 name="trigger"
                 value={triggerMeta.type}
                 checked={trigger.type === triggerMeta.type}
-                onChange={(e) => handleTriggerTypeChange(e.target.value)}
-                className="mt-0.5 h-4 w-4 cursor-pointer text-accent-brand focus:ring-accent-brand"
+                onChange={(e) => !isGlobal && handleTriggerTypeChange(e.target.value)}
+                disabled={isGlobal}
+                className="mt-0.5 h-4 w-4 cursor-pointer text-accent-brand focus:ring-accent-brand disabled:cursor-not-allowed"
               />
               <div className="flex-1 space-y-2">
                 <span className="text-sm">{triggerMeta.label}</span>

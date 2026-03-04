@@ -41,6 +41,8 @@ function createMockRepo(rules: AutomationRule[]): AutomationRuleRepository {
   return {
     findByProjectId: (projectId: string) =>
       [...store.values()].filter((r) => r.projectId === projectId),
+    findGlobal: () =>
+      [...store.values()].filter((r) => r.projectId === null),
     update: (id: string, updates: Partial<AutomationRule>) => {
       const existing = store.get(id);
       if (existing) store.set(id, { ...existing, ...updates });

@@ -107,6 +107,7 @@ export function duplicateRuleToProject(
     executionCount: 0,
     lastExecutedAt: null,
     bulkPausedAt: null,
+    excludedProjectIds: [],
     createdAt: now,
     updatedAt: now,
   };
