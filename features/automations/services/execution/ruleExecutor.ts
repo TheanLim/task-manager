@@ -41,7 +41,17 @@ export class RuleExecutor {
   /**
    * Execute a list of rule actions and return resulting domain events.
    */
-  executeActions(actions: RuleAction[], triggeringEvent: DomainEvent): DomainEvent[] {
+  /**
+   * Execute a list of rule actions and return resulting domain events.
+   * Populates executedRuleIds with the IDs of rules that actually ran (not skipped).
+   * Populates skippedEntries with skip info for rules that were skipped.
+   */
+  executeActions(
+    actions: RuleAction[],
+    triggeringEvent: DomainEvent,
+    executedRuleIds?: Set<string>,
+    skippedEntries?: Array<{ ruleId: string; ruleName: string; skipReason: string }>
+  ): DomainEvent[] {
     const newEvents: DomainEvent[] = [];
     const isScheduledEvent = triggeringEvent.type === 'schedule.fired';
 
@@ -50,8 +60,17 @@ export class RuleExecutor {
 
     for (const action of actions) {
       try {
-        const events = this.executeAction(action, triggeringEvent, isScheduledEvent ? scheduledAgg : undefined);
+        const skipInfo = { reason: '' };
+        const events = this.executeAction(action, triggeringEvent, isScheduledEvent ? scheduledAgg : undefined, skipInfo);
         newEvents.push(...events);
+        if (events.length > 0 && executedRuleIds) {
+          executedRuleIds.add(action.ruleId);
+        } else if (events.length === 0 && skipInfo.reason && skippedEntries) {
+          const rule = this.ruleRepo.findById(action.ruleId);
+          if (rule) {
+            skippedEntries.push({ ruleId: action.ruleId, ruleName: rule.name, skipReason: skipInfo.reason });
+          }
+        }
       } catch (error) {
         console.error(`Failed to execute action ${action.actionType} for rule ${action.ruleId}:`, error);
       }
@@ -73,11 +92,12 @@ export class RuleExecutor {
   private executeAction(
     action: RuleAction,
     triggeringEvent: DomainEvent,
-    scheduledAgg?: Map<string, { taskNames: string[]; actionDescription: string; triggerDescription: string }>
+    scheduledAgg?: Map<string, { taskNames: string[]; actionDescription: string; triggerDescription: string }>,
+    skipInfo?: { reason: string }
   ): DomainEvent[] {
     // Guard: for global rules with section-based actions, check the section exists
     // in the firing project. If not, log a skipped entry and bail out.
-    if (!this.checkSectionExists(action, triggeringEvent.projectId)) {
+    if (!this.checkSectionExists(action, triggeringEvent.projectId, skipInfo)) {
       return [];
     }
 
@@ -128,23 +148,35 @@ export class RuleExecutor {
    * exists in the firing project. Returns false (and writes a skipped log entry)
    * when the section is missing. Returns true for all other cases.
    */
-  private checkSectionExists(action: RuleAction, firingProjectId: string): boolean {
+  private checkSectionExists(action: RuleAction, firingProjectId: string, skipInfo?: { reason: string }): boolean {
     if (!SECTION_REF_ACTION_TYPES.has(action.actionType)) return true;
 
     const rule = this.ruleRepo.findById(action.ruleId);
     if (!rule || rule.projectId !== null) return true; // only guard global rules
 
     const sectionId = action.params?.sectionId as string | undefined;
-    if (!sectionId) return true;
-
-    if (this.sectionRepo.findById(sectionId)) return true;
-
-    // Section not found — write a skipped entry and signal the caller to bail
     const sectionName = (action.params?.sectionName as string | undefined)
-      ?? (rule.action.sectionName)
-      ?? sectionId;
-    this.pushSkippedLogEntry(rule, sectionName, firingProjectId);
-    return false;
+      ?? (rule.action as any).sectionName as string | undefined;
+
+    // If we have a resolved sectionId, check it exists
+    if (sectionId) {
+      if (this.sectionRepo.findById(sectionId)) return true;
+      const reason = `Section '${sectionName ?? sectionId}' not found in this project`;
+      if (skipInfo) skipInfo.reason = reason;
+      this.pushSkippedLogEntry(rule, sectionName ?? sectionId, firingProjectId);
+      return false;
+    }
+
+    // No resolved sectionId — if there's a sectionName, the name didn't match any section
+    if (sectionName) {
+      const reason = `Section '${sectionName}' not found in this project`;
+      if (skipInfo) skipInfo.reason = reason;
+      this.pushSkippedLogEntry(rule, sectionName, firingProjectId);
+      return false;
+    }
+
+    // No section reference at all — allow through
+    return true;
   }
 
   /**

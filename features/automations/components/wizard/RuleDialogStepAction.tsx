@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { SectionPicker } from '../SectionPicker';
+import { GlobalSectionNamePicker } from '../GlobalSectionNamePicker';
 import { DateOptionSelect } from '../DateOptionSelect';
 import { ACTION_META } from '../../services/preview/ruleMetadata';
 import { TRIGGER_SECTION_SENTINEL } from '../../services/preview/rulePreviewService';
@@ -25,6 +26,10 @@ interface RuleDialogStepActionProps {
   onActionChange: (action: ActionConfig) => void;
   sections: Section[];
   triggerType?: string | null;
+  /** When true, section picker uses name-based matching for global rules */
+  isGlobal?: boolean;
+  /** All sections across all projects — used for global section name picker */
+  allSections?: Section[];
 }
 
 /**
@@ -53,6 +58,8 @@ export function RuleDialogStepAction({
   onActionChange,
   sections,
   triggerType,
+  isGlobal = false,
+  allSections = [],
 }: RuleDialogStepActionProps) {
   // Group actions by category and filter by trigger compatibility
   const moveActions = ACTION_META.filter((a) => 
@@ -95,6 +102,10 @@ export function RuleDialogStepAction({
       ...action,
       sectionId,
     });
+  };
+
+  const handleSectionNameChange = (sectionName: string | null) => {
+    onActionChange({ ...action, sectionId: null, sectionName });
   };
 
   const handlePositionChange = (position: string) => {
@@ -200,12 +211,21 @@ export function RuleDialogStepAction({
                         <SelectItem value="bottom">Bottom</SelectItem>
                       </SelectContent>
                     </Select>
-                    <SectionPicker
-                      sections={sections}
-                      value={action.sectionId}
-                      onChange={handleSectionChange}
-                      placeholder="Select section..."
-                    />
+                    {isGlobal ? (
+                      <GlobalSectionNamePicker
+                        allSections={allSections}
+                        value={action.sectionName ?? null}
+                        onChange={handleSectionNameChange}
+                        placeholder="Type or select a section name..."
+                      />
+                    ) : (
+                      <SectionPicker
+                        sections={sections}
+                        value={action.sectionId}
+                        onChange={handleSectionChange}
+                        placeholder="Select section..."
+                      />
+                    )}
                   </div>
                 )}
               </div>
@@ -345,6 +365,13 @@ export function RuleDialogStepAction({
                         )}
                       </SelectContent>
                     </Select>
+                  ) : isGlobal ? (
+                    <GlobalSectionNamePicker
+                      allSections={allSections}
+                      value={action.sectionName ?? null}
+                      onChange={handleSectionNameChange}
+                      placeholder="Type or select a section name..."
+                    />
                   ) : (
                     <SectionPicker
                       sections={sections}

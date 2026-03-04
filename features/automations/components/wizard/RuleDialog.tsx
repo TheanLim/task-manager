@@ -64,7 +64,7 @@ export function RuleDialog({
 }: RuleDialogProps) {
   const { rules, createRule, updateRule } = useAutomationRules(projectId);
 
-  const wizard = useWizardState(open, editingRule, prefillTrigger);
+  const wizard = useWizardState(open, editingRule, prefillTrigger, isGlobal);
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
 
   // Refs for focus management
@@ -251,24 +251,23 @@ export function RuleDialog({
                     onTriggerChange={wizard.handleTriggerChange}
                     sections={sections}
                     isGlobal={isGlobal}
+                    allSections={allSections}
                   />
                   {/* Section coverage warning for global rules */}
-                  {isGlobal && wizard.trigger.sectionId && (() => {
-                    const selectedSection = allSections.find((s) => s.id === wizard.trigger.sectionId);
-                    if (!selectedSection) return null;
-                    const missing = findProjectsMissingSection(selectedSection.name, allProjects, allSections);
+                  {isGlobal && wizard.trigger.sectionName && (() => {
+                    const missing = findProjectsMissingSection(wizard.trigger.sectionName, allProjects, allSections);
                     if (missing.length === 0) {
                       return (
                         <p className="text-xs text-muted-foreground flex items-start gap-1.5 mt-1">
                           <Info className="w-3 h-3 mt-0.5 shrink-0" aria-hidden="true" />
-                          This rule will run in all projects that have a section named &ldquo;{selectedSection.name}&rdquo;.
+                          This rule will run in all projects that have a section named &ldquo;{wizard.trigger.sectionName}&rdquo;.
                         </p>
                       );
                     }
                     return (
                       <p className="text-xs text-amber-600 dark:text-amber-400 flex items-start gap-1.5 mt-1">
                         <Info className="w-3 h-3 mt-0.5 shrink-0" aria-hidden="true" />
-                        {missing.length} of your {allProjects.length} projects don&apos;t have a section named &ldquo;{selectedSection.name}&rdquo;. This rule will be skipped for those projects.
+                        {missing.length} of your {allProjects.length} projects don&apos;t have a section named &ldquo;{wizard.trigger.sectionName}&rdquo;. This rule will be skipped for those projects.
                       </p>
                     );
                   })()}
@@ -290,6 +289,8 @@ export function RuleDialog({
                   onActionChange={wizard.handleActionChange}
                   sections={sections}
                   triggerType={wizard.trigger.type}
+                  isGlobal={isGlobal}
+                  allSections={allSections}
                 />
               )}
 

@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { AutomationService } from './automationService';
 import { RuleExecutor } from './execution/ruleExecutor';
-import type { AutomationRule, DomainEvent, ActionType } from '../types';
+import { getUndoSnapshots } from './execution/undoService';
+import type { AutomationRule, DomainEvent, ActionType, UndoSnapshot } from '../types';
 import type { Task, Section } from '@/lib/schemas';
 
 // ─── Minimal in-memory repos ─────────────────────────────────────────────────
@@ -323,5 +324,421 @@ describe('AutomationService — global rules', () => {
       const uniqueKeys = new Set(keys);
       expect(keys.length).toBe(uniqueKeys.size);
     });
+  });
+});
+
+// ─── Toast behavior for skipped global rules (TDD) ───────────────────────────
+
+describe('AutomationService — toast behavior for section-not-found skips', () => {
+  // Decision: when a global rule's trigger fires but the action section doesn't
+  // exist in the firing project, fire a WARNING toast (not silence, not success).
+  // The trigger matched — the user should know the rule tried to run.
+  // Toast message: "⚡ Automation: [rule name] — section '[name]' not found in this project"
+
+  let taskRepo: InMemoryTaskRepo;
+  let sectionRepo: InMemorySectionRepo;
+  let ruleRepo: InMemoryRuleRepo;
+  let toastCalls: Array<{ ruleId: string; ruleName: string; taskDescription: string; batchSize: number; skipped?: boolean; skipReason?: string }>;
+
+  function makeService() {
+    const executor = new RuleExecutor(
+      taskRepo as any,
+      sectionRepo as any,
+      { cascadeComplete: () => [] } as any,
+      ruleRepo as any,
+    );
+    const svc = new AutomationService(
+      ruleRepo as any,
+      taskRepo as any,
+      sectionRepo as any,
+      { cascadeComplete: () => [] } as any,
+      executor,
+    );
+    svc.setRuleExecutionCallback((params) => {
+      toastCalls.push(params);
+    });
+    return svc;
+  }
+
+  function makeGlobalMoveRule(id: string, sectionName: string): AutomationRule {
+    return {
+      id,
+      projectId: null,
+      name: `Move to ${sectionName}`,
+      trigger: { type: 'card_marked_complete', sectionId: null },
+      filters: [],
+      action: {
+        type: 'move_card_to_top_of_section',
+        sectionId: null,
+        sectionName,
+        dateOption: null,
+        position: 'top',
+        cardTitle: null,
+        cardDateOption: null,
+        specificMonth: null,
+        specificDay: null,
+        monthTarget: null,
+      },
+      enabled: true,
+      brokenReason: null,
+      executionCount: 0,
+      lastExecutedAt: null,
+      recentExecutions: [],
+      order: 0,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      excludedProjectIds: [],
+    } as any;
+  }
+
+  beforeEach(() => {
+    taskRepo = new InMemoryTaskRepo();
+    sectionRepo = new InMemorySectionRepo();
+    ruleRepo = new InMemoryRuleRepo();
+    toastCalls = [];
+
+    taskRepo.create({
+      id: 't1', projectId: 'proj-a', parentTaskId: null, sectionId: 'sec-todo',
+      description: 'My Task', notes: '', assignee: '', priority: 'none', tags: [],
+      dueDate: null, completed: false, completedAt: null, order: 0,
+      createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+    });
+  });
+
+  it('does NOT fire success toast when section is missing (action skipped)', () => {
+    // No "Done" section in proj-a
+    ruleRepo.create(makeGlobalMoveRule('g1', 'Done'));
+
+    const service = makeService();
+    service.handleEvent({
+      type: 'task.updated', entityId: 't1', projectId: 'proj-a',
+      changes: { completed: true }, previousValues: { completed: false }, depth: 0,
+    });
+
+    // No success toast — the action was skipped
+    const successToasts = toastCalls.filter(t => !t.skipped);
+    expect(successToasts).toHaveLength(0);
+  });
+
+  it('fires a warning toast when section is missing', () => {
+    // No "Done" section in proj-a
+    ruleRepo.create(makeGlobalMoveRule('g1', 'Done'));
+
+    const service = makeService();
+    service.handleEvent({
+      type: 'task.updated', entityId: 't1', projectId: 'proj-a',
+      changes: { completed: true }, previousValues: { completed: false }, depth: 0,
+    });
+
+    // Warning toast should fire
+    const warningToasts = toastCalls.filter(t => t.skipped === true);
+    expect(warningToasts).toHaveLength(1);
+    expect(warningToasts[0].ruleName).toBe('Move to Done');
+    expect(warningToasts[0].skipReason).toContain('Done');
+  });
+
+  it('fires success toast (not warning) when section exists', () => {
+    sectionRepo.create({
+      id: 'sec-done', projectId: 'proj-a', name: 'Done', order: 1,
+      collapsed: false, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+    });
+    ruleRepo.create(makeGlobalMoveRule('g1', 'Done'));
+
+    const service = makeService();
+    service.handleEvent({
+      type: 'task.updated', entityId: 't1', projectId: 'proj-a',
+      changes: { completed: true }, previousValues: { completed: false }, depth: 0,
+    });
+
+    const successToasts = toastCalls.filter(t => !t.skipped);
+    expect(successToasts).toHaveLength(1);
+    expect(successToasts[0].ruleName).toBe('Move to Done');
+    const warningToasts = toastCalls.filter(t => t.skipped === true);
+    expect(warningToasts).toHaveLength(0);
+  });
+
+  it('fires warning for skipped rule and success for executed rule in same event', () => {
+    // "Done" exists, "Archive" does not
+    sectionRepo.create({
+      id: 'sec-done', projectId: 'proj-a', name: 'Done', order: 1,
+      collapsed: false, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+    });
+    ruleRepo.create(makeGlobalMoveRule('g1', 'Done'));
+    ruleRepo.create({ ...makeGlobalMoveRule('g2', 'Archive'), name: 'Move to Archive', order: 1 } as any);
+
+    const service = makeService();
+    service.handleEvent({
+      type: 'task.updated', entityId: 't1', projectId: 'proj-a',
+      changes: { completed: true }, previousValues: { completed: false }, depth: 0,
+    });
+
+    expect(toastCalls.filter(t => !t.skipped)).toHaveLength(1);
+    expect(toastCalls.filter(t => t.skipped)).toHaveLength(1);
+  });
+});
+
+// ─── Conflicting move rules — toast deduplication (TDD) ──────────────────────
+
+describe('AutomationService — conflicting move rules on same entity', () => {
+  // When multiple rules move the same card (same entityId + same actionType),
+  // only the LAST rule's toast should fire. Earlier moves are intermediate states.
+  // The card ends up where the last rule put it — that's the only toast the user needs.
+
+  let taskRepo: InMemoryTaskRepo;
+  let sectionRepo: InMemorySectionRepo;
+  let ruleRepo: InMemoryRuleRepo;
+  let toastCalls: Array<{ ruleId: string; ruleName: string; taskDescription: string; batchSize: number; skipped?: boolean }>;
+
+  function makeService() {
+    const executor = new RuleExecutor(
+      taskRepo as any,
+      sectionRepo as any,
+      { cascadeComplete: () => [] } as any,
+      ruleRepo as any,
+    );
+    const svc = new AutomationService(
+      ruleRepo as any,
+      taskRepo as any,
+      sectionRepo as any,
+      { cascadeComplete: () => [] } as any,
+      executor,
+    );
+    svc.setRuleExecutionCallback((params) => {
+      toastCalls.push(params);
+    });
+    return svc;
+  }
+
+  function makeMoveRule(id: string, sectionId: string, sectionName: string, projectId: string | null, order: number): AutomationRule {
+    return {
+      id,
+      projectId,
+      name: `Move to ${sectionName}`,
+      trigger: { type: 'card_marked_complete', sectionId: null },
+      filters: [],
+      action: {
+        type: 'move_card_to_top_of_section',
+        sectionId: projectId === null ? null : sectionId,
+        sectionName: projectId === null ? sectionName : undefined,
+        dateOption: null,
+        position: 'top',
+        cardTitle: null,
+        cardDateOption: null,
+        specificMonth: null,
+        specificDay: null,
+        monthTarget: null,
+      },
+      enabled: true,
+      brokenReason: null,
+      executionCount: 0,
+      lastExecutedAt: null,
+      recentExecutions: [],
+      order,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      excludedProjectIds: [],
+    } as any;
+  }
+
+  beforeEach(() => {
+    taskRepo = new InMemoryTaskRepo();
+    sectionRepo = new InMemorySectionRepo();
+    ruleRepo = new InMemoryRuleRepo();
+    toastCalls = [];
+
+    taskRepo.create({
+      id: 't1', projectId: 'proj-a', parentTaskId: null, sectionId: 'sec-todo',
+      description: 'My Task', notes: '', assignee: '', priority: 'none', tags: [],
+      dueDate: null, completed: false, completedAt: null, order: 0,
+      createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+    });
+
+    // Create sections for all move targets
+    ['sec-wow', 'sec-done'].forEach((id, i) => {
+      sectionRepo.create({
+        id, projectId: 'proj-a', name: id === 'sec-wow' ? 'wow' : 'Done', order: i,
+        collapsed: false, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+      });
+    });
+  });
+
+  it('fires only ONE success toast when two global move rules conflict on same entity', () => {
+    // Global rule 1 (order 0): move to "wow"
+    // Global rule 2 (order 1): move to "boo" (missing — skipped)
+    // Only "wow" executes → only 1 success toast
+    ruleRepo.create(makeMoveRule('g1', 'sec-wow', 'wow', null, 0));
+    ruleRepo.create(makeMoveRule('g2', 'sec-boo', 'boo', null, 1)); // missing section
+
+    const service = makeService();
+    service.handleEvent({
+      type: 'task.updated', entityId: 't1', projectId: 'proj-a',
+      changes: { completed: true }, previousValues: { completed: false }, depth: 0,
+    });
+
+    const successToasts = toastCalls.filter(t => !t.skipped);
+    expect(successToasts).toHaveLength(1);
+    expect(successToasts[0].ruleName).toBe('Move to wow');
+  });
+
+  it('when local rule overrides global move rule, only local rule toast fires', () => {
+    // Global rule (order 0): move to "wow"
+    // Local rule (order 0, fires after global): move to "Done"
+    // Both sections exist. Card ends up in "Done". Only "Done" toast should fire.
+    ruleRepo.create(makeMoveRule('g1', 'sec-wow', 'wow', null, 0));
+    ruleRepo.create(makeMoveRule('local1', 'sec-done', 'Done', 'proj-a', 0));
+
+    const service = makeService();
+    service.handleEvent({
+      type: 'task.updated', entityId: 't1', projectId: 'proj-a',
+      changes: { completed: true }, previousValues: { completed: false }, depth: 0,
+    });
+
+    const successToasts = toastCalls.filter(t => !t.skipped);
+    // Only the last move (local rule = "Done") should produce a toast
+    expect(successToasts).toHaveLength(1);
+    expect(successToasts[0].ruleName).toBe('Move to Done');
+  });
+
+  it('non-move rules (mark complete, set due date) each get their own toast', () => {
+    // Two different action types on same entity — both should toast
+    const markRule: AutomationRule = {
+      ...makeMoveRule('r1', '', '', null, 0),
+      name: 'Mark Complete',
+      action: { type: 'mark_card_complete', sectionId: null, dateOption: null, position: null, cardTitle: null, cardDateOption: null, specificMonth: null, specificDay: null, monthTarget: null },
+    } as any;
+    const moveRule = makeMoveRule('r2', 'sec-wow', 'wow', null, 1);
+
+    ruleRepo.create(markRule);
+    ruleRepo.create(moveRule);
+
+    const service = makeService();
+    service.handleEvent({
+      type: 'task.updated', entityId: 't1', projectId: 'proj-a',
+      changes: { completed: true }, previousValues: { completed: false }, depth: 0,
+    });
+
+    const successToasts = toastCalls.filter(t => !t.skipped);
+    // Different action types — both toast
+    expect(successToasts).toHaveLength(2);
+  });
+});
+
+// ─── Undo snapshot correctness for conflicting move rules (TDD) ──────────────
+
+describe('AutomationService — undo snapshot for conflicting move rules', () => {
+  // When multiple move rules fire on the same entity, undo should restore
+  // to the ORIGINAL section (before any automation ran), not an intermediate state.
+
+  let taskRepo: InMemoryTaskRepo;
+  let sectionRepo: InMemorySectionRepo;
+  let ruleRepo: InMemoryRuleRepo;
+
+  function makeService() {
+    const executor = new RuleExecutor(
+      taskRepo as any,
+      sectionRepo as any,
+      { cascadeComplete: () => [] } as any,
+      ruleRepo as any,
+    );
+    return new AutomationService(
+      ruleRepo as any,
+      taskRepo as any,
+      sectionRepo as any,
+      { cascadeComplete: () => [] } as any,
+      executor,
+    );
+  }
+
+  function makeMoveRule(id: string, sectionId: string, sectionName: string, order: number): AutomationRule {
+    return {
+      id,
+      projectId: null,
+      name: `Move to ${sectionName}`,
+      trigger: { type: 'card_marked_complete', sectionId: null },
+      filters: [],
+      action: {
+        type: 'move_card_to_top_of_section',
+        sectionId,
+        sectionName,
+        dateOption: null,
+        position: 'top',
+        cardTitle: null,
+        cardDateOption: null,
+        specificMonth: null,
+        specificDay: null,
+        monthTarget: null,
+      },
+      enabled: true,
+      brokenReason: null,
+      executionCount: 0,
+      lastExecutedAt: null,
+      recentExecutions: [],
+      order,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      excludedProjectIds: [],
+    } as any;
+  }
+
+  beforeEach(() => {
+    taskRepo = new InMemoryTaskRepo();
+    sectionRepo = new InMemorySectionRepo();
+    ruleRepo = new InMemoryRuleRepo();
+
+    // Task starts in 'sec-todo'
+    taskRepo.create({
+      id: 't1', projectId: 'proj-a', parentTaskId: null, sectionId: 'sec-todo',
+      description: 'My Task', notes: '', assignee: '', priority: 'none', tags: [],
+      dueDate: null, completed: false, completedAt: null, order: 0,
+      createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+    });
+
+    ['sec-todo', 'sec-boo', 'sec-wow'].forEach((id, i) => {
+      sectionRepo.create({
+        id, projectId: 'proj-a', name: id.replace('sec-', ''), order: i,
+        collapsed: false, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+      });
+    });
+  });
+
+  it('undo snapshot restores to original section, not intermediate move', () => {
+    // Rule 1 (order 0): move to "boo"
+    // Rule 2 (order 1): move to "wow"
+    // Card starts in "sec-todo". After both rules: card is in "sec-wow".
+    // Undo should restore to "sec-todo", not "sec-boo".
+    ruleRepo.create(makeMoveRule('g1', 'sec-boo', 'boo', 0));
+    ruleRepo.create(makeMoveRule('g2', 'sec-wow', 'wow', 1));
+
+    const service = makeService();
+    service.handleEvent({
+      type: 'task.updated', entityId: 't1', projectId: 'proj-a',
+      changes: { completed: true }, previousValues: { completed: false }, depth: 0,
+    });
+
+    // Get the undo snapshot for the last rule (g2 = "wow")
+    const snapshots: UndoSnapshot[] = getUndoSnapshots();
+
+    // There should be exactly one undo snapshot for the final move
+    const moveSnapshots = snapshots.filter(s =>
+      s.actionType === 'move_card_to_top_of_section' && s.targetEntityId === 't1'
+    );
+    expect(moveSnapshots).toHaveLength(1);
+
+    // The snapshot's previousState should be the ORIGINAL section, not "boo"
+    expect(moveSnapshots[0].previousState.sectionId).toBe('sec-todo');
+  });
+
+  it('single move rule: undo snapshot captures original section correctly', () => {
+    ruleRepo.create(makeMoveRule('g1', 'sec-wow', 'wow', 0));
+
+    const service = makeService();
+    service.handleEvent({
+      type: 'task.updated', entityId: 't1', projectId: 'proj-a',
+      changes: { completed: true }, previousValues: { completed: false }, depth: 0,
+    });
+
+    const snapshots: UndoSnapshot[] = getUndoSnapshots();
+    const moveSnapshot = snapshots.find(s => s.actionType === 'move_card_to_top_of_section');
+    expect(moveSnapshot?.previousState.sectionId).toBe('sec-todo');
   });
 });

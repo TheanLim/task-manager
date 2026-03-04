@@ -11,10 +11,19 @@ import {
 } from './execution/undoService';
 
 /**
- * Callback invoked when an automation rule executes successfully.
+ * Callback invoked when an automation rule executes successfully or is skipped.
  */
 export interface RuleExecutionCallback {
-  (params: { ruleId: string; ruleName: string; taskDescription: string; batchSize: number }): void;
+  (params: {
+    ruleId: string;
+    ruleName: string;
+    taskDescription: string;
+    batchSize: number;
+    /** True when the rule fired but was skipped (e.g. section not found) */
+    skipped?: boolean;
+    /** Human-readable reason for the skip */
+    skipReason?: string;
+  }): void;
 }
 
 /** Subtask state captured before execution for undo support. */
@@ -143,13 +152,31 @@ export class AutomationService {
     const subtaskMap = this.capturePreExecutionSubtasks(event, filteredActions);
 
     // Execute actions
-    const newEvents = this.ruleExecutor.executeActions(filteredActions, event);
+    const executedRuleIds = new Set<string>();
+    const skippedEntries: Array<{ ruleId: string; ruleName: string; skipReason: string }> = [];
+    const newEvents = this.ruleExecutor.executeActions(filteredActions, event, executedRuleIds, skippedEntries);
 
     // Undo + notifications only for top-level user-initiated events
     // Skip notifications for schedule.fired events — the scheduler/UI handles its own toasts
-    if (event.depth === 0 && filteredActions.length > 0 && event.type !== 'schedule.fired') {
-      this.buildUndoSnapshots(filteredActions, newEvents, rules, subtaskMap);
-      this.notifyRuleExecutions(filteredActions, rules);
+    if (event.depth === 0 && event.type !== 'schedule.fired') {
+      if (executedRuleIds.size > 0) {
+        const executedActions = filteredActions.filter((a) => executedRuleIds.has(a.ruleId));
+        this.buildUndoSnapshots(executedActions, newEvents, rules, subtaskMap);
+        this.notifyRuleExecutions(executedActions, rules);
+      }
+      // Fire warning callbacks for skipped rules (section not found)
+      if (skippedEntries.length > 0 && this.onRuleExecuted) {
+        for (const entry of skippedEntries) {
+          this.onRuleExecuted({
+            ruleId: entry.ruleId,
+            ruleName: entry.ruleName,
+            taskDescription: '',
+            batchSize: 0,
+            skipped: true,
+            skipReason: entry.skipReason,
+          });
+        }
+      }
     }
 
     // Requirement 6.3: Cascade
@@ -201,6 +228,10 @@ export class AutomationService {
   /**
    * Build undo snapshots for all executed actions (depth 0 only).
    * Each action gets its own snapshot so each toast can undo independently.
+   *
+   * For conflicting move actions on the same entity, only one snapshot is kept —
+   * using the FIRST rule's previousValues (the true original state) but associated
+   * with the LAST rule's ID (so the undo button on the final toast works correctly).
    */
   private buildUndoSnapshots(
     actions: RuleAction[],
@@ -212,6 +243,42 @@ export class AutomationService {
 
     clearAllUndoSnapshots();
 
+    // For move actions on the same entity, track the first event's previousValues
+    // (original state) and the last rule's ID (for undo button wiring).
+    const MOVE_ACTION_TYPES = new Set([
+      'move_card_to_top_of_section',
+      'move_card_to_bottom_of_section',
+    ]);
+
+    // First pass: find the original previousValues for each entity's move chain
+    const originalMoveState = new Map<string, { previousValues: DomainEvent['previousValues']; lastRuleId: string; lastRuleName: string }>();
+    for (const action of actions) {
+      if (!MOVE_ACTION_TYPES.has(action.actionType)) continue;
+      const matchingEvent = newEvents.find(
+        e => e.triggeredByRule === action.ruleId && e.entityId === action.targetEntityId
+      );
+      if (!matchingEvent) continue;
+      const rule = rules.find(r => r.id === action.ruleId);
+      if (!rule) continue;
+
+      const key = action.targetEntityId;
+      if (!originalMoveState.has(key)) {
+        // First move on this entity — capture original previousValues
+        originalMoveState.set(key, {
+          previousValues: matchingEvent.previousValues,
+          lastRuleId: action.ruleId,
+          lastRuleName: rule.name,
+        });
+      } else {
+        // Subsequent move — update lastRuleId to this rule (last writer)
+        originalMoveState.get(key)!.lastRuleId = action.ruleId;
+        originalMoveState.get(key)!.lastRuleName = rule.name;
+      }
+    }
+
+    // Second pass: build snapshots
+    const processedMoveEntities = new Set<string>();
+
     for (const action of actions) {
       const matchingEvent = newEvents.find(
         e => e.triggeredByRule === action.ruleId &&
@@ -222,12 +289,32 @@ export class AutomationService {
       const rule = rules.find(r => r.id === action.ruleId);
       if (!rule) continue;
 
-      const snapshot = buildUndoSnapshot(action, rule.name, matchingEvent);
-      const subtaskSnaps = subtaskMap.get(action.ruleId);
-      if (subtaskSnaps) {
-        snapshot.subtaskSnapshots = subtaskSnaps;
+      if (MOVE_ACTION_TYPES.has(action.actionType)) {
+        const key = action.targetEntityId;
+        const moveInfo = originalMoveState.get(key);
+        if (!moveInfo) continue;
+
+        // Only emit one snapshot per entity's move chain — for the last rule
+        if (action.ruleId !== moveInfo.lastRuleId) continue;
+        if (processedMoveEntities.has(key)) continue;
+        processedMoveEntities.add(key);
+
+        // Build snapshot using original previousValues (not the intermediate state)
+        const syntheticEvent: DomainEvent = {
+          ...matchingEvent,
+          previousValues: moveInfo.previousValues,
+        };
+        const snapshot = buildUndoSnapshot(action, moveInfo.lastRuleName, syntheticEvent);
+        const subtaskSnaps = subtaskMap.get(action.ruleId);
+        if (subtaskSnaps) snapshot.subtaskSnapshots = subtaskSnaps;
+        pushUndoSnapshot(snapshot);
+      } else {
+        // Non-move actions: snapshot as normal
+        const snapshot = buildUndoSnapshot(action, rule.name, matchingEvent);
+        const subtaskSnaps = subtaskMap.get(action.ruleId);
+        if (subtaskSnaps) snapshot.subtaskSnapshots = subtaskSnaps;
+        pushUndoSnapshot(snapshot);
       }
-      pushUndoSnapshot(snapshot);
     }
   }
 
@@ -236,6 +323,23 @@ export class AutomationService {
    * Requirements 8.1–8.4, 11.1, 11.2.
    */
   private notifyRuleExecutions(actions: RuleAction[], rules: AutomationRule[]): void {
+    // For move actions on the same entity, only the LAST one determines final state.
+    // Suppress toasts for earlier moves — the user only cares where the card ended up.
+    const MOVE_ACTION_TYPES = new Set([
+      'move_card_to_top_of_section',
+      'move_card_to_bottom_of_section',
+    ]);
+
+    // Build a set of (entityId + actionType) keys for move actions that are
+    // superseded by a later move on the same entity.
+    const movesByEntity = new Map<string, string>(); // entityId → last ruleId
+    for (const action of actions) {
+      if (MOVE_ACTION_TYPES.has(action.actionType)) {
+        // Later entries overwrite earlier ones — last writer wins
+        movesByEntity.set(action.targetEntityId, action.ruleId);
+      }
+    }
+
     // Group actions by rule ID
     const actionsByRule = new Map<string, RuleAction[]>();
     for (const action of actions) {
@@ -248,9 +352,17 @@ export class AutomationService {
       const rule = rules.find(r => r.id === ruleId);
       if (!rule) continue;
 
+      // Filter out move actions that were superseded by a later move on the same entity
+      const toastActions = ruleActions.filter(action => {
+        if (!MOVE_ACTION_TYPES.has(action.actionType)) return true;
+        return movesByEntity.get(action.targetEntityId) === ruleId;
+      });
+
+      if (toastActions.length === 0) continue; // all actions superseded — no toast
+
       if (this.batchContext) {
         // Batch mode: collect for aggregated toast later (Req 8.4)
-        for (const action of ruleActions) {
+        for (const action of toastActions) {
           const task = this.taskRepo.findById(action.targetEntityId);
           this.batchContext.executions.push({
             ruleId: rule.id,
@@ -261,10 +373,10 @@ export class AutomationService {
         }
       } else if (this.onRuleExecuted) {
         // Non-batch mode: emit individual toast per rule
-        const batchSize = ruleActions.length;
+        const batchSize = toastActions.length;
         let taskDescription = '';
         if (batchSize === 1) {
-          const task = this.taskRepo.findById(ruleActions[0].targetEntityId);
+          const task = this.taskRepo.findById(toastActions[0].targetEntityId);
           taskDescription = task?.description || 'Unknown task';
         }
 

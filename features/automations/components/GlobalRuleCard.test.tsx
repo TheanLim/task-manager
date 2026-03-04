@@ -84,7 +84,9 @@ describe('GlobalRuleCard', () => {
       />
     );
     expect(screen.getByText(/section not found — rule skipped/)).toBeInTheDocument();
-    expect(screen.getByText(/Backlog/)).toBeInTheDocument();
+    // "Backlog" appears in both the preview and the warning — check warning specifically
+    const warning = screen.getByText(/section not found — rule skipped/);
+    expect(warning.textContent).toContain('Backlog');
   });
 
   it('calls onNavigateToGlobal with ruleId when skip warning link is clicked', async () => {

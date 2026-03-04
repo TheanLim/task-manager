@@ -91,11 +91,14 @@ export function RuleDialogStepReview({
   if (isScheduledTrigger && trigger.schedule) {
     triggerDescription = describeSchedule({ type: trigger.type!, schedule: trigger.schedule });
   } else if (triggerMeta) {
-    triggerDescription = triggerMeta.needsSection
-      ? trigger.sectionId
-        ? `${triggerMeta.label} ${sectionLookup(trigger.sectionId) || '___'}`
-        : `${triggerMeta.label} ___`
-      : triggerMeta.label;
+    if (triggerMeta.needsSection) {
+      const name = trigger.sectionId
+        ? (sectionLookup(trigger.sectionId) ?? (trigger as any).sectionName ?? '___')
+        : ((trigger as any).sectionName ?? '___');
+      triggerDescription = `${triggerMeta.label} ${name}`;
+    } else {
+      triggerDescription = triggerMeta.label;
+    }
   } else {
     triggerDescription = '___';
   }
@@ -108,7 +111,9 @@ export function RuleDialogStepReview({
       actionMeta.type === 'move_card_to_bottom_of_section'
     ) {
       const position = action.position || 'top';
-      const sectionName = action.sectionId ? sectionLookup(action.sectionId) || '___' : '___';
+      const sectionName = action.sectionId
+        ? (sectionLookup(action.sectionId) ?? (action as any).sectionName ?? '___')
+        : ((action as any).sectionName ?? '___');
       actionDescription = `move to ${position} of ${sectionName}`;
     } else if (actionMeta.type === 'set_due_date') {
       const dateLabel = action.dateOption

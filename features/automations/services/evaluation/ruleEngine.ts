@@ -78,6 +78,36 @@ export function evaluateRules(
     now: new Date(),
   };
 
+  // Helper: resolve a rule's trigger sectionId, accounting for global rules that
+  // store a sectionName instead of a sectionId. Returns the resolved ID or null.
+  const resolveTriggerSectionId = (rule: AutomationRule, projectId: string): string | null => {
+    const trigger = rule.trigger as any;
+    if (trigger.sectionId) return trigger.sectionId;
+    if (trigger.sectionName && rule.projectId === null) {
+      // Global rule: find a section in the firing project matching the name
+      const name = (trigger.sectionName as string).trim().toLowerCase();
+      const match = context.allSections.find(
+        (s) => s.projectId === projectId && s.name.trim().toLowerCase() === name
+      );
+      return match?.id ?? null;
+    }
+    return null;
+  };
+
+  // Helper: resolve a rule's action sectionId for global rules using sectionName
+  const resolveActionSectionId = (rule: AutomationRule, projectId: string): string | null => {
+    const action = rule.action as any;
+    if (action.sectionId) return action.sectionId;
+    if (action.sectionName && rule.projectId === null) {
+      const name = (action.sectionName as string).trim().toLowerCase();
+      const match = context.allSections.find(
+        (s) => s.projectId === projectId && s.name.trim().toLowerCase() === name
+      );
+      return match?.id ?? null;
+    }
+    return null;
+  };
+
   // Helper function to check if a rule's filters match the task
   const passesFilters = (rule: AutomationRule, taskId: string): boolean => {
     // Empty filters array matches all tasks (backward compatible)
@@ -140,8 +170,9 @@ export function evaluateRules(
     // Match card_created_in_section triggers
     const createdInSectionRules = ruleIndex.get('card_created_in_section') ?? [];
     for (const rule of createdInSectionRules) {
-      if (rule.trigger.sectionId === sectionId && passesFilters(rule, event.entityId)) {
-        actions.push(createRuleAction(rule, event.entityId));
+      const resolvedSectionId = resolveTriggerSectionId(rule, event.projectId);
+      if (resolvedSectionId === sectionId && passesFilters(rule, event.entityId)) {
+        actions.push(createRuleAction(rule, event.entityId, resolveActionSectionId(rule, event.projectId)));
       }
     }
     
@@ -191,16 +222,18 @@ export function evaluateRules(
       // Match card_moved_into_section triggers
       const movedIntoRules = ruleIndex.get('card_moved_into_section') ?? [];
       for (const rule of movedIntoRules) {
-        if (rule.trigger.sectionId === newSectionId && passesFilters(rule, event.entityId)) {
-          actions.push(createRuleAction(rule, event.entityId));
+        const resolvedSectionId = resolveTriggerSectionId(rule, event.projectId);
+        if (resolvedSectionId === newSectionId && passesFilters(rule, event.entityId)) {
+          actions.push(createRuleAction(rule, event.entityId, resolveActionSectionId(rule, event.projectId)));
         }
       }
 
       // Match card_moved_out_of_section triggers
       const movedOutOfRules = ruleIndex.get('card_moved_out_of_section') ?? [];
       for (const rule of movedOutOfRules) {
-        if (rule.trigger.sectionId === oldSectionId && passesFilters(rule, event.entityId)) {
-          actions.push(createRuleAction(rule, event.entityId));
+        const resolvedSectionId = resolveTriggerSectionId(rule, event.projectId);
+        if (resolvedSectionId === oldSectionId && passesFilters(rule, event.entityId)) {
+          actions.push(createRuleAction(rule, event.entityId, resolveActionSectionId(rule, event.projectId)));
         }
       }
     }
@@ -218,7 +251,7 @@ export function evaluateRules(
         const markedCompleteRules = ruleIndex.get('card_marked_complete') ?? [];
         for (const rule of markedCompleteRules) {
           if (passesFilters(rule, event.entityId)) {
-            actions.push(createRuleAction(rule, event.entityId));
+            actions.push(createRuleAction(rule, event.entityId, resolveActionSectionId(rule, event.projectId)));
           }
         }
       }
@@ -229,7 +262,7 @@ export function evaluateRules(
           ruleIndex.get('card_marked_incomplete') ?? [];
         for (const rule of markedIncompleteRules) {
           if (passesFilters(rule, event.entityId)) {
-            actions.push(createRuleAction(rule, event.entityId));
+            actions.push(createRuleAction(rule, event.entityId, resolveActionSectionId(rule, event.projectId)));
           }
         }
       }
@@ -244,20 +277,25 @@ export function evaluateRules(
  *
  * @param rule - The automation rule that matched
  * @param targetEntityId - The ID of the entity to apply the action to
+ * @param resolvedActionSectionId - For global rules: the section ID resolved from sectionName in the firing project
  * @returns A RuleAction ready for execution
  */
 function createRuleAction(
   rule: AutomationRule,
-  targetEntityId: string
+  targetEntityId: string,
+  resolvedActionSectionId?: string | null
 ): RuleAction {
   const { type, sectionId, position, dateOption, specificMonth, specificDay, monthTarget, cardTitle, cardDateOption } = rule.action;
+  // Use the resolved section ID for global rules (name-based matching), fall back to stored ID
+  const effectiveSectionId = resolvedActionSectionId ?? sectionId;
 
   return {
     ruleId: rule.id,
     actionType: type,
     targetEntityId,
     params: {
-      sectionId: sectionId ?? undefined,
+      sectionId: effectiveSectionId ?? undefined,
+      sectionName: (rule.action as any).sectionName ?? undefined,
       position: position ?? undefined,
       dateOption: dateOption ?? undefined,
       completed:

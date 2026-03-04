@@ -193,6 +193,16 @@ function HomeContent() {
   // --- Wire automation service to toast notifications (Requirements 11.1, 11.2, 11.3) ---
   useEffect(() => {
     automationService.setRuleExecutionCallback((params) => {
+      // Skipped action: fire a warning toast instead of success
+      if (params.skipped) {
+        showToast(
+          `⚡ Automation: ${params.ruleName} — ${params.skipReason ?? 'section not found in this project'}`,
+          'error',
+          6000
+        );
+        return;
+      }
+
       const message = formatAutomationToastMessage(params);
       const snapshots = getUndoSnapshots();
       const matchingSnapshot = snapshots.find((s) => s.ruleId === params.ruleId);

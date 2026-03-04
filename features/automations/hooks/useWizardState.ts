@@ -56,6 +56,7 @@ export function useWizardState(
   open: boolean,
   editingRule: AutomationRule | null | undefined,
   prefillTrigger: PrefillTrigger | null | undefined,
+  isGlobal = false,
 ): UseWizardStateReturn {
   const [currentStep, setCurrentStep] = useState<WizardStep>(0);
   const [trigger, setTrigger] = useState<TriggerConfig>({ type: null, sectionId: null });
@@ -137,19 +138,26 @@ export function useWizardState(
     if (!trigger.type) return false;
     const meta = TRIGGER_META.find((t) => t.type === trigger.type);
     if (!meta) return false;
-    if (meta.needsSection && !trigger.sectionId) return false;
+    if (meta.needsSection) {
+      // Global rules satisfy section requirement with a name; project rules need an ID
+      const hasSection = isGlobal ? !!trigger.sectionName : !!trigger.sectionId;
+      if (!hasSection) return false;
+    }
     if (meta.needsSchedule && !trigger.schedule) return false;
     return true;
-  }, [trigger]);
+  }, [trigger, isGlobal]);
 
   const isActionValid = useCallback(() => {
     if (!action.type) return false;
     const meta = ACTION_META.find((a) => a.type === action.type);
     if (!meta) return false;
-    if (meta.needsSection && !action.sectionId) return false;
+    if (meta.needsSection) {
+      const hasSection = isGlobal ? !!action.sectionName : !!action.sectionId;
+      if (!hasSection) return false;
+    }
     if (meta.needsDateOption && !action.dateOption) return false;
     return true;
-  }, [action]);
+  }, [action, isGlobal]);
 
   const isStepValid = useCallback(
     (step: WizardStep) => {
@@ -170,9 +178,9 @@ export function useWizardState(
     (trigger.type === 'card_moved_into_section' || trigger.type === 'card_moved_out_of_section') &&
     !!action.type &&
     (action.type === 'move_card_to_top_of_section' || action.type === 'move_card_to_bottom_of_section') &&
-    !!trigger.sectionId &&
-    !!action.sectionId &&
-    trigger.sectionId === action.sectionId;
+    (isGlobal
+      ? !!trigger.sectionName && !!action.sectionName && trigger.sectionName === action.sectionName
+      : !!trigger.sectionId && !!action.sectionId && trigger.sectionId === action.sectionId);
 
   // Navigation
   const handleNext = useCallback(() => {

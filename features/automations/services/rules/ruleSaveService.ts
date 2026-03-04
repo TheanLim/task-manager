@@ -36,6 +36,8 @@ function buildTriggerObject(trigger: TriggerConfig, existingLastEvaluatedAt?: st
   const base = {
     type: trigger.type!,
     sectionId: trigger.sectionId,
+    // Preserve sectionName for global rules (used as fallback in log descriptions)
+    ...(trigger.sectionName ? { sectionName: trigger.sectionName } : {}),
   };
 
   if (trigger.schedule) {
@@ -54,6 +56,8 @@ function buildActionObject(action: ActionConfig): Action {
   return {
     type: action.type!,
     sectionId: action.sectionId,
+    // Preserve sectionName for global rules
+    ...(action.sectionName ? { sectionName: action.sectionName } : {}),
     dateOption: action.dateOption,
     position: action.position,
     cardTitle: action.cardTitle,

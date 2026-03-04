@@ -831,3 +831,96 @@ describe('computeNextRunDescription — scheduled_one_time', () => {
     expect(desc).toBe('Fires on Mar 15, 2025 (in 1 day)');
   });
 });
+
+// ============================================================================
+// Global rule preview — sectionName-based (TDD)
+// ============================================================================
+
+describe('buildPreviewParts — global rules with sectionName', () => {
+  const noopLookup = (_id: string) => undefined;
+
+  it('trigger: shows sectionName when sectionId is null (global rule)', () => {
+    const trigger: TriggerConfig = {
+      type: 'card_moved_into_section',
+      sectionId: null,
+      sectionName: 'Done',
+    };
+    const action: ActionConfig = {
+      type: 'mark_card_complete',
+      sectionId: null,
+      dateOption: null,
+      position: null,
+      cardTitle: null,
+      cardDateOption: null,
+      specificMonth: null,
+      specificDay: null,
+      monthTarget: null,
+    };
+    const parts = buildPreviewParts(trigger, action, noopLookup);
+    const str = buildPreviewString(parts);
+    expect(str).toContain('Done');
+    expect(str).not.toContain('___');
+  });
+
+  it('action: shows sectionName when sectionId is null (global rule)', () => {
+    const trigger: TriggerConfig = {
+      type: 'card_marked_complete',
+      sectionId: null,
+    };
+    const action: ActionConfig = {
+      type: 'move_card_to_top_of_section',
+      sectionId: null,
+      sectionName: 'Backlog',
+      dateOption: null,
+      position: 'top',
+      cardTitle: null,
+      cardDateOption: null,
+      specificMonth: null,
+      specificDay: null,
+      monthTarget: null,
+    };
+    const parts = buildPreviewParts(trigger, action, noopLookup);
+    const str = buildPreviewString(parts);
+    expect(str).toContain('Backlog');
+    expect(str).not.toContain('___');
+  });
+
+  it('shows ___ when both sectionId and sectionName are absent', () => {
+    const trigger: TriggerConfig = { type: 'card_moved_into_section', sectionId: null };
+    const action: ActionConfig = {
+      type: 'move_card_to_top_of_section',
+      sectionId: null,
+      dateOption: null,
+      position: 'top',
+      cardTitle: null,
+      cardDateOption: null,
+      specificMonth: null,
+      specificDay: null,
+      monthTarget: null,
+    };
+    const parts = buildPreviewParts(trigger, action, noopLookup);
+    const str = buildPreviewString(parts);
+    expect(str).toContain('___');
+  });
+
+  it('sectionId lookup takes precedence over sectionName when sectionId resolves', () => {
+    const trigger: TriggerConfig = { type: 'card_marked_complete', sectionId: null };
+    const action: ActionConfig = {
+      type: 'move_card_to_top_of_section',
+      sectionId: 'sec-1',
+      sectionName: 'Should Not Appear',
+      dateOption: null,
+      position: 'top',
+      cardTitle: null,
+      cardDateOption: null,
+      specificMonth: null,
+      specificDay: null,
+      monthTarget: null,
+    };
+    const lookup = (id: string) => (id === 'sec-1' ? 'Resolved Name' : undefined);
+    const parts = buildPreviewParts(trigger, action, lookup);
+    const str = buildPreviewString(parts);
+    expect(str).toContain('Resolved Name');
+    expect(str).not.toContain('Should Not Appear');
+  });
+});

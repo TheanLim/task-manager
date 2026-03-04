@@ -228,10 +228,15 @@ export function RuleCard({
 
           {/* Natural language description */}
           <RulePreview
-            trigger={{ type: rule.trigger.type, sectionId: rule.trigger.sectionId }}
+            trigger={{
+              type: rule.trigger.type,
+              sectionId: rule.trigger.sectionId,
+              sectionName: (rule.trigger as any).sectionName,
+            }}
             action={{
               type: rule.action.type,
               sectionId: rule.action.sectionId,
+              sectionName: (rule.action as any).sectionName,
               dateOption: rule.action.dateOption,
               position: rule.action.position,
               cardTitle: rule.action.cardTitle,

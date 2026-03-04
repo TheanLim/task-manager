@@ -50,10 +50,15 @@ export function GlobalRuleCard({ rule, projectSections, onNavigateToGlobal }: Gl
       {/* Trigger/action summary */}
       <div className="text-xs text-muted-foreground">
         <RulePreview
-          trigger={{ type: rule.trigger.type, sectionId: (rule.trigger as any).sectionId }}
+          trigger={{
+            type: rule.trigger.type,
+            sectionId: (rule.trigger as any).sectionId,
+            sectionName: (rule.trigger as any).sectionName,
+          }}
           action={{
             type: rule.action.type,
             sectionId: rule.action.sectionId,
+            sectionName: (rule.action as any).sectionName,
             dateOption: rule.action.dateOption,
             position: rule.action.position,
             cardTitle: rule.action.cardTitle,

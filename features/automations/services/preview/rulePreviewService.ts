@@ -55,13 +55,17 @@ function buildTriggerParts(
     return parts;
   }
 
-  if (!trigger.sectionId) {
+  // Resolve section name: prefer sectionId lookup (authoritative), fall back to sectionName (global rules)
+  const resolvedName = trigger.sectionId
+    ? (sectionLookup(trigger.sectionId) ?? (trigger as any).sectionName ?? null)
+    : (trigger as any).sectionName ?? null;
+
+  if (!resolvedName && !trigger.sectionId && !(trigger as any).sectionName) {
     parts.push({ type: 'text', content: triggerMeta.label + ' ' });
     parts.push({ type: 'value', content: '___' });
     return parts;
   }
 
-  const sectionName = sectionLookup(trigger.sectionId);
   if (triggerMeta.type === 'card_moved_into_section') {
     parts.push({ type: 'text', content: 'moved into ' });
   } else if (triggerMeta.type === 'card_moved_out_of_section') {
@@ -69,7 +73,7 @@ function buildTriggerParts(
   } else if (triggerMeta.type === 'card_created_in_section') {
     parts.push({ type: 'text', content: 'created in ' });
   }
-  parts.push({ type: 'value', content: sectionName || '___' });
+  parts.push({ type: 'value', content: resolvedName || '___' });
 
   return parts;
 }
@@ -95,14 +99,18 @@ function buildActionParts(
   }
 
   if (actionMeta.type === 'move_card_to_top_of_section' || actionMeta.type === 'move_card_to_bottom_of_section') {
-    if (!action.sectionId) {
+    // Resolve section name: prefer sectionId lookup (authoritative), fall back to sectionName (global rules)
+    const resolvedName = action.sectionId
+      ? (sectionLookup(action.sectionId) ?? (action as any).sectionName ?? null)
+      : (action as any).sectionName ?? null;
+
+    if (!resolvedName && !action.sectionId && !(action as any).sectionName) {
       parts.push({ type: 'text', content: 'move to ' });
       parts.push({ type: 'value', content: '___' });
     } else {
-      const sectionName = sectionLookup(action.sectionId);
       const position = action.position || 'top';
       parts.push({ type: 'text', content: `move to ${position} of ` });
-      parts.push({ type: 'value', content: sectionName || '___' });
+      parts.push({ type: 'value', content: resolvedName || '___' });
     }
   } else if (actionMeta.type === 'set_due_date') {
     parts.push({ type: 'text', content: 'set due date to ' });
@@ -118,10 +126,12 @@ function buildActionParts(
       if (action.sectionId === TRIGGER_SECTION_SENTINEL) {
         parts.push({ type: 'text', content: ' in ' });
         parts.push({ type: 'value', content: 'the triggering section' });
-      } else if (action.sectionId) {
-        const sectionName = sectionLookup(action.sectionId);
+      } else if (action.sectionId || (action as any).sectionName) {
+        const resolvedName = (action as any).sectionName
+          ? (action as any).sectionName as string
+          : sectionLookup(action.sectionId!);
         parts.push({ type: 'text', content: ' in ' });
-        parts.push({ type: 'value', content: sectionName || '___' });
+        parts.push({ type: 'value', content: resolvedName || '___' });
       }
     }
   } else {

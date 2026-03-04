@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SectionPicker } from '../SectionPicker';
+import { GlobalSectionNamePicker } from '../GlobalSectionNamePicker';
 import { ScheduleConfigPanel } from '../schedule/ScheduleConfigPanel';
 import { TRIGGER_META } from '../../services/preview/ruleMetadata';
 import type { TriggerConfig } from '../../services/configTypes';
@@ -13,8 +14,10 @@ interface RuleDialogStepTriggerProps {
   trigger: TriggerConfig;
   onTriggerChange: (trigger: TriggerConfig) => void;
   sections: Section[];
-  /** When true, scheduled triggers are disabled (not available for global rules in Phase 1) */
+  /** When true, scheduled triggers are disabled and section picker uses name-based matching */
   isGlobal?: boolean;
+  /** All sections across all projects — used for global section name picker */
+  allSections?: Section[];
 }
 
 export function RuleDialogStepTrigger({
@@ -22,6 +25,7 @@ export function RuleDialogStepTrigger({
   onTriggerChange,
   sections,
   isGlobal = false,
+  allSections = [],
 }: RuleDialogStepTriggerProps) {
   // Group triggers by category
   const cardMoveTriggers = TRIGGER_META.filter((t) => t.category === 'card_move');
@@ -41,6 +45,11 @@ export function RuleDialogStepTrigger({
 
   const handleSectionChange = (sectionId: string | null) => {
     onTriggerChange({ ...trigger, sectionId });
+  };
+
+  const handleSectionNameChange = (sectionName: string | null) => {
+    // For global rules: store name, keep sectionId null
+    onTriggerChange({ ...trigger, sectionId: null, sectionName });
   };
 
   const handleScheduleChange = (schedule: any) => {
@@ -75,12 +84,21 @@ export function RuleDialogStepTrigger({
               <div className="flex-1 space-y-2">
                 <span className="text-sm">{triggerMeta.label}</span>
                 {trigger.type === triggerMeta.type && triggerMeta.needsSection && (
-                  <SectionPicker
-                    sections={sections}
-                    value={trigger.sectionId}
-                    onChange={handleSectionChange}
-                    placeholder="Select section..."
-                  />
+                  isGlobal ? (
+                    <GlobalSectionNamePicker
+                      allSections={allSections}
+                      value={trigger.sectionName ?? null}
+                      onChange={handleSectionNameChange}
+                      placeholder="Type or select a section name..."
+                    />
+                  ) : (
+                    <SectionPicker
+                      sections={sections}
+                      value={trigger.sectionId}
+                      onChange={handleSectionChange}
+                      placeholder="Select section..."
+                    />
+                  )
                 )}
               </div>
             </label>

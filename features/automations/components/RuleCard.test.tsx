@@ -530,6 +530,71 @@ describe('RuleCard', () => {
   });
 });
 
+describe('RuleCard — global rule preview shows sectionName (not ___)', () => {
+  const defaultProps = {
+    sections: [],
+    projectId: '',
+    isGlobal: true,
+    onEdit: vi.fn(),
+    onDuplicate: vi.fn(),
+    onDuplicateToProject: vi.fn(),
+    onDelete: vi.fn(),
+    onToggle: vi.fn(),
+  };
+
+  it('shows section name from action.sectionName when sectionId is null', () => {
+    const rule: AutomationRule = {
+      ...createMockRule({
+        projectId: null,
+        trigger: { type: 'card_marked_complete', sectionId: null } as any,
+        action: {
+          type: 'move_card_to_top_of_section',
+          sectionId: null,
+          sectionName: 'Done',
+          dateOption: null,
+          position: 'top',
+          cardTitle: null,
+          cardDateOption: null,
+          specificMonth: null,
+          specificDay: null,
+          monthTarget: null,
+        } as any,
+      }),
+    };
+    render(<RuleCard rule={rule} {...defaultProps} />);
+    // Preview should show "Done", not "___"
+    expect(screen.getByText(/Done/)).toBeInTheDocument();
+    expect(screen.queryByText(/___/)).not.toBeInTheDocument();
+  });
+
+  it('shows section name from trigger.sectionName when sectionId is null', () => {
+    const rule: AutomationRule = {
+      ...createMockRule({
+        projectId: null,
+        trigger: {
+          type: 'card_moved_into_section',
+          sectionId: null,
+          sectionName: 'Backlog',
+        } as any,
+        action: {
+          type: 'mark_card_complete',
+          sectionId: null,
+          dateOption: null,
+          position: null,
+          cardTitle: null,
+          cardDateOption: null,
+          specificMonth: null,
+          specificDay: null,
+          monthTarget: null,
+        } as any,
+      }),
+    };
+    render(<RuleCard rule={rule} {...defaultProps} />);
+    expect(screen.getByText(/Backlog/)).toBeInTheDocument();
+    expect(screen.queryByText(/___/)).not.toBeInTheDocument();
+  });
+});
+
 describe('RuleCard — "Last fired" auto-refresh', () => {
   function createMockRuleForTimer(lastExecutedAt: string): AutomationRule {
     return {
