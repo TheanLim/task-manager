@@ -544,10 +544,14 @@ function HomeContent() {
                 <Zap className="w-4 h-4 shrink-0" aria-hidden="true" />
                 <span>Automations</span>
                 {skipCount > 0 && (
-                  <Link
-                    href="/?view=automations&tab=log&outcome=skipped"
+                  <button
+                    type="button"
                     aria-label={`View skipped automations — ${skipCount} skips`}
-                    onClick={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      router.push('/?view=automations&tab=log&outcome=skipped');
+                    }}
                     className="ml-auto"
                   >
                     <Badge
@@ -556,7 +560,7 @@ function HomeContent() {
                     >
                       {skipCount}
                     </Badge>
-                  </Link>
+                  </button>
                 )}
               </Link>
             </div>
