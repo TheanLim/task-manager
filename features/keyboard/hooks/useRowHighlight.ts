@@ -67,6 +67,11 @@ export function useRowHighlight({
     const handleFocusOut = (e: FocusEvent) => {
       if (!tableRef.current?.contains(e.relatedTarget as Node)) {
         setTimeout(() => {
+          // Don't reclaim focus if a dialog/alert-dialog is open — Radix sets aria-hidden
+          // on the root and fighting for focus causes an infinite flicker loop
+          const dialogOpen = document.querySelector('[role="dialog"], [role="alertdialog"]');
+          if (dialogOpen) return;
+
           if (document.activeElement === document.body && tableRef.current) {
             tableRef.current.focus();
           } else if (!tableRef.current?.contains(document.activeElement)) {

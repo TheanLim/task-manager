@@ -152,10 +152,14 @@ export function useKeyboardNavigation(
       // Active task was deleted or filtered out — recover to nearest row and refocus table
       const clampedRow = Math.min(activeCell.row, visibleRowCount - 1);
       updateActiveCell({ row: clampedRow, column: activeCell.column, taskId: visibleRowTaskIds[clampedRow] ?? null });
-      // Focus the table after React finishes rendering
+      // Focus the table after React finishes rendering — but only if no dialog is open
+      // (Radix Dialog sets aria-hidden on the root; focusing the table while hidden causes flickering)
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          tableRef.current?.focus();
+          const dialogOpen = document.querySelector('[role="dialog"]');
+          if (!dialogOpen) {
+            tableRef.current?.focus();
+          }
         });
       });
     }

@@ -118,7 +118,15 @@ export function TaskDialog({ open, onOpenChange, onSubmit, task, parentTask }: T
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent
+        className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto"
+        onCloseAutoFocus={(e) => {
+          // Return focus to the task grid table instead of the trigger element
+          e.preventDefault();
+          const table = document.querySelector('table[role="grid"]') as HTMLElement;
+          table?.focus();
+        }}
+      >
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>

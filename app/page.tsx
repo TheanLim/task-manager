@@ -394,11 +394,6 @@ function HomeContent() {
       }
     }
     dm.resetTaskDialogContext();
-    // Refocus the grid table after dialog closes — use setTimeout to wait for React re-render
-    setTimeout(() => {
-      const table = document.querySelector('table[role="grid"]') as HTMLElement;
-      table?.focus();
-    }, 100);
   };
 
   const handleTaskClick = (taskId: string) => {
