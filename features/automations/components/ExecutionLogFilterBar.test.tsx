@@ -1,8 +1,18 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeAll } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ExecutionLogFilterBar } from './ExecutionLogFilterBar';
 import type { ExecutionLogFilters, OutcomeFilter, DateRangeFilter } from '../services/preview/logFilterService';
+
+// Polyfill ResizeObserver for jsdom (required by cmdk)
+beforeAll(() => {
+  global.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as any;
+  Element.prototype.scrollIntoView = vi.fn();
+});
 
 const defaultFilters: ExecutionLogFilters = {
   ruleIds: [],
@@ -11,23 +21,35 @@ const defaultFilters: ExecutionLogFilters = {
   dateRange: '7d',
 };
 
+const mockHandlersBase = {
+  onSetRuleIds: vi.fn(),
+  onSetProjectIds: vi.fn(),
+  onSetOutcome: vi.fn(),
+  onSetDateRange: vi.fn(),
+  onClearFilters: vi.fn(),
+};
+
+const testRules = [
+  { id: 'r-1', name: 'Auto-archive completed' },
+  { id: 'r-2', name: 'Escalate blockers' },
+];
+
+const testProjects = [
+  { id: 'p-1', name: 'Backend Rewrite' },
+  { id: 'p-2', name: 'Design System' },
+];
+
 describe('ExecutionLogFilterBar', () => {
   it('renders Rule, Project, Outcome, Date filter buttons', () => {
-    const mockHandlers = {
-      onSetRuleIds: vi.fn(),
-      onSetProjectIds: vi.fn(),
-      onSetOutcome: vi.fn(),
-      onSetDateRange: vi.fn(),
-      onClearFilters: vi.fn(),
-    };
-
     render(
       <ExecutionLogFilterBar
         filters={defaultFilters}
+        allRules={testRules}
+        allProjects={testProjects}
         hasActiveFilters={false}
         filteredCount={10}
         totalCount={20}
-        {...mockHandlers}
+        {...mockHandlersBase}
       />
     );
 
@@ -38,14 +60,6 @@ describe('ExecutionLogFilterBar', () => {
   });
 
   it('active filter button shows accent border', () => {
-    const mockHandlers = {
-      onSetRuleIds: vi.fn(),
-      onSetProjectIds: vi.fn(),
-      onSetOutcome: vi.fn(),
-      onSetDateRange: vi.fn(),
-      onClearFilters: vi.fn(),
-    };
-
     const filtersWithActiveRule: ExecutionLogFilters = {
       ...defaultFilters,
       ruleIds: ['rule-1'],
@@ -54,10 +68,12 @@ describe('ExecutionLogFilterBar', () => {
     render(
       <ExecutionLogFilterBar
         filters={filtersWithActiveRule}
+        allRules={testRules}
+        allProjects={testProjects}
         hasActiveFilters={true}
         filteredCount={5}
         totalCount={20}
-        {...mockHandlers}
+        {...mockHandlersBase}
       />
     );
 
@@ -67,14 +83,6 @@ describe('ExecutionLogFilterBar', () => {
   });
 
   it('Rule filter button shows badge with count when rules selected', () => {
-    const mockHandlers = {
-      onSetRuleIds: vi.fn(),
-      onSetProjectIds: vi.fn(),
-      onSetOutcome: vi.fn(),
-      onSetDateRange: vi.fn(),
-      onClearFilters: vi.fn(),
-    };
-
     const filtersWithTwoRules: ExecutionLogFilters = {
       ...defaultFilters,
       ruleIds: ['rule-1', 'rule-2'],
@@ -83,10 +91,12 @@ describe('ExecutionLogFilterBar', () => {
     render(
       <ExecutionLogFilterBar
         filters={filtersWithTwoRules}
+        allRules={testRules}
+        allProjects={testProjects}
         hasActiveFilters={true}
         filteredCount={5}
         totalCount={20}
-        {...mockHandlers}
+        {...mockHandlersBase}
       />
     );
 
@@ -94,14 +104,6 @@ describe('ExecutionLogFilterBar', () => {
   });
 
   it('Project filter button shows badge with count when projects selected', () => {
-    const mockHandlers = {
-      onSetRuleIds: vi.fn(),
-      onSetProjectIds: vi.fn(),
-      onSetOutcome: vi.fn(),
-      onSetDateRange: vi.fn(),
-      onClearFilters: vi.fn(),
-    };
-
     const filtersWithProjects: ExecutionLogFilters = {
       ...defaultFilters,
       projectIds: ['project-1', 'project-2', 'project-3'],
@@ -110,10 +112,12 @@ describe('ExecutionLogFilterBar', () => {
     render(
       <ExecutionLogFilterBar
         filters={filtersWithProjects}
+        allRules={testRules}
+        allProjects={testProjects}
         hasActiveFilters={true}
         filteredCount={5}
         totalCount={20}
-        {...mockHandlers}
+        {...mockHandlersBase}
       />
     );
 
@@ -121,35 +125,29 @@ describe('ExecutionLogFilterBar', () => {
   });
 
   it('"Clear filters" button only visible when hasActiveFilters is true', () => {
-    const mockHandlers = {
-      onSetRuleIds: vi.fn(),
-      onSetProjectIds: vi.fn(),
-      onSetOutcome: vi.fn(),
-      onSetDateRange: vi.fn(),
-      onClearFilters: vi.fn(),
-    };
-
-    // Test with no active filters
     const { rerender } = render(
       <ExecutionLogFilterBar
         filters={defaultFilters}
+        allRules={testRules}
+        allProjects={testProjects}
         hasActiveFilters={false}
         filteredCount={20}
         totalCount={20}
-        {...mockHandlers}
+        {...mockHandlersBase}
       />
     );
 
     expect(screen.queryByText('Clear filters')).not.toBeInTheDocument();
 
-    // Test with active filters
     rerender(
       <ExecutionLogFilterBar
         filters={{ ...defaultFilters, ruleIds: ['rule-1'] }}
+        allRules={testRules}
+        allProjects={testProjects}
         hasActiveFilters={true}
         filteredCount={5}
         totalCount={20}
-        {...mockHandlers}
+        {...mockHandlersBase}
       />
     );
 
@@ -158,7 +156,7 @@ describe('ExecutionLogFilterBar', () => {
 
   it('clicking "Clear filters" calls onClearFilters', async () => {
     const user = userEvent.setup();
-    const mockHandlers = {
+    const handlers = {
       onSetRuleIds: vi.fn(),
       onSetProjectIds: vi.fn(),
       onSetOutcome: vi.fn(),
@@ -166,53 +164,40 @@ describe('ExecutionLogFilterBar', () => {
       onClearFilters: vi.fn(),
     };
 
-    const filtersWithActive: ExecutionLogFilters = {
-      ...defaultFilters,
-      ruleIds: ['rule-1'],
-      outcome: 'fired',
-    };
-
     render(
       <ExecutionLogFilterBar
-        filters={filtersWithActive}
+        filters={{ ...defaultFilters, ruleIds: ['rule-1'], outcome: 'fired' }}
+        allRules={testRules}
+        allProjects={testProjects}
         hasActiveFilters={true}
         filteredCount={5}
         totalCount={20}
-        {...mockHandlers}
+        {...handlers}
       />
     );
 
-    const clearButton = screen.getByText('Clear filters');
-    await user.click(clearButton);
-
-    expect(mockHandlers.onClearFilters).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByText('Clear filters'));
+    expect(handlers.onClearFilters).toHaveBeenCalledTimes(1);
   });
 
   it('outcome dropdown shows all/fired/skipped/error options', async () => {
     const user = userEvent.setup();
-    const mockHandlers = {
-      onSetRuleIds: vi.fn(),
-      onSetProjectIds: vi.fn(),
-      onSetOutcome: vi.fn(),
-      onSetDateRange: vi.fn(),
-      onClearFilters: vi.fn(),
-    };
 
     render(
       <ExecutionLogFilterBar
         filters={defaultFilters}
+        allRules={testRules}
+        allProjects={testProjects}
         hasActiveFilters={false}
         filteredCount={10}
         totalCount={20}
-        {...mockHandlers}
+        {...mockHandlersBase}
       />
     );
 
-    const outcomeButton = screen.getByText('Outcome');
-    await user.click(outcomeButton);
+    await user.click(screen.getByText('Outcome'));
 
     expect(screen.getByText('All outcomes')).toBeInTheDocument();
-    // Use getAllByText since there are multiple elements with "Fired" (badge and menu item)
     expect(screen.getAllByText('Fired').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Skipped').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Error').length).toBeGreaterThan(0);
@@ -220,7 +205,7 @@ describe('ExecutionLogFilterBar', () => {
 
   it('selecting outcome calls onSetOutcome', async () => {
     const user = userEvent.setup();
-    const mockHandlers = {
+    const handlers = {
       onSetRuleIds: vi.fn(),
       onSetProjectIds: vi.fn(),
       onSetOutcome: vi.fn(),
@@ -231,45 +216,38 @@ describe('ExecutionLogFilterBar', () => {
     render(
       <ExecutionLogFilterBar
         filters={defaultFilters}
+        allRules={testRules}
+        allProjects={testProjects}
         hasActiveFilters={false}
         filteredCount={10}
         totalCount={20}
-        {...mockHandlers}
+        {...handlers}
       />
     );
 
-    const outcomeButton = screen.getByText('Outcome');
-    await user.click(outcomeButton);
-
-    // Get all elements with "Fired" and click the first one
+    await user.click(screen.getByText('Outcome'));
     const firedOptions = screen.getAllByText('Fired');
     await user.click(firedOptions[0]);
 
-    expect(mockHandlers.onSetOutcome).toHaveBeenCalledWith('fired');
+    expect(handlers.onSetOutcome).toHaveBeenCalledWith('fired');
   });
 
-  it('date range dropdown shows 24h/7d/30d/all options', async () => {
+  it('date range dropdown shows 24h/7d/all options', async () => {
     const user = userEvent.setup();
-    const mockHandlers = {
-      onSetRuleIds: vi.fn(),
-      onSetProjectIds: vi.fn(),
-      onSetOutcome: vi.fn(),
-      onSetDateRange: vi.fn(),
-      onClearFilters: vi.fn(),
-    };
 
     render(
       <ExecutionLogFilterBar
         filters={defaultFilters}
+        allRules={testRules}
+        allProjects={testProjects}
         hasActiveFilters={false}
         filteredCount={10}
         totalCount={20}
-        {...mockHandlers}
+        {...mockHandlersBase}
       />
     );
 
-    const dateButton = screen.getByText('Date');
-    await user.click(dateButton);
+    await user.click(screen.getByText('Date'));
 
     expect(screen.getByText('Last 24 hours')).toBeInTheDocument();
     expect(screen.getByText('Last 7 days')).toBeInTheDocument();
@@ -277,21 +255,15 @@ describe('ExecutionLogFilterBar', () => {
   });
 
   it('shows "Showing {filtered} entries (filtered from {total} total)" count text', () => {
-    const mockHandlers = {
-      onSetRuleIds: vi.fn(),
-      onSetProjectIds: vi.fn(),
-      onSetOutcome: vi.fn(),
-      onSetDateRange: vi.fn(),
-      onClearFilters: vi.fn(),
-    };
-
     render(
       <ExecutionLogFilterBar
         filters={defaultFilters}
+        allRules={testRules}
+        allProjects={testProjects}
         hasActiveFilters={false}
         filteredCount={15}
         totalCount={42}
-        {...mockHandlers}
+        {...mockHandlersBase}
       />
     );
 
@@ -299,90 +271,149 @@ describe('ExecutionLogFilterBar', () => {
   });
 
   it('outcome filter shows correct badge colors', () => {
-    const mockHandlers = {
-      onSetRuleIds: vi.fn(),
-      onSetProjectIds: vi.fn(),
-      onSetOutcome: vi.fn(),
-      onSetDateRange: vi.fn(),
-      onClearFilters: vi.fn(),
-    };
-
-    // Test fired outcome
     const { rerender } = render(
       <ExecutionLogFilterBar
         filters={{ ...defaultFilters, outcome: 'fired' }}
+        allRules={testRules}
+        allProjects={testProjects}
         hasActiveFilters={true}
         filteredCount={5}
         totalCount={20}
-        {...mockHandlers}
+        {...mockHandlersBase}
       />
     );
 
-    const firedBadge = screen.getByText('Fired');
-    expect(firedBadge).toHaveClass('text-emerald-600');
+    expect(screen.getByText('Fired')).toHaveClass('text-emerald-600');
 
-    // Test skipped outcome
     rerender(
       <ExecutionLogFilterBar
         filters={{ ...defaultFilters, outcome: 'skipped' }}
+        allRules={testRules}
+        allProjects={testProjects}
         hasActiveFilters={true}
         filteredCount={5}
         totalCount={20}
-        {...mockHandlers}
+        {...mockHandlersBase}
       />
     );
 
-    const skippedBadge = screen.getByText('Skipped');
-    expect(skippedBadge).toHaveClass('text-amber-600');
+    expect(screen.getByText('Skipped')).toHaveClass('text-amber-600');
 
-    // Test error outcome
     rerender(
       <ExecutionLogFilterBar
         filters={{ ...defaultFilters, outcome: 'error' }}
+        allRules={testRules}
+        allProjects={testProjects}
         hasActiveFilters={true}
         filteredCount={5}
         totalCount={20}
-        {...mockHandlers}
+        {...mockHandlersBase}
       />
     );
 
-    const errorBadge = screen.getByText('Error');
-    expect(errorBadge).toHaveClass('text-destructive');
+    expect(screen.getByText('Error')).toHaveClass('text-destructive');
   });
 
   it('date range filter shows correct label', () => {
-    const mockHandlers = {
-      onSetRuleIds: vi.fn(),
-      onSetProjectIds: vi.fn(),
-      onSetOutcome: vi.fn(),
-      onSetDateRange: vi.fn(),
-      onClearFilters: vi.fn(),
-    };
-
-    // Test 24h label
     const { rerender } = render(
       <ExecutionLogFilterBar
         filters={{ ...defaultFilters, dateRange: '24h' }}
+        allRules={testRules}
+        allProjects={testProjects}
         hasActiveFilters={true}
         filteredCount={5}
         totalCount={20}
-        {...mockHandlers}
+        {...mockHandlersBase}
       />
     );
 
     expect(screen.getByText('Last 24 hours')).toBeInTheDocument();
 
-    // Test all time label
     rerender(
       <ExecutionLogFilterBar
         filters={{ ...defaultFilters, dateRange: 'all' }}
+        allRules={testRules}
+        allProjects={testProjects}
         hasActiveFilters={true}
         filteredCount={5}
         totalCount={20}
-        {...mockHandlers}
+        {...mockHandlersBase}
       />
     );
 
     expect(screen.getByText('All time')).toBeInTheDocument();
+  });
+
+  // --- New tests for real data props ---
+
+  it('renders actual rule names in Rule filter popover', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ExecutionLogFilterBar
+        filters={defaultFilters}
+        allRules={testRules}
+        allProjects={testProjects}
+        hasActiveFilters={false}
+        filteredCount={10}
+        totalCount={20}
+        {...mockHandlersBase}
+      />
+    );
+
+    await user.click(screen.getByText('Rule'));
+
+    expect(screen.getByText('Auto-archive completed')).toBeInTheDocument();
+    expect(screen.getByText('Escalate blockers')).toBeInTheDocument();
+  });
+
+  it('renders actual project names in Project filter popover', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ExecutionLogFilterBar
+        filters={defaultFilters}
+        allRules={testRules}
+        allProjects={testProjects}
+        hasActiveFilters={false}
+        filteredCount={10}
+        totalCount={20}
+        {...mockHandlersBase}
+      />
+    );
+
+    await user.click(screen.getByText('Project'));
+
+    expect(screen.getByText('Backend Rewrite')).toBeInTheDocument();
+    expect(screen.getByText('Design System')).toBeInTheDocument();
+  });
+
+  it('does NOT render hardcoded mock data', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ExecutionLogFilterBar
+        filters={defaultFilters}
+        allRules={testRules}
+        allProjects={testProjects}
+        hasActiveFilters={false}
+        filteredCount={10}
+        totalCount={20}
+        {...mockHandlersBase}
+      />
+    );
+
+    // Open Rule popover
+    await user.click(screen.getByText('Rule'));
+    expect(screen.queryByText('Move overdue tasks')).not.toBeInTheDocument();
+    expect(screen.queryByText('Complete Friday tasks')).not.toBeInTheDocument();
+    expect(screen.queryByText('Archive old tasks')).not.toBeInTheDocument();
+
+    // Close and open Project popover
+    await user.click(screen.getByText('Rule'));
+    await user.click(screen.getByText('Project'));
+    expect(screen.queryByText('Personal')).not.toBeInTheDocument();
+    expect(screen.queryByText('Work')).not.toBeInTheDocument();
+    expect(screen.queryByText('Side Projects')).not.toBeInTheDocument();
   });
 });

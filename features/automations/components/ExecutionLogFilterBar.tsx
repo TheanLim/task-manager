@@ -12,6 +12,8 @@ import type { ExecutionLogFilters, OutcomeFilter, DateRangeFilter } from '../ser
 
 interface ExecutionLogFilterBarProps {
   filters: ExecutionLogFilters;
+  allRules: Array<{ id: string; name: string }>;
+  allProjects: Array<{ id: string; name: string }>;
   onSetRuleIds: (ids: string[]) => void;
   onSetProjectIds: (ids: string[]) => void;
   onSetOutcome: (outcome: OutcomeFilter) => void;
@@ -22,21 +24,10 @@ interface ExecutionLogFilterBarProps {
   totalCount: number;
 }
 
-// Mock data for rules and projects - in a real app, these would come from props or context
-const MOCK_RULES = [
-  { id: 'rule-1', name: 'Move overdue tasks' },
-  { id: 'rule-2', name: 'Complete Friday tasks' },
-  { id: 'rule-3', name: 'Archive old tasks' },
-];
-
-const MOCK_PROJECTS = [
-  { id: 'project-1', name: 'Personal' },
-  { id: 'project-2', name: 'Work' },
-  { id: 'project-3', name: 'Side Projects' },
-];
-
 export function ExecutionLogFilterBar({
   filters,
+  allRules,
+  allProjects,
   onSetRuleIds,
   onSetProjectIds,
   onSetOutcome,
@@ -101,7 +92,7 @@ export function ExecutionLogFilterBar({
               variant="outline"
               size="sm"
               className={`gap-2 ${isRuleFilterActive ? 'border-accent-brand text-accent-brand' : ''}`}
-              aria-label={getAriaLabel('rule', filters.ruleIds.length, MOCK_RULES.length)}
+              aria-label={getAriaLabel('rule', filters.ruleIds.length, allRules.length)}
             >
               <Filter className="h-3 w-3" />
               Rule
@@ -119,7 +110,7 @@ export function ExecutionLogFilterBar({
               <CommandList>
                 <CommandEmpty>No rules found.</CommandEmpty>
                 <CommandGroup>
-                  {MOCK_RULES.map((rule) => (
+                  {allRules.map((rule) => (
                     <CommandItem
                       key={rule.id}
                       onSelect={() => {
@@ -155,7 +146,7 @@ export function ExecutionLogFilterBar({
               variant="outline"
               size="sm"
               className={`gap-2 ${isProjectFilterActive ? 'border-accent-brand text-accent-brand' : ''}`}
-              aria-label={getAriaLabel('project', filters.projectIds.length, MOCK_PROJECTS.length)}
+              aria-label={getAriaLabel('project', filters.projectIds.length, allProjects.length)}
             >
               <Filter className="h-3 w-3" />
               Project
@@ -173,7 +164,7 @@ export function ExecutionLogFilterBar({
               <CommandList>
                 <CommandEmpty>No projects found.</CommandEmpty>
                 <CommandGroup>
-                  {MOCK_PROJECTS.map((project) => (
+                  {allProjects.map((project) => (
                     <CommandItem
                       key={project.id}
                       onSelect={() => {

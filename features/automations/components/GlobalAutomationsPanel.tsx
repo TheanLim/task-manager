@@ -335,6 +335,8 @@ export function GlobalAutomationsPanel() {
         <TabsContent value="log" className="mt-4">
           <ExecutionLogFilterBar
             filters={filters}
+            allRules={allRuleNames}
+            allProjects={allProjectNames}
             onSetRuleIds={setRuleIds}
             onSetProjectIds={setProjectIds}
             onSetOutcome={setOutcome}
