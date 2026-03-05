@@ -345,12 +345,13 @@ test.describe('Phase 2 — E2E-6: Amber badge navigation', () => {
     await expect(page.getByText('1').first()).toBeVisible({ timeout: 5000 })
   })
 
-  test('Automations nav link has correct href with tab=log&outcome=skipped', async ({ page }) => {
+  test('Automations nav link has correct href with tab=log&outcome=skipped on badge', async ({ page }) => {
     await seedDatabase(page)
     await seedGlobalRule(page, makeGlobalRule({ recentExecutions: [makeSkipEntry('Task Skipped')] }), '/')
-    const link = page.getByRole('link', { name: /view skipped automations/i })
-    await expect(link).toBeVisible({ timeout: 5000 })
-    const href = await link.getAttribute('href')
+    // The badge link (not the main nav link) goes to the filtered log
+    const badgeLink = page.getByRole('link', { name: /view skipped automations/i })
+    await expect(badgeLink).toBeVisible({ timeout: 5000 })
+    const href = await badgeLink.getAttribute('href')
     expect(href).toContain('tab=log')
     expect(href).toContain('outcome=skipped')
   })
@@ -389,8 +390,9 @@ test.describe('Phase 2 — E2E-6: Amber badge navigation', () => {
       localStorage.setItem('task-management-automations', JSON.stringify(existing))
     }, [JSON.stringify(rule1), JSON.stringify(rule2), JSON.stringify(rule3)])
     await page.goto('/')
-    const link = page.getByRole('link', { name: /view skipped automations/i })
-    await expect(link).toBeVisible({ timeout: 5000 })
-    await expect(link.getByText('3')).toBeVisible()
+    // The badge link shows the count
+    const badgeLink = page.getByRole('link', { name: /view skipped automations/i })
+    await expect(badgeLink).toBeVisible({ timeout: 5000 })
+    await expect(badgeLink.getByText('3')).toBeVisible()
   })
 })

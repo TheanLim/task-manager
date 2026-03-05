@@ -537,19 +537,26 @@ function HomeContent() {
             {/* Global Automations nav item */}
             <div className="mt-4 pt-4 border-t">
               <Link
-                href="/?view=automations&tab=log&outcome=skipped"
+                href="/?view=automations"
                 className={`flex items-center gap-2 w-full rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent border-l-[3px] outline-none focus-visible:ring-2 focus-visible:ring-ring ${activeView === 'global-automations' ? 'border-l-accent-brand bg-accent/50 font-medium text-foreground' : 'border-l-transparent text-muted-foreground'}`}
-                aria-label={`View skipped automations — ${skipCount} skips`}
+                aria-label={skipCount > 0 ? `Automations — ${skipCount} skipped` : 'Automations'}
               >
                 <Zap className="w-4 h-4 shrink-0" aria-hidden="true" />
                 <span>Automations</span>
                 {skipCount > 0 && (
-                  <Badge
-                    variant="outline"
-                    className="ml-auto text-amber-600 border-amber-300 dark:text-amber-400 dark:border-amber-700 text-[10px] h-4 px-1"
+                  <Link
+                    href="/?view=automations&tab=log&outcome=skipped"
+                    aria-label={`View skipped automations — ${skipCount} skips`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="ml-auto"
                   >
-                    {skipCount}
-                  </Badge>
+                    <Badge
+                      variant="outline"
+                      className="text-amber-600 border-amber-300 dark:text-amber-400 dark:border-amber-700 text-[10px] h-4 px-1 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+                    >
+                      {skipCount}
+                    </Badge>
+                  </Link>
                 )}
               </Link>
             </div>

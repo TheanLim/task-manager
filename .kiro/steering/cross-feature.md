@@ -33,6 +33,8 @@ When editing files matched by this pattern, check these integration points:
 - `ShareService` optionally imports automation rules — always pass the repo
 - `filterStore` lives in `features/tasks/stores/` not top-level `stores/`
 - Domain events live in `lib/events/`, re-exported from `features/automations/events.ts`
+- `bulkScheduleService` and `schedulerService` are automation singletons — used by `useRuleActions` hook and `useSchedulerInit`
+- `automationRuleRepository` has `findGlobal()` for null-projectId rules — used by `useGlobalAutomationRules` and `useGlobalAutomationSkipCount`
 
 ## See Also
 - Full checklist: [CROSS-FEATURE-GUIDE.md](../../CROSS-FEATURE-GUIDE.md)
