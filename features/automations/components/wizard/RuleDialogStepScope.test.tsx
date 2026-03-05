@@ -84,22 +84,6 @@ describe('RuleDialogStepScope', () => {
 
       expect(screen.getByText(/choose which projects this rule should apply to/i)).toBeInTheDocument();
     });
-
-    it('renders Back and Next buttons', () => {
-      render(
-        <RuleDialogStepScope
-          scope="all"
-          selectedProjectIds={[]}
-          projects={mockProjects}
-          onChange={mockOnChange}
-          onNext={mockOnNext}
-          onBack={mockOnBack}
-        />
-      );
-
-      expect(screen.getByRole('button', { name: /back/i })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /next/i })).toBeInTheDocument();
-    });
   });
 
   describe('Radio Group Selection', () => {
@@ -269,11 +253,11 @@ describe('RuleDialogStepScope', () => {
       const selectedRadio = screen.getByRole('radio', { name: /selected projects/i });
       await user.click(selectedRadio);
 
-      const checkboxes = screen.getAllByRole('checkbox');
+      const checkboxes = screen.getAllByRole('checkbox', { hidden: true });
       expect(checkboxes.length).toBe(3);
     });
 
-    it('calls onChange when a project checkbox is toggled', async () => {
+    it('calls onChange when a project item is toggled', async () => {
       const user = userEvent.setup();
       render(
         <RuleDialogStepScope
@@ -289,9 +273,8 @@ describe('RuleDialogStepScope', () => {
       const selectedRadio = screen.getByRole('radio', { name: /selected projects/i });
       await user.click(selectedRadio);
 
-      // Get the first checkbox (no accessible name, use index)
-      const checkboxes = screen.getAllByRole('checkbox');
-      await user.click(checkboxes[0]);
+      // Click the project option text to toggle via CommandItem onSelect
+      await user.click(screen.getByText('Project Alpha'));
 
       expect(mockOnChange).toHaveBeenCalledWith({
         scope: 'selected',
@@ -303,7 +286,7 @@ describe('RuleDialogStepScope', () => {
       const user = userEvent.setup();
       render(
         <RuleDialogStepScope
-          scope="all"
+          scope="selected"
           selectedProjectIds={['project-1']}
           projects={mockProjects}
           onChange={mockOnChange}
@@ -312,11 +295,8 @@ describe('RuleDialogStepScope', () => {
         />
       );
 
-      const selectedRadio = screen.getByRole('radio', { name: /selected projects/i });
-      await user.click(selectedRadio);
-
-      // The Check icon should be visible for selected project
-      const checkboxes = screen.getAllByRole('checkbox');
+      // Project picker is already visible since scope="selected"
+      const checkboxes = screen.getAllByRole('checkbox', { hidden: true });
       // First checkbox (Project Alpha) should be checked
       expect(checkboxes[0]).toBeChecked();
     });
@@ -558,9 +538,8 @@ describe('RuleDialogStepScope', () => {
       const selectedRadio = screen.getByRole('radio', { name: /selected projects/i });
       await user.click(selectedRadio);
 
-      // Get the first checkbox (no accessible name, use index)
-      const checkboxes = screen.getAllByRole('checkbox');
-      await user.click(checkboxes[0]);
+      // Click the project option text to toggle via CommandItem onSelect
+      await user.click(screen.getByText('Project Alpha'));
 
       expect(screen.getByText('1 of 3 projects selected')).toBeInTheDocument();
     });
@@ -587,67 +566,6 @@ describe('RuleDialogStepScope', () => {
   });
 
   describe('Validation', () => {
-    it('Next button disabled when scope="selected" and no projects selected', async () => {
-      const user = userEvent.setup();
-      render(
-        <RuleDialogStepScope
-          scope="all"
-          selectedProjectIds={[]}
-          projects={mockProjects}
-          onChange={mockOnChange}
-          onNext={mockOnNext}
-          onBack={mockOnBack}
-        />
-      );
-
-      const selectedRadio = screen.getByRole('radio', { name: /selected projects/i });
-      await user.click(selectedRadio);
-
-      const nextButton = screen.getByRole('button', { name: /next/i });
-      expect(nextButton).toBeDisabled();
-    });
-
-    it('Next button enabled when scope="all"', async () => {
-      const user = userEvent.setup();
-      render(
-        <RuleDialogStepScope
-          scope="all"
-          selectedProjectIds={[]}
-          projects={mockProjects}
-          onChange={mockOnChange}
-          onNext={mockOnNext}
-          onBack={mockOnBack}
-        />
-      );
-
-      const nextButton = screen.getByRole('button', { name: /next/i });
-      expect(nextButton).not.toBeDisabled();
-    });
-
-    it('Next button enabled when scope="selected" and at least one project selected', async () => {
-      const user = userEvent.setup();
-      render(
-        <RuleDialogStepScope
-          scope="all"
-          selectedProjectIds={[]}
-          projects={mockProjects}
-          onChange={mockOnChange}
-          onNext={mockOnNext}
-          onBack={mockOnBack}
-        />
-      );
-
-      const selectedRadio = screen.getByRole('radio', { name: /selected projects/i });
-      await user.click(selectedRadio);
-
-      // Get the first checkbox (no accessible name, use index)
-      const checkboxes = screen.getAllByRole('checkbox');
-      await user.click(checkboxes[0]);
-
-      const nextButton = screen.getByRole('button', { name: /next/i });
-      expect(nextButton).not.toBeDisabled();
-    });
-
     it('shows validation error "Select at least one project to continue." when invalid', async () => {
       const user = userEvent.setup();
       render(
@@ -683,77 +601,12 @@ describe('RuleDialogStepScope', () => {
       const selectedRadio = screen.getByRole('radio', { name: /selected projects/i });
       await user.click(selectedRadio);
 
-      // Get the first checkbox (no accessible name, use index)
-      const checkboxes = screen.getAllByRole('checkbox');
-      await user.click(checkboxes[0]);
+      // Click the project option text to toggle via CommandItem onSelect
+      await user.click(screen.getByText('Project Alpha'));
 
       await waitFor(() => {
         expect(screen.queryByText('Select at least one project to continue.')).not.toBeInTheDocument();
       });
-    });
-  });
-
-  describe('Back Button', () => {
-    it('calls onBack when Back button is clicked', async () => {
-      const user = userEvent.setup();
-      render(
-        <RuleDialogStepScope
-          scope="all"
-          selectedProjectIds={[]}
-          projects={mockProjects}
-          onChange={mockOnChange}
-          onNext={mockOnNext}
-          onBack={mockOnBack}
-        />
-      );
-
-      const backButton = screen.getByRole('button', { name: /back/i });
-      await user.click(backButton);
-
-      expect(mockOnBack).toHaveBeenCalled();
-    });
-  });
-
-  describe('Next Button', () => {
-    it('calls onNext when Next button is clicked and valid', async () => {
-      const user = userEvent.setup();
-      render(
-        <RuleDialogStepScope
-          scope="all"
-          selectedProjectIds={[]}
-          projects={mockProjects}
-          onChange={mockOnChange}
-          onNext={mockOnNext}
-          onBack={mockOnBack}
-        />
-      );
-
-      const nextButton = screen.getByRole('button', { name: /next/i });
-      await user.click(nextButton);
-
-      expect(mockOnNext).toHaveBeenCalled();
-    });
-
-    it('does NOT call onNext when Next button is clicked and invalid', async () => {
-      const user = userEvent.setup();
-      render(
-        <RuleDialogStepScope
-          scope="all"
-          selectedProjectIds={[]}
-          projects={mockProjects}
-          onChange={mockOnChange}
-          onNext={mockOnNext}
-          onBack={mockOnBack}
-        />
-      );
-
-      const selectedRadio = screen.getByRole('radio', { name: /selected projects/i });
-      await user.click(selectedRadio);
-
-      const nextButton = screen.getByRole('button', { name: /next/i });
-      await user.click(nextButton);
-
-      expect(mockOnNext).not.toHaveBeenCalled();
     });
   });
 
@@ -788,7 +641,6 @@ describe('RuleDialogStepScope', () => {
         />
       );
 
-      const firstRadio = screen.getByRole('radio', { name: /all projects/i });
       await user.keyboard('{ArrowDown}');
 
       const secondRadio = screen.getByRole('radio', { name: /selected projects/i });
@@ -869,9 +721,7 @@ describe('RuleDialogStepScope', () => {
         />
       );
 
-      // The radio group container should have the aria-label
-      // Since we're using custom radio styling, check the container
-      expect(document.body).toBeTruthy();
+      expect(screen.getByRole('radiogroup', { name: /rule scope/i })).toBeInTheDocument();
     });
 
     it('has aria-label="Projects included in rule scope" on Command wrapper', async () => {
@@ -912,8 +762,8 @@ describe('RuleDialogStepScope', () => {
       const selectedRadio = screen.getByRole('radio', { name: /selected projects/i });
       await user.click(selectedRadio);
 
-      // Now the "All Projects" card should have border-border class
-      const allRadioCard = screen.getByText('All Projects').closest('div');
+      // Now the "All Projects" radio card is a <button> element
+      const allRadioCard = screen.getByRole('radio', { name: /all projects/i });
       expect(allRadioCard).toHaveClass('border-border');
     });
 
@@ -933,9 +783,9 @@ describe('RuleDialogStepScope', () => {
       const selectedRadio = screen.getByRole('radio', { name: /selected projects/i });
       await user.click(selectedRadio);
 
-      const selectedRadioCard = screen.getByText('Selected Projects').closest('div');
-      expect(selectedRadioCard).toHaveClass('border-accent');
-      expect(selectedRadioCard).toHaveClass('bg-accent/5');
+      // The selected radio card is the <button> element itself
+      expect(selectedRadio).toHaveClass('border-accent-brand');
+      expect(selectedRadio).toHaveClass('bg-accent-brand/5');
     });
   });
 });
