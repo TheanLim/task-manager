@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Zap, AlertTriangle, ChevronDown } from 'lucide-react';
 import {
@@ -59,55 +59,15 @@ interface AutomationTabProps {
  * Validates Requirements: 2.1, 2.2, 2.3, 9.1, 10.2, 10.3, 10.4, 10.5, 10.6
  */
 export function AutomationTab({ projectId, sections, onShowToast }: AutomationTabProps) {
-  const { rules, duplicateRule, duplicateToProject, deleteRule, toggleRule, reorderRules, bulkSetEnabled, updateRule } = useAutomationRules(projectId);
+  const { rules, duplicateRule, duplicateToProject, deleteRule, toggleRule, reorderRules, bulkSetEnabled } = useAutomationRules(projectId);
   const ruleActions = useRuleActions(rules, sections, projectId, onShowToast);
-  const { rules: globalRules, updateRule: updateGlobalRule } = useGlobalAutomationRules();
+  const { rules: globalRules } = useGlobalAutomationRules();
   const router = useRouter();
 
   const navigateToGlobal = useCallback((ruleId?: string) => {
     const url = ruleId ? `/?view=automations&rule=${ruleId}` : '/?view=automations';
     router.push(url);
   }, [router]);
-
-  // Toggle a global rule's exclusion for this project
-  const handleToggleForProject = useCallback((ruleId: string) => {
-    const rule = globalRules.find(r => r.id === ruleId);
-    if (!rule) return;
-    const excluded = rule.excludedProjectIds ?? [];
-    const isCurrentlyExcluded = excluded.includes(projectId);
-    const newExcluded = isCurrentlyExcluded
-      ? excluded.filter((id: string) => id !== projectId)
-      : [...excluded, projectId];
-    updateGlobalRule(ruleId, { excludedProjectIds: newExcluded });
-  }, [globalRules, projectId, updateGlobalRule]);
-
-  // Promote a local rule to global — opens RuleDialog with the rule pre-filled
-  const [promoteFromRule, setPromoteFromRule] = useState<typeof rules[number] | null>(null);
-
-  const handlePromoteToGlobal = useCallback((ruleId: string) => {
-    const rule = rules.find(r => r.id === ruleId);
-    if (!rule) return;
-    setPromoteFromRule(rule);
-    setEditingRuleId(null);
-    setIsRescheduling(false);
-    setIsDialogOpen(true);
-  }, [rules]);
-
-  // All global rules visible to this project: active for project OR excluded (so toggle can re-enable)
-  const visibleGlobalRules = useMemo(() => {
-    return globalRules.filter(rule => {
-      const excluded = rule.excludedProjectIds ?? [];
-      // Show if: scope is 'all'/'all_except' (default), or projectId is in selectedProjectIds,
-      // or projectId is in excludedProjectIds (so user can toggle it back on)
-      const scope = (rule as any).scope ?? 'all';
-      if (scope === 'selected') {
-        const selected = (rule as any).selectedProjectIds ?? [];
-        return selected.includes(projectId) || excluded.includes(projectId);
-      }
-      // 'all' or 'all_except' — always visible (either active or excluded)
-      return true;
-    });
-  }, [globalRules, projectId]);
 
   // Sort rules by order for display
   const sortedRules = [...rules].sort((a, b) => a.order - b.order);
@@ -199,14 +159,11 @@ export function AutomationTab({ projectId, sections, onShowToast }: AutomationTa
   if (rules.length === 0) {
     return (
       <>
-        {visibleGlobalRules.length > 0 && (
+        {globalRules.length > 0 && (
           <GlobalRulesSection
-            globalRules={visibleGlobalRules}
+            globalRules={globalRules}
             projectSections={sections}
-            projectId={projectId}
             onNavigateToGlobal={navigateToGlobal}
-            onToggleForProject={handleToggleForProject}
-            onPromoteToGlobal={handlePromoteToGlobal}
           />
         )}
         <EmptyState
@@ -283,14 +240,11 @@ export function AutomationTab({ projectId, sections, onShowToast }: AutomationTa
         <SortableContext items={sortedRules.map((r) => r.id)} strategy={verticalListSortingStrategy}>
           <div className="space-y-3">
             {/* Global rules section — read-only, above local rules */}
-            {visibleGlobalRules.length > 0 && (
+            {globalRules.length > 0 && (
               <GlobalRulesSection
-                globalRules={visibleGlobalRules}
+                globalRules={globalRules}
                 projectSections={sections}
-                projectId={projectId}
                 onNavigateToGlobal={navigateToGlobal}
-                onToggleForProject={handleToggleForProject}
-                onPromoteToGlobal={handlePromoteToGlobal}
               />
             )}
             {sortedRules.map((rule) => (
@@ -307,7 +261,6 @@ export function AutomationTab({ projectId, sections, onShowToast }: AutomationTa
                 onPreview={ruleActions.handlePreview}
                 onRunNow={ruleActions.handleRunNow}
                 onReschedule={handleReschedule}
-                onPromoteToGlobal={handlePromoteToGlobal}
               />
             ))}
           </div>

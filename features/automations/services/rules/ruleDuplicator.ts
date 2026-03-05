@@ -108,6 +108,8 @@ export function duplicateRuleToProject(
     lastExecutedAt: null,
     bulkPausedAt: null,
     excludedProjectIds: [],
+    scope: rule.scope ?? 'all',
+    selectedProjectIds: rule.selectedProjectIds ?? [],
     createdAt: now,
     updatedAt: now,
   };

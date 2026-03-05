@@ -13,6 +13,9 @@ const makeRule = (overrides: Partial<AutomationRule> = {}): AutomationRule => ({
   enabled: true,
   brokenReason: null,
   bulkPausedAt: null,
+  excludedProjectIds: [],
+  scope: 'all',
+  selectedProjectIds: [],
   executionCount: 0,
   lastExecutedAt: null,
   recentExecutions: [],
@@ -24,7 +27,7 @@ const makeRule = (overrides: Partial<AutomationRule> = {}): AutomationRule => ({
 
 describe('useWizardState', () => {
   it('starts at step 0 with empty state when no editing rule', () => {
-    const { result } = renderHook(() => useWizardState(true, null, null));
+    const { result } = renderHook(() => useWizardState(true, null, null, false));
     expect(result.current.currentStep).toBe(0);
     expect(result.current.trigger.type).toBeNull();
     expect(result.current.action.type).toBeNull();
@@ -33,14 +36,14 @@ describe('useWizardState', () => {
 
   it('pre-populates from editing rule', () => {
     const rule = makeRule();
-    const { result } = renderHook(() => useWizardState(true, rule, null));
+    const { result } = renderHook(() => useWizardState(true, rule, null, false));
     expect(result.current.trigger.type).toBe('card_marked_complete');
     expect(result.current.action.type).toBe('mark_card_incomplete');
     expect(result.current.ruleName).toBe('Test Rule');
   });
 
   it('marks dirty on trigger change', () => {
-    const { result } = renderHook(() => useWizardState(true, null, null));
+    const { result } = renderHook(() => useWizardState(true, null, null, false));
     expect(result.current.isDirty).toBe(false);
     act(() => {
       result.current.handleTriggerChange({ type: 'card_marked_complete', sectionId: null });
@@ -49,7 +52,7 @@ describe('useWizardState', () => {
   });
 
   it('navigates forward when step is valid', () => {
-    const { result } = renderHook(() => useWizardState(true, null, null));
+    const { result } = renderHook(() => useWizardState(true, null, null, false));
     // Set a valid trigger
     act(() => {
       result.current.handleTriggerChange({ type: 'card_marked_complete', sectionId: null });
@@ -63,7 +66,7 @@ describe('useWizardState', () => {
   });
 
   it('skips filters step for section-level triggers', () => {
-    const { result } = renderHook(() => useWizardState(true, null, null));
+    const { result } = renderHook(() => useWizardState(true, null, null, false));
     act(() => {
       result.current.handleTriggerChange({ type: 'section_created', sectionId: null });
     });
@@ -76,7 +79,7 @@ describe('useWizardState', () => {
   });
 
   it('navigates back correctly', () => {
-    const { result } = renderHook(() => useWizardState(true, null, null));
+    const { result } = renderHook(() => useWizardState(true, null, null, false));
     act(() => {
       result.current.handleTriggerChange({ type: 'card_marked_complete', sectionId: null });
     });
@@ -88,7 +91,7 @@ describe('useWizardState', () => {
   });
 
   it('detects same-section warning', () => {
-    const { result } = renderHook(() => useWizardState(true, null, null));
+    const { result } = renderHook(() => useWizardState(true, null, null, false));
     act(() => {
       result.current.handleTriggerChange({ type: 'card_moved_into_section', sectionId: 'sec-1' });
       result.current.handleActionChange({
@@ -101,7 +104,7 @@ describe('useWizardState', () => {
   });
 
   it('resetDirty clears dirty flag', () => {
-    const { result } = renderHook(() => useWizardState(true, null, null));
+    const { result } = renderHook(() => useWizardState(true, null, null, false));
     act(() => {
       result.current.handleRuleNameChange('test');
     });
@@ -114,13 +117,13 @@ describe('useWizardState', () => {
 
   it('applies prefill trigger on open', () => {
     const prefill = { triggerType: 'card_moved_into_section' as const, sectionId: 'sec-1' };
-    const { result } = renderHook(() => useWizardState(true, null, prefill));
+    const { result } = renderHook(() => useWizardState(true, null, prefill, false));
     expect(result.current.trigger.type).toBe('card_moved_into_section');
     expect(result.current.trigger.sectionId).toBe('sec-1');
   });
 
   it('isSaveDisabled when trigger or action invalid', () => {
-    const { result } = renderHook(() => useWizardState(true, null, null));
+    const { result } = renderHook(() => useWizardState(true, null, null, false));
     expect(result.current.isSaveDisabled).toBe(true);
     act(() => {
       result.current.handleTriggerChange({ type: 'card_marked_complete', sectionId: null });

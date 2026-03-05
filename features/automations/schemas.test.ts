@@ -1640,6 +1640,33 @@ describe('Global automations schema changes', () => {
       const result = ExecutionLogEntrySchema.safeParse({ ...baseEntry, ruleId: '' });
       expect(result.success).toBe(false);
     });
+
+    it('accepts projectName as optional string', () => {
+      const result = ExecutionLogEntrySchema.safeParse({ ...baseEntry, projectName: 'My Project' });
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.projectName).toBe('My Project');
+    });
+
+    it('accepts ruleName as optional string', () => {
+      const result = ExecutionLogEntrySchema.safeParse({ ...baseEntry, ruleName: 'Auto-close rule' });
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.ruleName).toBe('Auto-close rule');
+    });
+
+    it('accepts executionType: warning', () => {
+      const result = ExecutionLogEntrySchema.safeParse({ ...baseEntry, executionType: 'warning' });
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.executionType).toBe('warning');
+    });
+
+    it('existing entries without projectName/ruleName still parse successfully', () => {
+      const result = ExecutionLogEntrySchema.safeParse(baseEntry);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.projectName).toBeUndefined();
+        expect(result.data.ruleName).toBeUndefined();
+      }
+    });
   });
 
   describe('TriggerSchema — sectionName optional field', () => {

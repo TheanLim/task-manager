@@ -95,6 +95,8 @@ const automationRuleArb = fc.record({
   updatedAt: isoDateTimeArb,
   bulkPausedAt: fc.oneof(isoDateTimeArb, fc.constant(null)),
   excludedProjectIds: fc.constant([]),
+  scope: fc.constantFrom('all' as const, 'selected' as const, 'all_except' as const),
+  selectedProjectIds: fc.array(idArb, { minLength: 0, maxLength: 3 }),
 }) as fc.Arbitrary<AutomationRule>;
 
 describe('LocalStorageAutomationRuleRepository', () => {
@@ -377,7 +379,7 @@ describe('LocalStorageAutomationRuleRepository', () => {
       expect(rules.length).toBe(1);
       
       // Verify all fields are preserved exactly
-      expect(rules[0]).toEqual({ ...phase3Rule, recentExecutions: [], bulkPausedAt: null, excludedProjectIds: [] });
+      expect(rules[0]).toEqual({ ...phase3Rule, recentExecutions: [], bulkPausedAt: null, excludedProjectIds: [], scope: 'all', selectedProjectIds: [] });
     });
 
     it('should handle multiple rules with mixed Phase 1/2 and Phase 3 schemas', () => {
@@ -439,7 +441,7 @@ describe('LocalStorageAutomationRuleRepository', () => {
 
       // Phase 3 rule should be unchanged (plus new defaults)
       const unchangedPhase3 = rules.find(r => r.id === 'rule-2');
-      expect(unchangedPhase3).toEqual({ ...phase3Rule, recentExecutions: [], bulkPausedAt: null, excludedProjectIds: [] });
+      expect(unchangedPhase3).toEqual({ ...phase3Rule, recentExecutions: [], bulkPausedAt: null, excludedProjectIds: [], scope: 'all', selectedProjectIds: [] });
     });
   });
 

@@ -1120,6 +1120,8 @@ describe('Automation Rules Integration', () => {
       updatedAt: new Date().toISOString(),
       bulkPausedAt: null,
       excludedProjectIds: [],
+      scope: 'all',
+      selectedProjectIds: [],
     };
 
     // Create rule directly in repository

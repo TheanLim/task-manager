@@ -81,6 +81,8 @@ export function useAutomationRules(projectId: string): UseAutomationRulesReturn 
           brokenReason: original.brokenReason,
           bulkPausedAt: null,
           excludedProjectIds: original.excludedProjectIds,
+          scope: original.scope,
+          selectedProjectIds: original.selectedProjectIds,
         },
         allRules
       );

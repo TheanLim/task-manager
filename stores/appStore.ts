@@ -29,6 +29,7 @@ interface AppStore {
   keyboardShortcuts: Partial<ShortcutMap>; // User overrides only (not the full map)
   activeView: 'project' | 'global-automations'; // Top-level navigation view
   highlightRuleId: string | null; // Rule to scroll-to and highlight in the global automations panel
+  globalPanelCompact: boolean; // Compact display mode for global automations panel
 
   setActiveProject: (projectId: UUID | null) => void;
   setTimeManagementSystem: (system: TimeManagementSystem) => void;
@@ -48,6 +49,7 @@ interface AppStore {
   resetKeyboardShortcuts: () => void;
   setActiveView: (view: 'project' | 'global-automations') => void;
   setHighlightRuleId: (ruleId: string | null) => void;
+  setGlobalPanelCompact: (compact: boolean) => void;
 }
 
 export const useAppStore = create<AppStore>()(
@@ -70,6 +72,7 @@ export const useAppStore = create<AppStore>()(
       keyboardShortcuts: {},
       activeView: 'project' as const,
       highlightRuleId: null,
+      globalPanelCompact: false,
       
       setActiveProject: (projectId) => set((state) => ({
         settings: { ...state.settings, activeProjectId: projectId }
@@ -150,6 +153,8 @@ export const useAppStore = create<AppStore>()(
       setActiveView: (view) => set({ activeView: view }),
 
       setHighlightRuleId: (ruleId) => set({ highlightRuleId: ruleId }),
+
+      setGlobalPanelCompact: (compact) => set({ globalPanelCompact: compact }),
     }),
     {
       name: 'task-management-settings',

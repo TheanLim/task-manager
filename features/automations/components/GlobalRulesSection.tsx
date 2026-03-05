@@ -10,8 +10,14 @@ interface GlobalRulesSectionProps {
   globalRules: AutomationRule[];
   /** Sections from the current project */
   projectSections: Section[];
+  /** Project ID for toggle/promote operations */
+  projectId: string;
   /** Called when user clicks "Manage" or a rule's skip warning link */
   onNavigateToGlobal: (ruleId?: string) => void;
+  /** Called when user toggles a global rule for this project */
+  onToggleForProject: (ruleId: string) => void;
+  /** Called when user clicks "Promote to Global" on a local rule */
+  onPromoteToGlobal: (ruleId: string) => void;
 }
 
 /**
@@ -21,7 +27,10 @@ interface GlobalRulesSectionProps {
 export function GlobalRulesSection({
   globalRules,
   projectSections,
+  projectId,
   onNavigateToGlobal,
+  onToggleForProject,
+  onPromoteToGlobal,
 }: GlobalRulesSectionProps) {
   if (globalRules.length === 0) return null;
 
@@ -52,7 +61,10 @@ export function GlobalRulesSection({
             key={rule.id}
             rule={rule}
             projectSections={projectSections}
+            projectId={projectId}
             onNavigateToGlobal={onNavigateToGlobal}
+            onToggleForProject={onToggleForProject}
+            onPromoteToGlobal={onPromoteToGlobal}
           />
         ))}
       </div>

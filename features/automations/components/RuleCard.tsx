@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { AlertTriangle, ArrowRight, Clock, Eye, GripVertical, MoreVertical } from 'lucide-react';
+import { AlertTriangle, ArrowRight, ArrowUpRight, Clock, Eye, GripVertical, MoreVertical } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Card, CardContent } from '@/components/ui/card';
@@ -28,6 +28,7 @@ import { RuleCardExecutionLog } from './RuleCardExecutionLog';
 import { ScheduleHistoryView } from './schedule/ScheduleHistoryView';
 import { ProjectPickerDialog } from './ProjectPickerDialog';
 import { GlobalRulesBadge } from './GlobalRulesBadge';
+import { ScopePill } from './ScopePill';
 import { SectionMismatchWarning } from './SectionMismatchWarning';
 import { TRIGGER_META, ACTION_META } from '../services/preview/ruleMetadata';
 import { formatRelativeTime } from '../services/preview/formatters';
@@ -42,6 +43,8 @@ interface RuleCardProps {
   projectId: string;
   /** When true, renders global-rule UI: badge, scope line, section mismatch warning */
   isGlobal?: boolean;
+  /** When true, hide body sections — only show drag handle, name, badges, toggle, menu */
+  compact?: boolean;
   onEdit: (ruleId: string) => void;
   onDuplicate: (ruleId: string) => void;
   onDuplicateToProject: (ruleId: string, targetProjectId: string) => void;
@@ -50,6 +53,10 @@ interface RuleCardProps {
   onPreview?: (ruleId: string) => void;
   onRunNow?: (ruleId: string) => void;
   onReschedule?: (ruleId: string) => void;
+  /** Callback to promote a project-scoped rule to global */
+  onPromoteToGlobal?: (ruleId: string) => void;
+  /** All projects — needed by ScopePill */
+  allProjects?: Array<{ id: string; name: string }>;
 }
 
 // Category color mapping for badges
@@ -72,6 +79,7 @@ export function RuleCard({
   sections,
   projectId,
   isGlobal = false,
+  compact = false,
   onEdit,
   onDuplicate,
   onDuplicateToProject,
@@ -80,6 +88,8 @@ export function RuleCard({
   onPreview,
   onRunNow,
   onReschedule,
+  onPromoteToGlobal,
+  allProjects,
 }: RuleCardProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -137,7 +147,7 @@ export function RuleCard({
               <GripVertical className="h-4 w-4" />
             </button>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="font-medium text-sm truncate flex items-center gap-1.5">
                   {triggerMeta?.category === 'scheduled' && (
                     <Clock className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
@@ -145,6 +155,14 @@ export function RuleCard({
                   {rule.name}
                 </h3>
                 {isGlobal && <GlobalRulesBadge />}
+                {isGlobal && allProjects && (
+                  <ScopePill
+                    scope={(rule as any).scope ?? 'all'}
+                    selectedProjectIds={(rule as any).selectedProjectIds ?? []}
+                    excludedProjectIds={rule.excludedProjectIds ?? []}
+                    allProjects={allProjects}
+                  />
+                )}
                 {!rule.enabled && isFiredOneTime && (
                   <Badge variant="outline" className="text-xs text-muted-foreground">
                     Fired
@@ -188,6 +206,12 @@ export function RuleCard({
                   <DropdownMenuItem onClick={() => onEdit(rule.id)}>
                     Edit
                   </DropdownMenuItem>
+                  {!isGlobal && onPromoteToGlobal && (
+                    <DropdownMenuItem onClick={() => onPromoteToGlobal(rule.id)}>
+                      <ArrowUpRight className="h-4 w-4 mr-2" />
+                      Promote to Global
+                    </DropdownMenuItem>
+                  )}
                   {isScheduledTrigger(rule.trigger) && onPreview && (
                     <DropdownMenuItem onClick={() => onPreview(rule.id)}>
                       <Eye className="h-4 w-4 mr-2" />
@@ -226,91 +250,93 @@ export function RuleCard({
             </div>
           </div>
 
-          {/* Natural language description */}
-          <RulePreview
-            trigger={{
-              type: rule.trigger.type,
-              sectionId: rule.trigger.sectionId,
-              sectionName: (rule.trigger as any).sectionName,
-            }}
-            action={{
-              type: rule.action.type,
-              sectionId: rule.action.sectionId,
-              sectionName: (rule.action as any).sectionName,
-              dateOption: rule.action.dateOption,
-              position: rule.action.position,
-              cardTitle: rule.action.cardTitle,
-              cardDateOption: rule.action.cardDateOption,
-              specificMonth: rule.action.specificMonth,
-              specificDay: rule.action.specificDay,
-              monthTarget: rule.action.monthTarget,
-            }}
-            sections={sections}
-            filters={rule.filters}
-          />
-
-          {/* Type badges with arrow */}
-          <div className="flex items-center gap-2 text-xs">
-            {triggerMeta && (
-              <Badge
-                variant="outline"
-                className={TRIGGER_CATEGORY_COLORS[triggerMeta.category]}
-              >
-                {triggerMeta.label}
-              </Badge>
-            )}
-            <ArrowRight className="h-3 w-3 text-muted-foreground" />
-            {actionMeta && (
-              <Badge
-                variant="outline"
-                className={ACTION_CATEGORY_COLORS[actionMeta.category]}
-              >
-                {actionMeta.label}
-              </Badge>
-            )}
-          </div>
-
-          {/* Stats */}
-          <div className="text-xs text-muted-foreground">
-            {isGlobal && (
-              <span className="mr-2">Applies to: All Projects ·</span>
-            )}
-            Ran {rule.executionCount} {rule.executionCount === 1 ? 'time' : 'times'} · Last
-            fired {rule.lastExecutedAt ? formatRelativeTime(rule.lastExecutedAt) : 'Never'}
-          </div>
-
-          {/* Next run line for one-time triggers */}
-          {rule.trigger.type === 'scheduled_one_time' && (
-            <div className="text-xs text-muted-foreground">
-              {computeNextRunDescription(rule.trigger, Date.now(), rule.enabled)}
-            </div>
-          )}
-
-          {/* Execution log — scheduled rules use aggregated history view */}
-          {isScheduledTrigger(rule.trigger) ? (
-            <ScheduleHistoryView entries={rule.recentExecutions ?? []} />
-          ) : (
-            <RuleCardExecutionLog entries={rule.recentExecutions ?? []} />
-          )}
-
-          {/* Section mismatch warning for global rules */}
-          {isGlobal && (() => {
-            const skippedEntries = (rule.recentExecutions ?? []).filter(
-              (e) => e.executionType === 'skipped' && e.skipReason?.includes('not found')
-            );
-            if (skippedEntries.length === 0) return null;
-            // Extract section name from the most recent skip reason
-            const match = skippedEntries[skippedEntries.length - 1]?.skipReason?.match(/Section '(.+)' not found/);
-            const sectionName = match?.[1] ?? 'unknown section';
-            // Count distinct projects
-            const projectIds = new Set(skippedEntries.map((e) => e.firingProjectId).filter(Boolean));
-            return (
-              <SectionMismatchWarning
-                skippedCount={projectIds.size || skippedEntries.length}
-                sectionName={sectionName}
+          {/* Body sections — hidden in compact mode */}
+          {!compact && (
+            <>
+              {/* Natural language description */}
+              <RulePreview
+                trigger={{
+                  type: rule.trigger.type,
+                  sectionId: rule.trigger.sectionId,
+                  sectionName: (rule.trigger as any).sectionName,
+                }}
+                action={{
+                  type: rule.action.type,
+                  sectionId: rule.action.sectionId,
+                  sectionName: (rule.action as any).sectionName,
+                  dateOption: rule.action.dateOption,
+                  position: rule.action.position,
+                  cardTitle: rule.action.cardTitle,
+                  cardDateOption: rule.action.cardDateOption,
+                  specificMonth: rule.action.specificMonth,
+                  specificDay: rule.action.specificDay,
+                  monthTarget: rule.action.monthTarget,
+                }}
+                sections={sections}
+                filters={rule.filters}
               />
-            );
-          })()}
+
+              {/* Type badges with arrow */}
+              <div className="flex items-center gap-2 text-xs">
+                {triggerMeta && (
+                  <Badge
+                    variant="outline"
+                    className={TRIGGER_CATEGORY_COLORS[triggerMeta.category]}
+                  >
+                    {triggerMeta.label}
+                  </Badge>
+                )}
+                <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                {actionMeta && (
+                  <Badge
+                    variant="outline"
+                    className={ACTION_CATEGORY_COLORS[actionMeta.category]}
+                  >
+                    {actionMeta.label}
+                  </Badge>
+                )}
+              </div>
+
+              {/* Stats */}
+              <div className="text-xs text-muted-foreground">
+                Ran {rule.executionCount} {rule.executionCount === 1 ? 'time' : 'times'} · Last
+                fired {rule.lastExecutedAt ? formatRelativeTime(rule.lastExecutedAt) : 'Never'}
+              </div>
+
+              {/* Next run line for one-time triggers */}
+              {rule.trigger.type === 'scheduled_one_time' && (
+                <div className="text-xs text-muted-foreground">
+                  {computeNextRunDescription(rule.trigger, Date.now(), rule.enabled)}
+                </div>
+              )}
+
+              {/* Execution log — scheduled rules use aggregated history view */}
+              {isScheduledTrigger(rule.trigger) ? (
+                <ScheduleHistoryView entries={rule.recentExecutions ?? []} />
+              ) : (
+                <RuleCardExecutionLog entries={rule.recentExecutions ?? []} />
+              )}
+
+              {/* Section mismatch warning for global rules */}
+              {isGlobal && (() => {
+                const skippedEntries = (rule.recentExecutions ?? []).filter(
+                  (e) => e.executionType === 'skipped' && e.skipReason?.includes('not found')
+                );
+                if (skippedEntries.length === 0) return null;
+                // Extract section name from the most recent skip reason
+                const match = skippedEntries[skippedEntries.length - 1]?.skipReason?.match(/Section '(.+)' not found/);
+                const sectionName = match?.[1] ?? 'unknown section';
+                // Count distinct projects
+                const projectIds = new Set(skippedEntries.map((e) => e.firingProjectId).filter(Boolean));
+                return (
+                  <SectionMismatchWarning
+                    skippedCount={projectIds.size || skippedEntries.length}
+                    sectionName={sectionName}
+                  />
+                );
+              })()}
+            </>
+          )}
         </div>
       </CardContent>
 

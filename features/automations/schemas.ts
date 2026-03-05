@@ -381,12 +381,15 @@ export const ExecutionLogEntrySchema = z.object({
   // Aggregated entries for scheduled rules
   matchCount: z.number().int().optional(),
   details: z.array(z.string()).optional(),
-  executionType: z.enum(['event', 'scheduled', 'catch-up', 'manual', 'skipped']).optional(),
+  executionType: z.enum(['event', 'scheduled', 'catch-up', 'manual', 'skipped', 'warning']).optional(),
   // Global rule fields (Phase 1 — global automations)
   ruleId: z.string().min(1).optional(),
   isGlobal: z.boolean().optional(),
   firingProjectId: z.string().min(1).optional(),
   skipReason: z.string().optional(),
+  // Phase 2 — enriched display fields
+  projectName: z.string().optional(),
+  ruleName: z.string().optional(),
 });
 
 export const AutomationRuleSchema = z.object({
@@ -408,6 +411,10 @@ export const AutomationRuleSchema = z.object({
   bulkPausedAt: z.string().datetime().nullable().default(null),
   // Projects to exclude from this global rule's scope (ignored for project-scoped rules)
   excludedProjectIds: z.array(z.string().min(1)).default([]),
+  // Scope mode: 'all' = all projects (minus excludedProjectIds), 'selected' = only selectedProjectIds, 'all_except' = alias for 'all'
+  scope: z.enum(['all', 'selected', 'all_except']).default('all'),
+  // Projects this rule applies to when scope is 'selected'
+  selectedProjectIds: z.array(z.string().min(1)).default([]),
 });
 
 // Types are inferred and exported from types.ts — import types from there, schemas from here.

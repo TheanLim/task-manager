@@ -21,6 +21,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Globe, Info } from 'lucide-react';
+import { RuleDialogStepScope } from './RuleDialogStepScope';
 import { RuleDialogStepTrigger } from './RuleDialogStepTrigger';
 import { RuleDialogStepFilters } from './RuleDialogStepFilters';
 import { RuleDialogStepAction } from './RuleDialogStepAction';
@@ -49,6 +50,8 @@ interface RuleDialogProps {
   allProjects?: Project[];
   /** All sections across all projects — used for section coverage check (isGlobal only) */
   allSections?: Section[];
+  /** Source rule for promotion flow — pre-fills trigger/filters/action, defaults scope to 'selected' with source project */
+  promoteFromRule?: AutomationRule | null;
 }
 
 export function RuleDialog({
@@ -61,10 +64,11 @@ export function RuleDialog({
   isGlobal = false,
   allProjects = [],
   allSections = [],
+  promoteFromRule,
 }: RuleDialogProps) {
   const { rules, createRule, updateRule } = useAutomationRules(projectId);
 
-  const wizard = useWizardState(open, editingRule, prefillTrigger, isGlobal);
+  const wizard = useWizardState(open, editingRule, prefillTrigger, isGlobal, promoteFromRule);
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
 
   // Refs for focus management
@@ -98,7 +102,12 @@ export function RuleDialog({
     if (editingRule) {
       updateRule(editingRule.id, buildRuleUpdates({ ...commonParams, editingRule }));
     } else {
-      createRule(buildNewRuleData({ ...commonParams, projectId: isGlobal ? null : projectId }));
+      createRule(buildNewRuleData({ 
+        ...commonParams, 
+        projectId: isGlobal ? null : projectId,
+        scope: wizard.scope,
+        selectedProjectIds: wizard.selectedProjectIds,
+      }));
     }
 
     wizard.resetDirty();
@@ -109,12 +118,15 @@ export function RuleDialog({
     wizard.trigger,
     wizard.filters,
     wizard.action,
+    wizard.scope,
+    wizard.selectedProjectIds,
     wizard.resetDirty,
     sections,
     editingRule,
     updateRule,
     createRule,
     projectId,
+    isGlobal,
     onOpenChange,
   ]);
 
@@ -141,16 +153,29 @@ export function RuleDialog({
   }, []);
 
   // Step indicator
-  const steps = ['Trigger', 'Filters', 'Action', 'Review'];
+  const steps = isGlobal
+    ? ['Scope', 'Trigger', 'Filters', 'Action', 'Review']
+    : ['Trigger', 'Filters', 'Action', 'Review'];
+  
   const visibleSteps = wizard.showFilters
     ? steps
-    : steps.filter((_, idx) => idx !== 1);
+    : steps.filter((s) => s !== 'Filters');
 
   const getStepClickable = (stepIndex: number): boolean => {
-    if (stepIndex === 0) return true;
-    if (stepIndex === 1 && wizard.showFilters) return wizard.isStepValid(0);
-    if (stepIndex === 2) return wizard.isStepValid(0);
-    if (stepIndex === 3) return wizard.isStepValid(0) && wizard.isStepValid(2);
+    if (isGlobal) {
+      // Global rules: 0=Scope, 1=Trigger, 2=Filters, 3=Action, 4=Review
+      if (stepIndex === 0) return true;
+      if (stepIndex === 1) return wizard.isStepValid(0);
+      if (stepIndex === 2 && wizard.showFilters) return wizard.isStepValid(0) && wizard.isStepValid(1);
+      if (stepIndex === 3) return wizard.isStepValid(0) && wizard.isStepValid(1);
+      if (stepIndex === 4) return wizard.isStepValid(0) && wizard.isStepValid(1) && wizard.isStepValid(3);
+    } else {
+      // Project rules: 0=Trigger, 1=Filters, 2=Action, 3=Review
+      if (stepIndex === 0) return true;
+      if (stepIndex === 1 && wizard.showFilters) return wizard.isStepValid(0);
+      if (stepIndex === 2) return wizard.isStepValid(0);
+      if (stepIndex === 3) return wizard.isStepValid(0) && wizard.isStepValid(2);
+    }
     return false;
   };
 
@@ -176,7 +201,9 @@ export function RuleDialog({
                 <div className="flex items-center gap-1.5 mt-1" role="status">
                   <Badge variant="secondary" className="text-xs">
                     <Globe className="w-3 h-3 mr-1" aria-hidden="true" />
-                    Scope: All Projects
+                    Scope: {wizard.scope === 'all' 
+                      ? 'All Projects' 
+                      : `${wizard.selectedProjectIds.length} Project${wizard.selectedProjectIds.length !== 1 ? 's' : ''}`}
                   </Badge>
                 </div>
               )}
@@ -185,9 +212,22 @@ export function RuleDialog({
             {/* Step Indicator */}
             <div className="flex items-center justify-between mt-6" role="navigation" aria-label="Wizard steps">
               {visibleSteps.map((stepName, displayIndex) => {
-                const stepIndex = wizard.showFilters
-                  ? displayIndex
-                  : (displayIndex === 0 ? 0 : displayIndex === 1 ? 2 : 3);
+                // Map display index to actual step index
+                let stepIndex: number;
+                if (isGlobal) {
+                  // Global: Scope=0, Trigger=1, Filters=2, Action=3, Review=4
+                  if (stepName === 'Scope') stepIndex = 0;
+                  else if (stepName === 'Trigger') stepIndex = 1;
+                  else if (stepName === 'Filters') stepIndex = 2;
+                  else if (stepName === 'Action') stepIndex = 3;
+                  else stepIndex = 4; // Review
+                } else {
+                  // Project: Trigger=0, Filters=1, Action=2, Review=3
+                  if (stepName === 'Trigger') stepIndex = 0;
+                  else if (stepName === 'Filters') stepIndex = 1;
+                  else if (stepName === 'Action') stepIndex = 2;
+                  else stepIndex = 3; // Review
+                }
 
                 const isActive = wizard.currentStep === stepIndex;
                 const isComplete = wizard.currentStep > stepIndex;
@@ -197,7 +237,7 @@ export function RuleDialog({
                   <div key={stepName} className="flex items-center flex-1">
                     <button
                       type="button"
-                      onClick={() => isClickable && wizard.handleNavigateToStep(stepIndex as 0 | 1 | 2 | 3)}
+                      onClick={() => isClickable && wizard.handleNavigateToStep(stepIndex as any)}
                       disabled={!isClickable}
                       className={`flex items-center gap-2 ${
                         isClickable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'
@@ -244,7 +284,18 @@ export function RuleDialog({
             </div>
 
             <div className="space-y-6 pb-6">
-              {wizard.currentStep === 0 && (
+              {isGlobal && wizard.currentStep === 0 && (
+                <RuleDialogStepScope
+                  scope={wizard.scope}
+                  selectedProjectIds={wizard.selectedProjectIds}
+                  projects={allProjects}
+                  onChange={wizard.handleScopeChange}
+                  onNext={wizard.handleNext}
+                  onBack={wizard.handleBack}
+                />
+              )}
+
+              {wizard.currentStep === (isGlobal ? 1 : 0) && (
                 <>
                   <RuleDialogStepTrigger
                     trigger={wizard.trigger}
@@ -274,7 +325,7 @@ export function RuleDialog({
                 </>
               )}
 
-              {wizard.currentStep === 1 && (
+              {wizard.currentStep === (isGlobal ? 2 : 1) && (
                 <RuleDialogStepFilters
                   filters={wizard.filters}
                   onFiltersChange={wizard.handleFiltersChange}
@@ -283,7 +334,7 @@ export function RuleDialog({
                 />
               )}
 
-              {wizard.currentStep === 2 && (
+              {wizard.currentStep === (isGlobal ? 3 : 2) && (
                 <RuleDialogStepAction
                   action={wizard.action}
                   onActionChange={wizard.handleActionChange}
@@ -294,7 +345,7 @@ export function RuleDialog({
                 />
               )}
 
-              {wizard.currentStep === 3 && (
+              {wizard.currentStep === (isGlobal ? 4 : 3) && (
                 <RuleDialogStepReview
                   trigger={wizard.trigger}
                   action={wizard.action}
@@ -337,7 +388,7 @@ export function RuleDialog({
               >
                 Back
               </Button>
-              {wizard.currentStep < 3 ? (
+              {wizard.currentStep < (isGlobal ? 4 : 3) ? (
                 <Button
                   type="button"
                   onClick={wizard.handleNext}

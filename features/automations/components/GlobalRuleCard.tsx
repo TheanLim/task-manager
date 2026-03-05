@@ -11,15 +11,21 @@ interface GlobalRuleCardProps {
   rule: AutomationRule;
   /** Sections from the current project — used to detect section mismatches */
   projectSections: Section[];
+  /** Project ID for toggle/promote operations */
+  projectId: string;
   /** Called when the user clicks the "Manage" link or the skip warning link */
   onNavigateToGlobal: (ruleId: string) => void;
+  /** Called when user toggles this global rule for the project */
+  onToggleForProject: (ruleId: string) => void;
+  /** Called when user clicks "Promote to Global" */
+  onPromoteToGlobal: (ruleId: string) => void;
 }
 
 /**
  * Read-only condensed card for displaying a global rule inside a project's
  * AutomationTab. No edit/delete actions — lighter visual weight than RuleCard.
  */
-export function GlobalRuleCard({ rule, projectSections, onNavigateToGlobal }: GlobalRuleCardProps) {
+export function GlobalRuleCard({ rule, projectSections, projectId, onNavigateToGlobal, onToggleForProject, onPromoteToGlobal }: GlobalRuleCardProps) {
   // Detect section mismatch: trigger or action references a section not in this project
   const triggerSectionId = (rule.trigger as any).sectionId as string | null | undefined;
   const actionSectionId = rule.action.sectionId;

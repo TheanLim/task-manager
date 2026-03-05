@@ -28,6 +28,8 @@ export interface RuleUpdateParams extends RuleSaveParams {
 
 export interface NewRuleParams extends RuleSaveParams {
   projectId: string | null;
+  scope?: 'all' | 'selected' | 'all_except';
+  selectedProjectIds?: string[];
 }
 
 // ─── Internals ──────────────────────────────────────────────────────────
@@ -125,7 +127,7 @@ export function buildRuleUpdates({ trigger, filters, action, ruleName, sections,
  * Build the data object for creating a brand-new rule.
  * Returns everything except auto-generated fields (id, timestamps, order, counters).
  */
-export function buildNewRuleData({ trigger, filters, action, ruleName, sections, projectId }: NewRuleParams): Omit<AutomationRule, 'id' | 'createdAt' | 'updatedAt' | 'executionCount' | 'lastExecutedAt' | 'recentExecutions' | 'order'> {
+export function buildNewRuleData({ trigger, filters, action, ruleName, sections, projectId, scope = 'all', selectedProjectIds = [] }: NewRuleParams): Omit<AutomationRule, 'id' | 'createdAt' | 'updatedAt' | 'executionCount' | 'lastExecutedAt' | 'recentExecutions' | 'order'> {
   const finalName = resolveRuleName(ruleName, trigger, action, sections);
 
   return {
@@ -138,5 +140,7 @@ export function buildNewRuleData({ trigger, filters, action, ruleName, sections,
     brokenReason: null,
     bulkPausedAt: null,
     excludedProjectIds: [],
+    scope,
+    selectedProjectIds,
   };
 }

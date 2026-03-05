@@ -32,17 +32,54 @@ vi.mock('@/stores/dataStore', () => ({
   }),
 }));
 
+const mockSetGlobalPanelCompact = vi.fn();
+
 vi.mock('@/stores/appStore', () => ({
   useAppStore: (selector?: (s: any) => any) => {
-    const state = { highlightRuleId: null, setHighlightRuleId: vi.fn(), setActiveView: vi.fn() };
+    const state = {
+      highlightRuleId: null,
+      setHighlightRuleId: vi.fn(),
+      setActiveView: vi.fn(),
+      globalPanelCompact: false,
+      setGlobalPanelCompact: mockSetGlobalPanelCompact,
+    };
     return selector ? selector(state) : state;
   },
 }));
 
+let mockSearchParams = new URLSearchParams();
+
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), back: vi.fn(), replace: vi.fn() }),
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => mockSearchParams,
   usePathname: () => '/',
+}));
+
+// Mock useExecutionLogFilters to control filter state in tests
+const mockFilteredEntries: any[] = [];
+const mockSetOutcome = vi.fn();
+const mockClearFilters = vi.fn();
+
+vi.mock('../hooks/useExecutionLogFilters', () => ({
+  useExecutionLogFilters: (entries: any[], initialOutcome: string) => ({
+    filters: { ruleIds: [], projectIds: [], outcome: initialOutcome || 'all', dateRange: '7d' },
+    filteredEntries: mockFilteredEntries.length > 0 ? mockFilteredEntries : entries,
+    hasActiveFilters: initialOutcome !== 'all' && initialOutcome !== undefined,
+    setRuleIds: vi.fn(),
+    setProjectIds: vi.fn(),
+    setOutcome: mockSetOutcome,
+    setDateRange: vi.fn(),
+    clearFilters: mockClearFilters,
+  }),
+}));
+
+vi.mock('./ExecutionLogFilterBar', () => ({
+  ExecutionLogFilterBar: (props: any) => (
+    <div data-testid="execution-log-filter-bar">
+      <span data-testid="filter-bar-filtered-count">{props.filteredCount}</span>
+      <span data-testid="filter-bar-total-count">{props.totalCount}</span>
+    </div>
+  ),
 }));
 
 vi.mock('@dnd-kit/sortable', () => {
@@ -96,6 +133,8 @@ function makeGlobalRule(id: string, name: string): AutomationRule {
 describe('GlobalAutomationsPanel', () => {
   beforeEach(() => {
     mockRules.length = 0;
+    mockFilteredEntries.length = 0;
+    mockSearchParams = new URLSearchParams();
     vi.clearAllMocks();
   });
 
@@ -139,11 +178,23 @@ describe('GlobalAutomationsPanel', () => {
     expect(screen.getByText('Project')).toBeInTheDocument();
   });
 
-  it('execution log tab shows "most recent entries" note', async () => {
+  it('execution log tab shows filtered count text', async () => {
     const user = userEvent.setup();
+    const rule = makeGlobalRule('g1', 'Rule A');
+    rule.recentExecutions = [{
+      timestamp: NOW,
+      triggerDescription: 'Card moved',
+      actionDescription: 'Mark complete',
+      taskName: 'Task X',
+      executionType: 'event',
+      isGlobal: true,
+      firingProjectId: 'proj-1',
+      ruleId: 'g1',
+    } as any];
+    mockRules.push(rule);
     render(<GlobalAutomationsPanel />);
     await user.click(screen.getByRole('tab', { name: /execution log/i }));
-    expect(screen.getByText(/most recent entries/)).toBeInTheDocument();
+    expect(screen.getByText(/Showing 1 entries \(filtered from 1 total\)/)).toBeInTheDocument();
   });
 
   it('skipped log entry shows amber Skipped badge', async () => {
@@ -172,6 +223,8 @@ describe('GlobalAutomationsPanel', () => {
 describe('GlobalAutomationsPanel — highlightRuleId scroll and highlight', () => {
   beforeEach(() => {
     mockRules.length = 0;
+    mockFilteredEntries.length = 0;
+    mockSearchParams = new URLSearchParams();
     vi.clearAllMocks();
     // jsdom: stub scrollIntoView
     window.HTMLElement.prototype.scrollIntoView = vi.fn();
@@ -185,12 +238,79 @@ describe('GlobalAutomationsPanel — highlightRuleId scroll and highlight', () =
   });
 
   it('highlighted rule card gets ring class when flashRuleId matches', async () => {
-    // Render with highlightRuleId set via the module-level mock
-    // The mock returns highlightRuleId: null by default — we test the data-rule-id
-    // attribute exists (the visual highlight is driven by internal state after effect)
     mockRules.push(makeGlobalRule('g1', 'Rule Alpha'));
     render(<GlobalAutomationsPanel />);
-    // data-rule-id must exist so the effect can find the element
     expect(document.querySelector('[data-rule-id="g1"]')).toBeInTheDocument();
+  });
+});
+
+// ── TASK-23: query params, compact toggle, filter bar ────────────────────────
+
+describe('GlobalAutomationsPanel — TASK-23 features', () => {
+  beforeEach(() => {
+    mockRules.length = 0;
+    mockFilteredEntries.length = 0;
+    mockSearchParams = new URLSearchParams();
+    vi.clearAllMocks();
+  });
+
+  it('reads tab=log query param and initializes to log tab', () => {
+    mockSearchParams = new URLSearchParams('tab=log');
+    render(<GlobalAutomationsPanel />);
+    // The log tab content should be visible (filter bar renders)
+    expect(screen.getByTestId('execution-log-filter-bar')).toBeInTheDocument();
+  });
+
+  it('reads outcome=skipped query param and passes to filter hook', () => {
+    mockSearchParams = new URLSearchParams('tab=log&outcome=skipped');
+    render(<GlobalAutomationsPanel />);
+    // The filter bar should be visible (log tab active)
+    expect(screen.getByTestId('execution-log-filter-bar')).toBeInTheDocument();
+  });
+
+  it('defaults to rules tab when no query param', () => {
+    render(<GlobalAutomationsPanel />);
+    // Rules tab should be active — empty state shows
+    expect(screen.getByText('No global rules yet')).toBeInTheDocument();
+  });
+
+  it('compact toggle button renders in panel header', () => {
+    render(<GlobalAutomationsPanel />);
+    const toggle = screen.getByRole('button', { name: /switch to compact view/i });
+    expect(toggle).toBeInTheDocument();
+  });
+
+  it('compact toggle has aria-label and aria-pressed', () => {
+    render(<GlobalAutomationsPanel />);
+    const toggle = screen.getByRole('button', { name: /switch to compact view/i });
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    expect(toggle).toHaveAttribute('aria-label');
+  });
+
+  it('log tab shows "Showing N entries" count text', async () => {
+    const user = userEvent.setup();
+    const rule = makeGlobalRule('g1', 'Rule A');
+    rule.recentExecutions = [{
+      timestamp: NOW,
+      triggerDescription: 'Card moved',
+      actionDescription: 'Mark complete',
+      taskName: 'Task X',
+      executionType: 'event',
+      isGlobal: true,
+      firingProjectId: 'proj-1',
+      ruleId: 'g1',
+    } as any];
+    mockRules.push(rule);
+    render(<GlobalAutomationsPanel />);
+    await user.click(screen.getByRole('tab', { name: /execution log/i }));
+    expect(screen.getByText(/Showing 1 entries \(filtered from 1 total\)/)).toBeInTheDocument();
+  });
+
+  it('rules tab renders RuleCard components', () => {
+    mockRules.push(makeGlobalRule('g1', 'Rule Alpha'));
+    mockRules.push(makeGlobalRule('g2', 'Rule Beta'));
+    render(<GlobalAutomationsPanel />);
+    expect(screen.getByText('Rule Alpha')).toBeInTheDocument();
+    expect(screen.getByText('Rule Beta')).toBeInTheDocument();
   });
 });

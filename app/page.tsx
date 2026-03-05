@@ -12,6 +12,7 @@ import { ProjectView } from '@/features/projects/components/ProjectView';
 import { GlobalTasksContainer } from '@/features/tasks/components/GlobalTasksContainer';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
+import Link from 'next/link';
 import { useDataStore, automationService } from '@/stores/dataStore';
 import { useSchedulerInit } from '@/features/automations/hooks/useSchedulerInit';
 import { useAppStore } from '@/stores/appStore';
@@ -521,7 +522,7 @@ function HomeContent() {
           <>
             <ProjectList
               projects={projects}
-              activeProjectId={settings.activeProjectId}
+              activeProjectId={activeView === 'global-automations' ? null : settings.activeProjectId}
               onProjectSelect={(projectId) => {
                 router.push(`/?project=${projectId}&tab=list`);
                 setActiveView('project');
@@ -535,24 +536,22 @@ function HomeContent() {
             />
             {/* Global Automations nav item */}
             <div className="mt-4 pt-4 border-t">
-              <button
-                type="button"
-                onClick={() => router.push('/?view=automations')}
-                className={`flex items-center gap-2 w-full rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent ${activeView === 'global-automations' ? 'bg-accent font-medium' : 'text-muted-foreground'}`}
-                aria-label="Global Automations"
+              <Link
+                href="/?view=automations&tab=log&outcome=skipped"
+                className={`flex items-center gap-2 w-full rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent border-l-[3px] outline-none focus-visible:ring-2 focus-visible:ring-ring ${activeView === 'global-automations' ? 'border-l-accent-brand bg-accent/50 font-medium text-foreground' : 'border-l-transparent text-muted-foreground'}`}
+                aria-label={`View skipped automations — ${skipCount} skips`}
               >
                 <Zap className="w-4 h-4 shrink-0" aria-hidden="true" />
                 <span>Automations</span>
                 {skipCount > 0 && (
                   <Badge
                     variant="outline"
-                    className="ml-auto h-4 min-w-4 px-1 text-[10px] bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-700"
-                    aria-label={`${skipCount} global rule${skipCount > 1 ? 's have' : ' has'} active skips`}
+                    className="ml-auto text-amber-600 border-amber-300 dark:text-amber-400 dark:border-amber-700 text-[10px] h-4 px-1"
                   >
                     {skipCount}
                   </Badge>
                 )}
-              </button>
+              </Link>
             </div>
           </>
         ) : (

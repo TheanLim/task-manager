@@ -3,8 +3,10 @@
  * Builds "WHEN X IF Y THEN Z" preview parts for the rule dialog and rule cards.
  */
 
-import type { TriggerType, ActionType, CardFilter } from '../../types';
+import type { TriggerType, ActionType, CardFilter, AutomationRule } from '../../types';
 import type { TriggerConfig, ActionConfig } from '../configTypes';
+import type { Task, Section } from '@/lib/schemas';
+import { isRuleActiveForProject } from '../evaluation/scopeFilter';
 
 // Re-export config types for backward compatibility — new code should import from configTypes
 export type { TriggerConfig, ActionConfig } from '../configTypes';
@@ -244,4 +246,101 @@ export function isDuplicateRule(
       rule.action.type === action.type &&
       rule.action.sectionId === action.sectionId
   );
+}
+
+// ============================================================================
+// Global Dry-Run Types & Functions (TASK-11)
+// ============================================================================
+
+export interface GlobalDryRunResult {
+  task: { id: string; description: string; projectId: string };
+  outcome: 'fire' | 'skip';
+  skipReason?: string;
+}
+
+export interface GlobalDryRunSummary {
+  totalFire: number;
+  totalSkip: number;
+  runAt: string;
+  projectResults: Record<string, GlobalDryRunResult[]>;
+}
+
+/**
+ * Runs a dry-run of a global rule across all scoped projects.
+ * Returns per-project results grouped by project ID.
+ */
+export function runGlobalDryRun(
+  rule: AutomationRule,
+  projects: Array<{ id: string; name: string }>,
+  allTasks: Task[],
+  allSections: Section[]
+): GlobalDryRunSummary {
+  const scopedProjects = projects.filter((p) => isRuleActiveForProject(rule, p.id));
+  const projectResults: Record<string, GlobalDryRunResult[]> = {};
+  let totalFire = 0;
+  let totalSkip = 0;
+
+  for (const project of scopedProjects) {
+    const projectTasks = allTasks.filter((t) => t.projectId === project.id);
+    const projectSections = allSections.filter((s) => s.projectId === project.id);
+    const results: GlobalDryRunResult[] = [];
+
+    for (const task of projectTasks) {
+      // Check if the trigger section exists in this project
+      const triggerSectionId = (rule.trigger as any).sectionId as string | null | undefined;
+      const triggerSectionName = (rule.trigger as any).sectionName as string | undefined;
+
+      let sectionFound = true;
+      let skipReason: string | undefined;
+
+      if (triggerSectionName && !triggerSectionId) {
+        // Name-based resolution: find section by name in this project
+        const match = projectSections.find(
+          (s) => s.name.toLowerCase().trim() === triggerSectionName.toLowerCase().trim()
+        );
+        if (!match) {
+          sectionFound = false;
+          skipReason = `Section "${triggerSectionName}" not found in project`;
+        }
+      } else if (triggerSectionId) {
+        const match = projectSections.find((s) => s.id === triggerSectionId);
+        if (!match) {
+          sectionFound = false;
+          skipReason = `Section ID "${triggerSectionId}" not found in project`;
+        }
+      }
+
+      const outcome = sectionFound ? 'fire' : 'skip';
+      if (outcome === 'fire') totalFire++;
+      else totalSkip++;
+
+      results.push({
+        task: { id: task.id, description: task.description, projectId: project.id },
+        outcome,
+        skipReason,
+      });
+    }
+
+    projectResults[project.id] = results;
+  }
+
+  return {
+    totalFire,
+    totalSkip,
+    runAt: new Date().toISOString(),
+    projectResults,
+  };
+}
+
+/**
+ * Estimates the total number of tasks that would be evaluated in a dry-run.
+ */
+export function estimateDryRunTaskCount(
+  rule: AutomationRule,
+  projects: Array<{ id: string; name: string }>,
+  allTasks: Task[]
+): number {
+  const scopedProjects = projects.filter((p) => isRuleActiveForProject(rule, p.id));
+  const scopedProjectIds = new Set(scopedProjects.map((p) => p.id));
+  return allTasks.filter((t) => t.projectId !== null && scopedProjectIds.has(t.projectId)).length;
 }

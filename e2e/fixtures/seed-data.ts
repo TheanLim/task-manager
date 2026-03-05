@@ -242,19 +242,21 @@ const appStorePayload = {
 
 /**
  * Seeds localStorage with test data BEFORE navigating to the app.
- * Must be called before `page.goto('/')`.
  *
- * Optionally accepts overrides for the app settings payload.
+ * @param page - Playwright page
+ * @param settingsOverrides - Optional overrides for the app settings payload
+ * @param initialUrl - URL to navigate to after seeding (defaults to '/')
  */
 export async function seedDatabase(
   page: Page,
   settingsOverrides?: Record<string, unknown>,
+  initialUrl: string = '/',
 ) {
   const appPayload = settingsOverrides
     ? { ...appStorePayload, state: { ...appStorePayload.state, ...settingsOverrides } }
     : appStorePayload
 
-  // Navigate to a blank page first so we can set localStorage on the correct origin
+  // Navigate to root first to establish the origin for localStorage
   await page.goto('/')
   await page.evaluate(
     ([dataJson, appJson, automationsJson]) => {
@@ -264,6 +266,9 @@ export async function seedDatabase(
     },
     [JSON.stringify(dataStorePayload), JSON.stringify(appPayload), JSON.stringify(automationRules)] as const,
   )
-  // Reload so the app picks up the seeded data
+  // Reload to pick up seeded data, then navigate to target if different from root
   await page.reload()
+  if (initialUrl !== '/') {
+    await page.goto(initialUrl)
+  }
 }

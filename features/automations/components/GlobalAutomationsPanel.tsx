@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
-import { Zap } from 'lucide-react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Zap, LayoutList, AlignJustify } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -10,12 +10,16 @@ import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/EmptyState';
 import { RuleCard } from './RuleCard';
 import { GlobalRulesBadge } from './GlobalRulesBadge';
+import { ExecutionLogFilterBar } from './ExecutionLogFilterBar';
 import { RuleDialog } from './wizard/RuleDialog';
 import { useGlobalAutomationRules } from '../hooks/useGlobalAutomationRules';
+import { useExecutionLogFilters } from '../hooks/useExecutionLogFilters';
 import { useDataStore } from '@/stores/dataStore';
 import { useAppStore } from '@/stores/appStore';
 import { formatRelativeTime } from '../services/preview/formatters';
 import type { AutomationRule } from '../types';
+import type { EnrichedLogEntry } from '../services/preview/logFilterService';
+import type { OutcomeFilter } from '../services/preview/logFilterService';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,7 +30,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { buildRuleUpdates, buildNewRuleData } from '../services/rules/ruleSaveService';
 
 /**
  * Top-level panel for managing global automation rules.
@@ -37,13 +40,20 @@ export function GlobalAutomationsPanel() {
   const { projects, sections } = useDataStore();
   const { highlightRuleId } = useAppStore();
   const setHighlightRuleId = useAppStore((s) => s.setHighlightRuleId);
+  const globalPanelCompact = useAppStore((s) => s.globalPanelCompact);
+  const setGlobalPanelCompact = useAppStore((s) => s.setGlobalPanelCompact);
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Read query params on mount
+  const initialTab = searchParams.get('tab') === 'log' ? 'log' : 'rules';
+  const initialOutcome = (searchParams.get('outcome') as OutcomeFilter) || 'all';
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [ruleToDelete, setRuleToDelete] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'rules' | 'log'>('rules');
+  const [activeTab, setActiveTab] = useState<'rules' | 'log'>(initialTab as 'rules' | 'log');
   // Tracks which rule is currently highlighted (for brief flash animation)
   const [flashRuleId, setFlashRuleId] = useState<string | null>(null);
 
@@ -74,16 +84,47 @@ export function GlobalAutomationsPanel() {
   const editingRule = editingRuleId ? rules.find((r) => r.id === editingRuleId) ?? null : null;
 
   // Collect all execution log entries across all global rules, sorted newest first
-  const allLogEntries = sortedRules
-    .flatMap((r) =>
-      (r.recentExecutions ?? []).map((e) => ({
-        ...e,
-        ruleName: r.name,
-        ruleId: r.id,
-      }))
-    )
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-    .slice(0, 100);
+  const allLogEntries: EnrichedLogEntry[] = useMemo(() =>
+    sortedRules
+      .flatMap((r) =>
+        (r.recentExecutions ?? []).map((e, idx) => ({
+          ...e,
+          id: `${r.id}-${idx}`,
+          ruleName: r.name,
+          ruleId: r.id,
+        }))
+      )
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, 100),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rules]
+  );
+
+  // Wire execution log filters
+  const {
+    filters,
+    filteredEntries,
+    hasActiveFilters,
+    setRuleIds,
+    setProjectIds,
+    setOutcome,
+    setDateRange,
+    clearFilters,
+  } = useExecutionLogFilters(allLogEntries, initialOutcome);
+
+  // Skip count for amber badge on log tab
+  const skipCount = allLogEntries.filter(e => e.executionType === 'skipped').length;
+
+  // Collect unique rule names and project names for filter dropdowns
+  const allRuleNames = useMemo(() =>
+    sortedRules.map(r => ({ id: r.id, name: r.name })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rules]
+  );
+  const allProjectNames = useMemo(() =>
+    projects.map(p => ({ id: p.id, name: p.name })),
+    [projects]
+  );
 
   const handleCreateNew = useCallback(() => {
     setEditingRuleId(null);
@@ -146,21 +187,52 @@ export function GlobalAutomationsPanel() {
             Rules that run across all your projects automatically.
           </p>
         </div>
-        <Button
-          size="sm"
-          onClick={handleCreateNew}
-          className="bg-accent-brand hover:bg-accent-brand/90 text-white shrink-0"
-        >
-          <Zap className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
-          + New Rule
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label={globalPanelCompact ? 'Switch to expanded view' : 'Switch to compact view'}
+            aria-pressed={globalPanelCompact}
+            onClick={() => setGlobalPanelCompact(!globalPanelCompact)}
+          >
+            {globalPanelCompact ? (
+              <>
+                <LayoutList className="w-4 h-4 mr-1.5" aria-hidden="true" />
+                Expanded
+              </>
+            ) : (
+              <>
+                <AlignJustify className="w-4 h-4 mr-1.5" aria-hidden="true" />
+                Compact
+              </>
+            )}
+          </Button>
+          <Button
+            size="sm"
+            onClick={handleCreateNew}
+            className="bg-accent-brand hover:bg-accent-brand/90 text-white"
+          >
+            <Zap className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
+            + New Rule
+          </Button>
+        </div>
       </div>
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'rules' | 'log')}>
         <TabsList>
           <TabsTrigger value="rules">Rules</TabsTrigger>
-          <TabsTrigger value="log">Execution Log</TabsTrigger>
+          <TabsTrigger value="log" className="gap-1.5">
+            Execution Log
+            {skipCount > 0 && (
+              <Badge
+                variant="outline"
+                className="ml-1 text-amber-600 border-amber-300 dark:text-amber-400 dark:border-amber-700"
+              >
+                {skipCount} skipped
+              </Badge>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         {/* Rules tab */}
@@ -189,6 +261,8 @@ export function GlobalAutomationsPanel() {
                     sections={sections}
                     projectId=""
                     isGlobal
+                    compact={globalPanelCompact}
+                    allProjects={projects}
                     onEdit={handleEdit}
                     onDuplicate={noop}
                     onDuplicateToProject={noop}
@@ -203,10 +277,21 @@ export function GlobalAutomationsPanel() {
 
         {/* Execution Log tab */}
         <TabsContent value="log" className="mt-4">
-          <p className="text-xs text-muted-foreground mb-3">
-            Showing the {Math.min(allLogEntries.length, 100)} most recent entries.
+          <ExecutionLogFilterBar
+            filters={filters}
+            onSetRuleIds={setRuleIds}
+            onSetProjectIds={setProjectIds}
+            onSetOutcome={setOutcome}
+            onSetDateRange={setDateRange}
+            onClearFilters={clearFilters}
+            hasActiveFilters={hasActiveFilters}
+            filteredCount={filteredEntries.length}
+            totalCount={allLogEntries.length}
+          />
+          <p className="text-xs text-muted-foreground my-3">
+            Showing {filteredEntries.length} entries (filtered from {allLogEntries.length} total)
           </p>
-          {allLogEntries.length === 0 ? (
+          {filteredEntries.length === 0 ? (
             <p className="text-sm text-muted-foreground">No executions yet.</p>
           ) : (
             <div className="rounded-md border overflow-hidden">
@@ -216,19 +301,19 @@ export function GlobalAutomationsPanel() {
                     <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground w-36">Time</th>
                     <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground min-w-0">Rule</th>
                     <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground w-40">Project</th>
-                    <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground w-32">Trigger</th>
+                    <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground w-40">Task</th>
                     <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground w-24">Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {allLogEntries.map((entry, idx) => {
+                  {filteredEntries.map((entry, idx) => {
                     const project = entry.firingProjectId
                       ? projects.find((p) => p.id === entry.firingProjectId)
                       : null;
                     const isSkipped = entry.executionType === 'skipped';
 
                     return (
-                      <tr key={`${entry.ruleId}-${entry.timestamp}-${idx}`} className="border-t">
+                      <tr key={entry.id} className="border-t">
                         <td className="px-3 py-2 text-xs text-muted-foreground">
                           <TooltipProvider>
                             <Tooltip>
@@ -258,7 +343,7 @@ export function GlobalAutomationsPanel() {
                           {project?.name ?? entry.firingProjectId ?? '—'}
                         </td>
                         <td className="px-3 py-2 text-xs text-muted-foreground truncate">
-                          {entry.triggerDescription}
+                          {entry.taskName ?? '—'}
                         </td>
                         <td className="px-3 py-2">
                           {isSkipped ? (

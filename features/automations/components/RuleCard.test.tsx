@@ -772,3 +772,215 @@ describe('RuleCard — one-time scheduled trigger (Task 14)', () => {
     expect(mockHandlers.onReschedule).toHaveBeenCalledWith('one-time-rule-1');
   });
 });
+
+
+describe('RuleCard — ScopePill integration', () => {
+  const mockProjects = [
+    { id: 'proj-1', name: 'Project Alpha' },
+    { id: 'proj-2', name: 'Project Beta' },
+  ];
+
+  const defaultProps = {
+    sections: mockSections,
+    projectId: '',
+    onEdit: vi.fn(),
+    onDuplicate: vi.fn(),
+    onDuplicateToProject: vi.fn(),
+    onDelete: vi.fn(),
+    onToggle: vi.fn(),
+  };
+
+  it('renders ScopePill when isGlobal is true and allProjects is provided', () => {
+    const rule = createMockRule({ projectId: null }) as any;
+    rule.scope = 'all';
+    rule.selectedProjectIds = [];
+    rule.excludedProjectIds = [];
+
+    render(
+      <RuleCard
+        rule={rule}
+        {...defaultProps}
+        isGlobal
+        allProjects={mockProjects}
+      />
+    );
+
+    expect(screen.getByText('All Projects')).toBeInTheDocument();
+  });
+
+  it('does NOT render ScopePill when isGlobal is false', () => {
+    const rule = createMockRule();
+    render(
+      <RuleCard
+        rule={rule}
+        {...defaultProps}
+        isGlobal={false}
+        allProjects={mockProjects}
+      />
+    );
+
+    // "All Projects" badge should not appear (only GlobalRulesBadge shows for global rules)
+    expect(screen.queryByText('All Projects')).not.toBeInTheDocument();
+  });
+
+  it('renders ScopePill with "selected" scope showing project count', () => {
+    const rule = createMockRule({ projectId: null }) as any;
+    rule.scope = 'selected';
+    rule.selectedProjectIds = ['proj-1'];
+    rule.excludedProjectIds = [];
+
+    render(
+      <RuleCard
+        rule={rule}
+        {...defaultProps}
+        isGlobal
+        allProjects={mockProjects}
+      />
+    );
+
+    expect(screen.getByText('1 projects')).toBeInTheDocument();
+  });
+});
+
+describe('RuleCard — Promote to Global menu item', () => {
+  const defaultProps = {
+    sections: mockSections,
+    projectId: 'project-1',
+    onEdit: vi.fn(),
+    onDuplicate: vi.fn(),
+    onDuplicateToProject: vi.fn(),
+    onDelete: vi.fn(),
+    onToggle: vi.fn(),
+  };
+
+  it('shows "Promote to Global" when isGlobal is false and onPromoteToGlobal is provided', async () => {
+    const user = userEvent.setup();
+    const onPromoteToGlobal = vi.fn();
+    const rule = createMockRule();
+
+    render(
+      <RuleCard
+        rule={rule}
+        {...defaultProps}
+        isGlobal={false}
+        onPromoteToGlobal={onPromoteToGlobal}
+      />
+    );
+
+    const menuButton = screen.getByRole('button', { name: /open menu/i });
+    await user.click(menuButton);
+
+    expect(screen.getByText('Promote to Global')).toBeInTheDocument();
+  });
+
+  it('does NOT show "Promote to Global" when isGlobal is true', async () => {
+    const user = userEvent.setup();
+    const onPromoteToGlobal = vi.fn();
+    const rule = createMockRule({ projectId: null });
+
+    render(
+      <RuleCard
+        rule={rule}
+        {...defaultProps}
+        isGlobal
+        onPromoteToGlobal={onPromoteToGlobal}
+      />
+    );
+
+    const menuButton = screen.getByRole('button', { name: /open menu/i });
+    await user.click(menuButton);
+
+    expect(screen.queryByText('Promote to Global')).not.toBeInTheDocument();
+  });
+
+  it('does NOT show "Promote to Global" when onPromoteToGlobal is not provided', async () => {
+    const user = userEvent.setup();
+    const rule = createMockRule();
+
+    render(
+      <RuleCard
+        rule={rule}
+        {...defaultProps}
+        isGlobal={false}
+      />
+    );
+
+    const menuButton = screen.getByRole('button', { name: /open menu/i });
+    await user.click(menuButton);
+
+    expect(screen.queryByText('Promote to Global')).not.toBeInTheDocument();
+  });
+
+  it('calls onPromoteToGlobal with rule id when clicked', async () => {
+    const user = userEvent.setup();
+    const onPromoteToGlobal = vi.fn();
+    const rule = createMockRule({ id: 'local-rule-42' });
+
+    render(
+      <RuleCard
+        rule={rule}
+        {...defaultProps}
+        isGlobal={false}
+        onPromoteToGlobal={onPromoteToGlobal}
+      />
+    );
+
+    const menuButton = screen.getByRole('button', { name: /open menu/i });
+    await user.click(menuButton);
+
+    const promoteButton = screen.getByText('Promote to Global');
+    await user.click(promoteButton);
+
+    expect(onPromoteToGlobal).toHaveBeenCalledWith('local-rule-42');
+  });
+});
+
+describe('RuleCard — compact mode', () => {
+  const defaultProps = {
+    sections: mockSections,
+    projectId: 'project-1',
+    onEdit: vi.fn(),
+    onDuplicate: vi.fn(),
+    onDuplicateToProject: vi.fn(),
+    onDelete: vi.fn(),
+    onToggle: vi.fn(),
+  };
+
+  it('hides RulePreview, type badges, stats, and execution log when compact is true', () => {
+    const rule = createMockRule({
+      executionCount: 5,
+      recentExecutions: [
+        {
+          timestamp: '2024-01-15T10:00:00Z',
+          triggerDescription: 'Card moved into To Do',
+          actionDescription: 'Moved to top of In Progress',
+          taskName: 'My Task',
+        },
+      ],
+    });
+
+    render(<RuleCard rule={rule} {...defaultProps} compact />);
+
+    // Header elements should still be visible
+    expect(screen.getByText('Test Rule')).toBeInTheDocument();
+    expect(screen.getByRole('switch')).toBeInTheDocument();
+    expect(screen.getByLabelText('Drag to reorder')).toBeInTheDocument();
+
+    // Body sections should be hidden
+    expect(screen.queryByText(/When a card/)).not.toBeInTheDocument();
+    expect(screen.queryByText('moved into section')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Ran 5 times/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Recent activity')).not.toBeInTheDocument();
+  });
+
+  it('shows body sections when compact is false (default)', () => {
+    const rule = createMockRule({ executionCount: 5 });
+
+    render(<RuleCard rule={rule} {...defaultProps} />);
+
+    // Body sections should be visible
+    expect(screen.getByText(/When a card/)).toBeInTheDocument();
+    expect(screen.getByText('moved into section')).toBeInTheDocument();
+    expect(screen.getByText(/Ran 5 times/)).toBeInTheDocument();
+  });
+});
