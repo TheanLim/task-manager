@@ -49,3 +49,19 @@ Kanban view using `@dnd-kit`. Sections are horizontal columns; tasks are vertica
 - Entity construction (sections, tasks) always goes through the service layer
 - `onAddTask(sectionId)` bubbles up to `onNewTask` in `ProjectView` / `page.tsx`
 - `useFilteredTasks` must wrap task arrays before passing to list/board/calendar
+
+## ProjectList
+
+Sidebar navigation component. Renders an "All Tasks" link and the project list with task counts and progress bars.
+
+| Prop | Purpose |
+|------|---------|
+| `projects` | Ordered project array |
+| `activeProjectId` | Currently selected project |
+| `onProjectSelect` | Callback when a project is clicked |
+| `onNewProject` | Callback for the "+" button |
+| `onTasksClick` | Optional — called when "All Tasks" is clicked; use to reset top-level view state |
+
+- URL routing: project click → `/?project={id}&tab=list`; All Tasks click → `/?view=tasks`
+- Active state derived from URL `?view=tasks` for global tasks, `activeProjectId` for projects
+- Task counts and completion progress computed per-project from `dataStore.tasks`

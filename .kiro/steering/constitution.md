@@ -69,4 +69,16 @@ e2e/              → Playwright E2E tests
 | Composition root | `lib/serviceContainer.ts` |
 | Global stores | `stores/dataStore.ts`, `stores/appStore.ts` |
 | Repositories | `lib/repositories/types.ts`, `lib/repositories/localStorageRepositories.ts` |
+| Storage backend | `lib/repositories/localStorageBackend.ts` |
 | Domain events | `lib/events/types.ts`, `lib/events/domainEvents.ts` |
+
+## ServiceContainer Exports
+
+Singletons instantiated in `lib/serviceContainer.ts`:
+
+| Category | Exports |
+|----------|---------|
+| Backend | `localStorageBackend` |
+| Repositories | `projectRepository`, `taskRepository`, `sectionRepository`, `dependencyRepository`, `automationRuleRepository` |
+| Services | `taskService`, `projectService`, `sectionService`, `dependencyService` |
+| Automation | `automationService`, `bulkScheduleService`, `schedulerService` |

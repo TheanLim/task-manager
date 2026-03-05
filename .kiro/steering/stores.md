@@ -35,6 +35,9 @@ Persisted UI preferences. Key state:
 | `keyboardShortcuts` | User overrides only — merged with defaults at read time |
 | `projectTabs` | Per-project active tab memory (synced with URL `?tab=`) |
 | `globalTasksDisplayMode` | `nested` or `flat` for the All Tasks view |
+| `activeView` | Top-level navigation: `project` or `global-automations` |
+| `highlightRuleId` | Rule ID to scroll-to and highlight in global automations panel |
+| `globalPanelCompact` | Compact display mode for global automations panel |
 
 ## Rules
 
