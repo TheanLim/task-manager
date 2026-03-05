@@ -228,17 +228,23 @@ export function RuleCard({
                       Reschedule
                     </DropdownMenuItem>
                   )}
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>Duplicate</DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent>
-                      <DropdownMenuItem onClick={() => onDuplicate(rule.id)}>
-                        In this project
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setPickerOpen(true)}>
-                        To another project...
-                      </DropdownMenuItem>
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
+                  {isGlobal ? (
+                    <DropdownMenuItem onClick={() => onDuplicate(rule.id)}>
+                      Duplicate
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>Duplicate</DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent>
+                        <DropdownMenuItem onClick={() => onDuplicate(rule.id)}>
+                          In this project
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setPickerOpen(true)}>
+                          To another project...
+                        </DropdownMenuItem>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  )}
                   <DropdownMenuItem
                     onClick={() => onDelete(rule.id)}
                     className="text-destructive focus:text-destructive"

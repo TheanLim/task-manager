@@ -171,7 +171,25 @@ export function GlobalAutomationsPanel() {
     router.push(`/?view=automations&rule=${ruleId}`);
   }, [router]);
 
-  // No-op handlers for RuleCard props not applicable to global rules
+  const handleDuplicate = useCallback(
+    (ruleId: string) => {
+      const rule = rules.find((r) => r.id === ruleId);
+      if (!rule) return;
+      createRule({
+        projectId: null,
+        name: `${rule.name} (Copy)`,
+        trigger: { ...rule.trigger },
+        action: { ...rule.action },
+        filters: rule.filters ? [...rule.filters] : [],
+        enabled: rule.enabled,
+        brokenReason: null,
+        excludedProjectIds: rule.excludedProjectIds ? [...rule.excludedProjectIds] : [],
+      } as any);
+    },
+    [rules, createRule]
+  );
+
+  // No-op handler for RuleCard props not applicable to global rules
   const noop = useCallback(() => {}, []);
 
   return (
@@ -264,7 +282,7 @@ export function GlobalAutomationsPanel() {
                     compact={globalPanelCompact}
                     allProjects={projects}
                     onEdit={handleEdit}
-                    onDuplicate={noop}
+                    onDuplicate={handleDuplicate}
                     onDuplicateToProject={noop}
                     onDelete={handleDeleteClick}
                     onToggle={handleToggle}

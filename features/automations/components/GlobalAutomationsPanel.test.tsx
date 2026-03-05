@@ -314,3 +314,35 @@ describe('GlobalAutomationsPanel — TASK-23 features', () => {
     expect(screen.getByText('Rule Beta')).toBeInTheDocument();
   });
 });
+
+describe('GlobalAutomationsPanel — Duplicate global rule', () => {
+  beforeEach(() => {
+    mockRules.length = 0;
+    mockFilteredEntries.length = 0;
+    mockSearchParams = new URLSearchParams();
+    vi.clearAllMocks();
+  });
+
+  it('clicking Duplicate on a global rule calls createRule with copied data and " (Copy)" suffix', async () => {
+    const user = userEvent.setup();
+    const rule = makeGlobalRule('g1', 'Auto-Complete');
+    mockRules.push(rule);
+    render(<GlobalAutomationsPanel />);
+
+    // Open the context menu
+    const menuButton = screen.getByRole('button', { name: /open menu/i });
+    await user.click(menuButton);
+
+    // For global rules, "Duplicate" is a plain menu item (no submenu)
+    const duplicateItem = screen.getByText('Duplicate');
+    await user.click(duplicateItem);
+
+    expect(mockCreateRule).toHaveBeenCalledTimes(1);
+    const arg = mockCreateRule.mock.calls[0][0];
+    expect(arg.name).toBe('Auto-Complete (Copy)');
+    expect(arg.projectId).toBeNull();
+    expect(arg.trigger.type).toBe(rule.trigger.type);
+    expect(arg.action.type).toBe(rule.action.type);
+  });
+});
+

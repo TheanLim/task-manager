@@ -984,3 +984,94 @@ describe('RuleCard — compact mode', () => {
     expect(screen.getByText(/Ran 5 times/)).toBeInTheDocument();
   });
 });
+
+describe('RuleCard — Duplicate menu for global rules', () => {
+  const defaultProps = {
+    sections: mockSections,
+    projectId: '',
+    onEdit: vi.fn(),
+    onDuplicate: vi.fn(),
+    onDuplicateToProject: vi.fn(),
+    onDelete: vi.fn(),
+    onToggle: vi.fn(),
+  };
+
+  it('global rule shows simple "Duplicate" menu item without submenu', async () => {
+    const user = userEvent.setup();
+    const rule = createMockRule({ id: 'global-1', projectId: null });
+
+    render(
+      <RuleCard rule={rule} {...defaultProps} isGlobal />
+    );
+
+    const menuButton = screen.getByRole('button', { name: /open menu/i });
+    await user.click(menuButton);
+
+    // "Duplicate" should be a plain menu item, not a submenu trigger
+    const duplicateItem = screen.getByText('Duplicate');
+    expect(duplicateItem).toBeInTheDocument();
+
+    // Should NOT show submenu items
+    expect(screen.queryByText('In this project')).not.toBeInTheDocument();
+  });
+
+  it('global rule does NOT show "To another project..." option', async () => {
+    const user = userEvent.setup();
+    const rule = createMockRule({ id: 'global-2', projectId: null });
+
+    render(
+      <RuleCard rule={rule} {...defaultProps} isGlobal />
+    );
+
+    const menuButton = screen.getByRole('button', { name: /open menu/i });
+    await user.click(menuButton);
+
+    // Click Duplicate to make sure no submenu opens
+    const duplicateItem = screen.getByText('Duplicate');
+    await user.click(duplicateItem);
+
+    expect(screen.queryByText('To another project...')).not.toBeInTheDocument();
+  });
+
+  it('project rule still shows submenu with "In this project" and "To another project..."', async () => {
+    const user = userEvent.setup();
+    const rule = createMockRule({ id: 'proj-rule-1' });
+
+    render(
+      <RuleCard rule={rule} {...defaultProps} isGlobal={false} />
+    );
+
+    const menuButton = screen.getByRole('button', { name: /open menu/i });
+    await user.click(menuButton);
+
+    // Click the Duplicate submenu trigger
+    const duplicateTrigger = screen.getByText('Duplicate');
+    await user.click(duplicateTrigger);
+
+    // Submenu items should appear
+    const inThisProject = await screen.findByText('In this project');
+    expect(inThisProject).toBeInTheDocument();
+
+    const toAnother = await screen.findByText('To another project...');
+    expect(toAnother).toBeInTheDocument();
+  });
+
+  it('clicking Duplicate on global rule calls onDuplicate with rule id', async () => {
+    const user = userEvent.setup();
+    const onDuplicate = vi.fn();
+    const rule = createMockRule({ id: 'global-dup-1', projectId: null });
+
+    render(
+      <RuleCard rule={rule} {...defaultProps} isGlobal onDuplicate={onDuplicate} />
+    );
+
+    const menuButton = screen.getByRole('button', { name: /open menu/i });
+    await user.click(menuButton);
+
+    const duplicateItem = screen.getByText('Duplicate');
+    await user.click(duplicateItem);
+
+    expect(onDuplicate).toHaveBeenCalledWith('global-dup-1');
+  });
+});
+
