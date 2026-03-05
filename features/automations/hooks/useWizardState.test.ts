@@ -140,3 +140,74 @@ describe('useWizardState', () => {
     expect(result.current.isSaveDisabled).toBe(false);
   });
 });
+
+describe('useWizardState — promoteFromRule pre-fill', () => {
+  const sourceRule = makeRule({
+    id: 'local-rule-1',
+    projectId: 'proj-1',
+    name: 'Move to Done',
+    trigger: {
+      type: 'card_marked_complete',
+      sectionId: 'section-done-proj1',
+      sectionName: 'Done',
+    } as any,
+    filters: [{ type: 'has_tag', value: 'urgent' }] as any,
+    action: {
+      type: 'move_card_to_top_of_section',
+      sectionId: 'section-done-proj1',
+      sectionName: 'Done',
+      dateOption: null,
+      position: 'top',
+      cardTitle: null,
+      cardDateOption: null,
+      specificMonth: null,
+      specificDay: null,
+      monthTarget: null,
+    } as any,
+  });
+
+  it('copies trigger sectionName from source rule', () => {
+    const { result } = renderHook(() =>
+      useWizardState(true, null, null, true, sourceRule),
+    );
+    expect(result.current.trigger.sectionName).toBe('Done');
+  });
+
+  it('copies action sectionName from source rule', () => {
+    const { result } = renderHook(() =>
+      useWizardState(true, null, null, true, sourceRule),
+    );
+    expect((result.current.action as any).sectionName).toBe('Done');
+  });
+
+  it('copies trigger type and filters verbatim', () => {
+    const { result } = renderHook(() =>
+      useWizardState(true, null, null, true, sourceRule),
+    );
+    expect(result.current.trigger.type).toBe('card_marked_complete');
+    expect(result.current.filters).toEqual([{ type: 'has_tag', value: 'urgent' }]);
+  });
+
+  it('sets name to "{source name} (Global)"', () => {
+    const { result } = renderHook(() =>
+      useWizardState(true, null, null, true, sourceRule),
+    );
+    expect(result.current.ruleName).toBe('Move to Done (Global)');
+  });
+
+  it('sets scope to "selected" with source project pre-checked', () => {
+    const { result } = renderHook(() =>
+      useWizardState(true, null, null, true, sourceRule),
+    );
+    expect(result.current.scope).toBe('selected');
+    expect(result.current.selectedProjectIds).toEqual(['proj-1']);
+  });
+
+  it('copies action type and position', () => {
+    const { result } = renderHook(() =>
+      useWizardState(true, null, null, true, sourceRule),
+    );
+    expect(result.current.action.type).toBe('move_card_to_top_of_section');
+    expect(result.current.action.position).toBe('top');
+  });
+});

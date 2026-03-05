@@ -112,6 +112,7 @@ export function useWizardState(
       setTrigger({
         type: promoteFromRule.trigger.type,
         sectionId: promoteFromRule.trigger.sectionId,
+        sectionName: (promoteFromRule.trigger as any).sectionName,
         schedule: (promoteFromRule.trigger as any).schedule,
         lastEvaluatedAt: (promoteFromRule.trigger as any).lastEvaluatedAt,
         catchUpPolicy: (promoteFromRule.trigger as any).catchUpPolicy,
@@ -120,6 +121,7 @@ export function useWizardState(
       setAction({
         type: promoteFromRule.action.type,
         sectionId: promoteFromRule.action.sectionId,
+        sectionName: (promoteFromRule.action as any).sectionName,
         dateOption: promoteFromRule.action.dateOption,
         position: promoteFromRule.action.position,
         cardTitle: promoteFromRule.action.cardTitle,
