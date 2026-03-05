@@ -89,11 +89,32 @@ export function AutomationTab({ projectId, sections, onShowToast }: AutomationTa
   const handlePromoteToGlobal = useCallback((ruleId: string) => {
     const rule = rules.find(r => r.id === ruleId);
     if (!rule) return;
-    setPromoteFromRule(rule);
+
+    // Resolve sectionName from sectionId for trigger and action
+    // Project rules store sectionId only; global rules need sectionName for cross-project resolution
+    const lookupSectionName = (sectionId: string | null | undefined): string | undefined => {
+      if (!sectionId) return undefined;
+      const section = sections.find(s => s.id === sectionId) ?? allSections.find(s => s.id === sectionId);
+      return section?.name;
+    };
+
+    const enrichedRule = {
+      ...rule,
+      trigger: {
+        ...rule.trigger,
+        sectionName: (rule.trigger as any).sectionName ?? lookupSectionName(rule.trigger.sectionId),
+      },
+      action: {
+        ...rule.action,
+        sectionName: (rule.action as any).sectionName ?? lookupSectionName(rule.action.sectionId),
+      },
+    };
+
+    setPromoteFromRule(enrichedRule as typeof rule);
     setEditingRuleId(null);
     setIsRescheduling(false);
     setIsDialogOpen(true);
-  }, [rules]);
+  }, [rules, sections, allSections]);
 
   // All global rules visible to this project: active for project OR excluded (so toggle can re-enable)
   const visibleGlobalRules = useMemo(() => {

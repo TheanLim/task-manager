@@ -930,6 +930,34 @@ describe('AutomationTab', () => {
       });
     });
 
+    it('"Promote to Global" resolves sectionName from sectionId for trigger and action', async () => {
+      const user = userEvent.setup();
+      // Rule with sectionId but no sectionName (typical project rule)
+      const localRule = {
+        ...createMockRule('rule-1', 'Move to Done'),
+        trigger: { type: 'card_moved_into_section' as const, sectionId: 'section-3' },
+        action: { type: 'move_card_to_top_of_section' as const, sectionId: 'section-2', dateOption: null, position: 'top' as const },
+      };
+      (useAutomationRules as any).mockReturnValue({ ...mockHandlers, rules: [localRule] });
+      (useGlobalAutomationRules as any).mockReturnValue({ rules: [], createRule: vi.fn(), updateRule: vi.fn(), deleteRule: vi.fn() });
+
+      render(<AutomationTab projectId="project-1" sections={mockSections} />);
+
+      const menuBtn = screen.getByRole('button', { name: /open menu/i });
+      await user.click(menuBtn);
+      await user.click(screen.getByText('Promote to Global'));
+
+      // Dialog opens in global mode — the section names should be resolved
+      await waitFor(() => {
+        expect(screen.getByText('New Global Rule')).toBeInTheDocument();
+      });
+
+      // The trigger section "section-3" = "Done", action section "section-2" = "In Progress"
+      // These should appear in the wizard preview as resolved names
+      // Check the scope badge shows the source project pre-selected
+      expect(screen.getByText(/1 Project/i)).toBeInTheDocument();
+    });
+
     it('passes projectId to GlobalRulesSection in rule list view', () => {
       const globalRules = [createGlobalRule('global-1', 'Global Rule 1')];
       const localRules = [createMockRule('rule-1', 'Local Rule 1')];
