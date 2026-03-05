@@ -10,6 +10,7 @@ export interface UseGlobalAutomationRulesReturn {
   ) => void;
   updateRule: (id: string, updates: Partial<AutomationRule>) => void;
   deleteRule: (id: string) => void;
+  reorderRules: (ruleId: string, newIndex: number) => void;
 }
 
 /**
@@ -47,5 +48,30 @@ export function useGlobalAutomationRules(): UseGlobalAutomationRulesReturn {
     automationRuleRepository.delete(id);
   }, []);
 
-  return { rules, createRule, updateRule, deleteRule };
+  const reorderRules = useCallback((ruleId: string, newIndex: number) => {
+    const globalRules = automationRuleRepository
+      .findGlobal()
+      .sort((a, b) => a.order - b.order);
+
+    const currentIndex = globalRules.findIndex((r) => r.id === ruleId);
+    if (currentIndex === -1) return;
+
+    const clampedIndex = Math.max(0, Math.min(newIndex, globalRules.length - 1));
+    if (clampedIndex === currentIndex) return;
+
+    const [moved] = globalRules.splice(currentIndex, 1);
+    globalRules.splice(clampedIndex, 0, moved);
+
+    const now = new Date().toISOString();
+    for (let i = 0; i < globalRules.length; i++) {
+      if (globalRules[i].order !== i) {
+        automationRuleRepository.update(globalRules[i].id, {
+          order: i,
+          updatedAt: now,
+        });
+      }
+    }
+  }, []);
+
+  return { rules, createRule, updateRule, deleteRule, reorderRules };
 }

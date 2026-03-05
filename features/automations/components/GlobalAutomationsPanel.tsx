@@ -3,6 +3,20 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Zap, LayoutList, AlignJustify } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import type { DragEndEvent } from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -36,7 +50,7 @@ import {
  * Rendered when appStore.activeView === 'global-automations'.
  */
 export function GlobalAutomationsPanel() {
-  const { rules, createRule, updateRule, deleteRule } = useGlobalAutomationRules();
+  const { rules, createRule, updateRule, deleteRule, reorderRules } = useGlobalAutomationRules();
   const { projects, sections } = useDataStore();
   const { highlightRuleId } = useAppStore();
   const setHighlightRuleId = useAppStore((s) => s.setHighlightRuleId);
@@ -82,6 +96,26 @@ export function GlobalAutomationsPanel() {
 
   const sortedRules = [...rules].sort((a, b) => a.order - b.order);
   const editingRule = editingRuleId ? rules.find((r) => r.id === editingRuleId) ?? null : null;
+
+  // Drag-and-drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+      const newIndex = sortedRules.findIndex((r) => r.id === over.id);
+      if (newIndex !== -1) {
+        reorderRules(active.id as string, newIndex);
+      }
+    },
+    [sortedRules, reorderRules]
+  );
 
   // Collect all execution log entries across all global rules, sorted newest first
   const allLogEntries: EnrichedLogEntry[] = useMemo(() =>
@@ -264,32 +298,36 @@ export function GlobalAutomationsPanel() {
               onAction={handleCreateNew}
             />
           ) : (
-            <div className="flex flex-col gap-2">
-              {sortedRules.map((rule) => (
-                <div
-                  key={rule.id}
-                  data-rule-id={rule.id}
-                  className={flashRuleId === rule.id
-                    ? 'rounded-lg ring-2 ring-accent-brand ring-offset-1 transition-all duration-300'
-                    : 'rounded-lg transition-all duration-300'
-                  }
-                >
-                  <RuleCard
-                    rule={rule}
-                    sections={sections}
-                    projectId=""
-                    isGlobal
-                    compact={globalPanelCompact}
-                    allProjects={projects}
-                    onEdit={handleEdit}
-                    onDuplicate={handleDuplicate}
-                    onDuplicateToProject={noop}
-                    onDelete={handleDeleteClick}
-                    onToggle={handleToggle}
-                  />
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={sortedRules.map((r) => r.id)} strategy={verticalListSortingStrategy}>
+                <div className="flex flex-col gap-2">
+                  {sortedRules.map((rule) => (
+                    <div
+                      key={rule.id}
+                      data-rule-id={rule.id}
+                      className={flashRuleId === rule.id
+                        ? 'rounded-lg ring-2 ring-accent-brand ring-offset-1 transition-all duration-300'
+                        : 'rounded-lg transition-all duration-300'
+                      }
+                    >
+                      <RuleCard
+                        rule={rule}
+                        sections={sections}
+                        projectId=""
+                        isGlobal
+                        compact={globalPanelCompact}
+                        allProjects={projects}
+                        onEdit={handleEdit}
+                        onDuplicate={handleDuplicate}
+                        onDuplicateToProject={noop}
+                        onDelete={handleDeleteClick}
+                        onToggle={handleToggle}
+                      />
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </SortableContext>
+            </DndContext>
           )}
         </TabsContent>
 

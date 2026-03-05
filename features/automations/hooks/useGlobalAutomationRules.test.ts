@@ -139,4 +139,28 @@ describe('useGlobalAutomationRules', () => {
     // After unmount the unsubscribe fn ran — subscribe was called once
     expect(mockRepo.subscribe).toHaveBeenCalledTimes(1);
   });
+
+  it('reorderRules moves a rule to a new position and updates order fields', () => {
+    const r1 = { ...makeGlobalRule('g1'), order: 0 };
+    const r2 = { ...makeGlobalRule('g2'), order: 1 };
+    const r3 = { ...makeGlobalRule('g3'), order: 2 };
+    mockRules.push(r1, r2, r3);
+
+    const { result } = renderHook(() => useGlobalAutomationRules());
+
+    act(() => {
+      result.current.reorderRules('g1', 2);
+    });
+
+    // g1 moved from index 0 to index 2 → new order: g2(0), g3(1), g1(2)
+    const updateCalls = mockRepo.update.mock.calls;
+    // g2: 1→0, g3: 2→1, g1: 0→2
+    expect(updateCalls).toEqual(
+      expect.arrayContaining([
+        ['g2', expect.objectContaining({ order: 0 })],
+        ['g3', expect.objectContaining({ order: 1 })],
+        ['g1', expect.objectContaining({ order: 2 })],
+      ])
+    );
+  });
 });

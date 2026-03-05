@@ -10,6 +10,7 @@ const mockRules: AutomationRule[] = [];
 const mockCreateRule = vi.fn();
 const mockUpdateRule = vi.fn();
 const mockDeleteRule = vi.fn();
+const mockReorderRules = vi.fn();
 
 vi.mock('../hooks/useGlobalAutomationRules', () => ({
   useGlobalAutomationRules: () => ({
@@ -17,6 +18,7 @@ vi.mock('../hooks/useGlobalAutomationRules', () => ({
     createRule: mockCreateRule,
     updateRule: mockUpdateRule,
     deleteRule: mockDeleteRule,
+    reorderRules: mockReorderRules,
   }),
 }));
 
@@ -312,6 +314,29 @@ describe('GlobalAutomationsPanel — TASK-23 features', () => {
     render(<GlobalAutomationsPanel />);
     expect(screen.getByText('Rule Alpha')).toBeInTheDocument();
     expect(screen.getByText('Rule Beta')).toBeInTheDocument();
+  });
+});
+
+describe('GlobalAutomationsPanel — drag-and-drop reordering', () => {
+  beforeEach(() => {
+    mockRules.length = 0;
+    mockFilteredEntries.length = 0;
+    mockSearchParams = new URLSearchParams();
+    vi.clearAllMocks();
+  });
+
+  it('rule cards are wrapped in sortable context for drag-and-drop', () => {
+    mockRules.push(makeGlobalRule('g1', 'Rule Alpha'));
+    mockRules.push({ ...makeGlobalRule('g2', 'Rule Beta'), order: 1 });
+    render(<GlobalAutomationsPanel />);
+
+    // Both rule cards render (SortableContext mock passes children through)
+    expect(screen.getByText('Rule Alpha')).toBeInTheDocument();
+    expect(screen.getByText('Rule Beta')).toBeInTheDocument();
+
+    // Each card has data-rule-id for sortable identification
+    expect(document.querySelector('[data-rule-id="g1"]')).toBeInTheDocument();
+    expect(document.querySelector('[data-rule-id="g2"]')).toBeInTheDocument();
   });
 });
 

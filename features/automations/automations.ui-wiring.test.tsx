@@ -27,7 +27,7 @@ import type { Section } from '@/lib/schemas';
 vi.mock('./hooks/useAutomationRules');
 
 vi.mock('./hooks/useGlobalAutomationRules', () => ({
-  useGlobalAutomationRules: () => ({ rules: [], createRule: vi.fn(), updateRule: vi.fn(), deleteRule: vi.fn() }),
+  useGlobalAutomationRules: () => ({ rules: [], createRule: vi.fn(), updateRule: vi.fn(), deleteRule: vi.fn(), reorderRules: vi.fn() }),
 }));
 
 vi.mock('@/stores/appStore', () => ({

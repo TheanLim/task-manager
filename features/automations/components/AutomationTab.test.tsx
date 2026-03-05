@@ -220,7 +220,7 @@ describe('AutomationTab', () => {
     mockPauseAllScheduled.mockReturnValue({ pausedCount: 0, pausedRuleIds: [] });
     mockResumeAllScheduled.mockReturnValue({ resumedCount: 0, resumedRuleIds: [] });
     (useAutomationRules as any).mockReturnValue(mockHandlers);
-    (useGlobalAutomationRules as any).mockReturnValue({ rules: [], createRule: vi.fn(), updateRule: vi.fn(), deleteRule: vi.fn() });
+    (useGlobalAutomationRules as any).mockReturnValue({ rules: [], createRule: vi.fn(), updateRule: vi.fn(), deleteRule: vi.fn(), reorderRules: vi.fn() });
   });
 
   describe('empty state', () => {
@@ -858,7 +858,7 @@ describe('AutomationTab', () => {
     it('renders GlobalRulesSection with projectId prop when global rules exist', () => {
       const globalRules = [createGlobalRule('global-1', 'Global Rule 1')];
       (useAutomationRules as any).mockReturnValue({ ...mockHandlers, rules: [] });
-      (useGlobalAutomationRules as any).mockReturnValue({ rules: globalRules, createRule: vi.fn(), updateRule: vi.fn(), deleteRule: vi.fn() });
+      (useGlobalAutomationRules as any).mockReturnValue({ rules: globalRules, createRule: vi.fn(), updateRule: vi.fn(), deleteRule: vi.fn(), reorderRules: vi.fn() });
 
       render(<AutomationTab projectId="project-1" sections={mockSections} />);
 
@@ -873,7 +873,7 @@ describe('AutomationTab', () => {
         createGlobalRule('global-3', 'Disabled Global Rule', { enabled: false, excludedProjectIds: [] }),
       ];
       (useAutomationRules as any).mockReturnValue({ ...mockHandlers, rules: [] });
-      (useGlobalAutomationRules as any).mockReturnValue({ rules: globalRules, createRule: vi.fn(), updateRule: vi.fn(), deleteRule: vi.fn() });
+      (useGlobalAutomationRules as any).mockReturnValue({ rules: globalRules, createRule: vi.fn(), updateRule: vi.fn(), deleteRule: vi.fn(), reorderRules: vi.fn() });
 
       render(<AutomationTab projectId="project-1" sections={mockSections} />);
 
@@ -888,7 +888,7 @@ describe('AutomationTab', () => {
       const mockUpdateGlobalRule = vi.fn();
       const globalRules = [createGlobalRule('global-1', 'Global Rule 1', { excludedProjectIds: [] })];
       (useAutomationRules as any).mockReturnValue({ ...mockHandlers, rules: [] });
-      (useGlobalAutomationRules as any).mockReturnValue({ rules: globalRules, createRule: vi.fn(), updateRule: mockUpdateGlobalRule, deleteRule: vi.fn() });
+      (useGlobalAutomationRules as any).mockReturnValue({ rules: globalRules, createRule: vi.fn(), updateRule: mockUpdateGlobalRule, deleteRule: vi.fn(), reorderRules: vi.fn() });
 
       render(<AutomationTab projectId="project-1" sections={mockSections} />);
 
@@ -901,7 +901,7 @@ describe('AutomationTab', () => {
 
     it('does not render GlobalRulesSection when no global rules exist', () => {
       (useAutomationRules as any).mockReturnValue({ ...mockHandlers, rules: [] });
-      (useGlobalAutomationRules as any).mockReturnValue({ rules: [], createRule: vi.fn(), updateRule: vi.fn(), deleteRule: vi.fn() });
+      (useGlobalAutomationRules as any).mockReturnValue({ rules: [], createRule: vi.fn(), updateRule: vi.fn(), deleteRule: vi.fn(), reorderRules: vi.fn() });
 
       render(<AutomationTab projectId="project-1" sections={mockSections} />);
 
@@ -912,7 +912,7 @@ describe('AutomationTab', () => {
       const user = userEvent.setup();
       const localRule = createMockRule('rule-1', 'Local Rule 1');
       (useAutomationRules as any).mockReturnValue({ ...mockHandlers, rules: [localRule] });
-      (useGlobalAutomationRules as any).mockReturnValue({ rules: [], createRule: vi.fn(), updateRule: vi.fn(), deleteRule: vi.fn() });
+      (useGlobalAutomationRules as any).mockReturnValue({ rules: [], createRule: vi.fn(), updateRule: vi.fn(), deleteRule: vi.fn(), reorderRules: vi.fn() });
 
       render(<AutomationTab projectId="project-1" sections={mockSections} />);
 
@@ -939,7 +939,7 @@ describe('AutomationTab', () => {
         action: { type: 'move_card_to_top_of_section' as const, sectionId: 'section-2', dateOption: null, position: 'top' as const },
       };
       (useAutomationRules as any).mockReturnValue({ ...mockHandlers, rules: [localRule] });
-      (useGlobalAutomationRules as any).mockReturnValue({ rules: [], createRule: vi.fn(), updateRule: vi.fn(), deleteRule: vi.fn() });
+      (useGlobalAutomationRules as any).mockReturnValue({ rules: [], createRule: vi.fn(), updateRule: vi.fn(), deleteRule: vi.fn(), reorderRules: vi.fn() });
 
       render(<AutomationTab projectId="project-1" sections={mockSections} />);
 
@@ -962,7 +962,7 @@ describe('AutomationTab', () => {
       const globalRules = [createGlobalRule('global-1', 'Global Rule 1')];
       const localRules = [createMockRule('rule-1', 'Local Rule 1')];
       (useAutomationRules as any).mockReturnValue({ ...mockHandlers, rules: localRules });
-      (useGlobalAutomationRules as any).mockReturnValue({ rules: globalRules, createRule: vi.fn(), updateRule: vi.fn(), deleteRule: vi.fn() });
+      (useGlobalAutomationRules as any).mockReturnValue({ rules: globalRules, createRule: vi.fn(), updateRule: vi.fn(), deleteRule: vi.fn(), reorderRules: vi.fn() });
 
       render(<AutomationTab projectId="project-1" sections={mockSections} />);
 
@@ -978,7 +978,7 @@ describe('AutomationTab', () => {
       const mockUpdateGlobalRule = vi.fn();
       const globalRules = [createGlobalRule('global-1', 'Global Rule 1', { excludedProjectIds: [] })];
       (useAutomationRules as any).mockReturnValue({ ...mockHandlers, rules: [] });
-      (useGlobalAutomationRules as any).mockReturnValue({ rules: globalRules, createRule: vi.fn(), updateRule: mockUpdateGlobalRule, deleteRule: vi.fn() });
+      (useGlobalAutomationRules as any).mockReturnValue({ rules: globalRules, createRule: vi.fn(), updateRule: mockUpdateGlobalRule, deleteRule: vi.fn(), reorderRules: vi.fn() });
 
       // Renders without crashing — GlobalRulesSection now receives all required props
       const { container } = render(<AutomationTab projectId="project-1" sections={mockSections} />);
