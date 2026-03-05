@@ -242,11 +242,9 @@ export function ExecutionLogFilterBar({
             >
               <Filter className="h-3 w-3" />
               Date
-              {isDateFilterActive && (
-                <Badge variant="secondary" className="ml-1">
-                  {getDateRangeLabel(filters.dateRange)}
-                </Badge>
-              )}
+              <Badge variant={isDateFilterActive ? 'secondary' : 'outline'} className="ml-1 text-[10px]">
+                {getDateRangeLabel(filters.dateRange)}
+              </Badge>
               <ChevronDown className="h-3 w-3 ml-1" />
             </Button>
           </DropdownMenuTrigger>

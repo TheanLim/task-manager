@@ -250,7 +250,7 @@ describe('ExecutionLogFilterBar', () => {
     await user.click(screen.getByText('Date'));
 
     expect(screen.getByText('Last 24 hours')).toBeInTheDocument();
-    expect(screen.getByText('Last 7 days')).toBeInTheDocument();
+    expect(screen.getAllByText('Last 7 days').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('All time')).toBeInTheDocument();
   });
 
