@@ -28,6 +28,21 @@ vi.mock('@/stores/appStore', () => ({
   },
 }));
 
+// Mock useDataStore for projects and allSections (needed by promote flow)
+vi.mock('@/stores/dataStore', () => ({
+  useDataStore: () => ({
+    projects: [
+      { id: 'project-1', name: 'Project Alpha' },
+      { id: 'project-2', name: 'Project Beta' },
+    ],
+    sections: [
+      { id: 'section-1', projectId: 'project-1', name: 'To Do', order: 0, createdAt: '2024-01-01T00:00:00Z', updatedAt: '2024-01-01T00:00:00Z' },
+      { id: 'section-2', projectId: 'project-1', name: 'In Progress', order: 1, createdAt: '2024-01-01T00:00:00Z', updatedAt: '2024-01-01T00:00:00Z' },
+      { id: 'section-3', projectId: 'project-1', name: 'Done', order: 2, createdAt: '2024-01-01T00:00:00Z', updatedAt: '2024-01-01T00:00:00Z' },
+    ],
+  }),
+}));
+
 // Mock bulkScheduleService from service container
 const mockPauseAllScheduled = vi.fn().mockReturnValue({ pausedCount: 0, pausedRuleIds: [] });
 const mockResumeAllScheduled = vi.fn().mockReturnValue({ resumedCount: 0, resumedRuleIds: [] });
@@ -891,6 +906,28 @@ describe('AutomationTab', () => {
       render(<AutomationTab projectId="project-1" sections={mockSections} />);
 
       expect(screen.queryByText('Global Rules')).not.toBeInTheDocument();
+    });
+
+    it('"Promote to Global" opens RuleDialog in global mode with promoteFromRule', async () => {
+      const user = userEvent.setup();
+      const localRule = createMockRule('rule-1', 'Local Rule 1');
+      (useAutomationRules as any).mockReturnValue({ ...mockHandlers, rules: [localRule] });
+      (useGlobalAutomationRules as any).mockReturnValue({ rules: [], createRule: vi.fn(), updateRule: vi.fn(), deleteRule: vi.fn() });
+
+      render(<AutomationTab projectId="project-1" sections={mockSections} />);
+
+      // Open context menu on the local rule
+      const menuBtn = screen.getByRole('button', { name: /open menu/i });
+      await user.click(menuBtn);
+
+      // Click "Promote to Global"
+      const promoteItem = screen.getByText('Promote to Global');
+      await user.click(promoteItem);
+
+      // Dialog should open with "New Global Rule" title (global mode)
+      await waitFor(() => {
+        expect(screen.getByText('New Global Rule')).toBeInTheDocument();
+      });
     });
 
     it('passes projectId to GlobalRulesSection in rule list view', () => {

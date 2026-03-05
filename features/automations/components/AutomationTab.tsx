@@ -42,6 +42,7 @@ import { GlobalRulesSection } from './GlobalRulesSection';
 import { useAutomationRules } from '../hooks/useAutomationRules';
 import { useRuleActions } from '../hooks/useRuleActions';
 import { useGlobalAutomationRules } from '../hooks/useGlobalAutomationRules';
+import { useDataStore } from '@/stores/dataStore';
 import type { Section } from '@/lib/schemas';
 
 const MAX_RULES_WARNING_THRESHOLD = 10;
@@ -62,6 +63,7 @@ export function AutomationTab({ projectId, sections, onShowToast }: AutomationTa
   const { rules, duplicateRule, duplicateToProject, deleteRule, toggleRule, reorderRules, bulkSetEnabled, updateRule } = useAutomationRules(projectId);
   const ruleActions = useRuleActions(rules, sections, projectId, onShowToast);
   const { rules: globalRules, updateRule: updateGlobalRule } = useGlobalAutomationRules();
+  const { projects, sections: allSections } = useDataStore();
   const router = useRouter();
 
   const navigateToGlobal = useCallback((ruleId?: string) => {
@@ -193,7 +195,7 @@ export function AutomationTab({ projectId, sections, onShowToast }: AutomationTa
   const handleDeleteConfirm = () => { if (ruleToDelete) { deleteRule(ruleToDelete); setRuleToDelete(null); } setDeleteConfirmOpen(false); };
   const handleDeleteCancel = () => { setRuleToDelete(null); setDeleteConfirmOpen(false); };
   const handleToggle = (ruleId: string) => toggleRule(ruleId);
-  const handleDialogClose = (open: boolean) => { setIsDialogOpen(open); if (!open) { setEditingRuleId(null); setIsRescheduling(false); } };
+  const handleDialogClose = (open: boolean) => { setIsDialogOpen(open); if (!open) { setEditingRuleId(null); setIsRescheduling(false); setPromoteFromRule(null); } };
 
   // Empty state
   if (rules.length === 0) {
@@ -216,7 +218,17 @@ export function AutomationTab({ projectId, sections, onShowToast }: AutomationTa
           actionLabel="+ Create your first rule"
           onAction={handleCreateNew}
         />
-        <RuleDialog open={isDialogOpen} onOpenChange={handleDialogClose} projectId={projectId} sections={sections} editingRule={editingRule} />
+        <RuleDialog
+          open={isDialogOpen}
+          onOpenChange={handleDialogClose}
+          projectId={projectId}
+          sections={sections}
+          editingRule={editingRule}
+          isGlobal={!!promoteFromRule}
+          promoteFromRule={promoteFromRule}
+          allProjects={projects}
+          allSections={allSections}
+        />
       </>
     );
   }
@@ -315,7 +327,17 @@ export function AutomationTab({ projectId, sections, onShowToast }: AutomationTa
       </DndContext>
 
       {/* Rule Dialog */}
-      <RuleDialog open={isDialogOpen} onOpenChange={handleDialogClose} projectId={projectId} sections={sections} editingRule={editingRule} />
+      <RuleDialog
+        open={isDialogOpen}
+        onOpenChange={handleDialogClose}
+        projectId={projectId}
+        sections={sections}
+        editingRule={editingRule}
+        isGlobal={!!promoteFromRule}
+        promoteFromRule={promoteFromRule}
+        allProjects={projects}
+        allSections={allSections}
+      />
 
       {/* Dry Run Preview Dialog */}
       {ruleActions.dryRunResult && (
