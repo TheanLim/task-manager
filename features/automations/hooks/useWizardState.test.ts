@@ -173,11 +173,25 @@ describe('useWizardState — promoteFromRule pre-fill', () => {
     expect(result.current.trigger.sectionName).toBe('Done');
   });
 
+  it('clears trigger sectionId (global rules use name-based resolution)', () => {
+    const { result } = renderHook(() =>
+      useWizardState(true, null, null, true, sourceRule),
+    );
+    expect(result.current.trigger.sectionId).toBeNull();
+  });
+
   it('copies action sectionName from source rule', () => {
     const { result } = renderHook(() =>
       useWizardState(true, null, null, true, sourceRule),
     );
     expect((result.current.action as any).sectionName).toBe('Done');
+  });
+
+  it('clears action sectionId (global rules use name-based resolution)', () => {
+    const { result } = renderHook(() =>
+      useWizardState(true, null, null, true, sourceRule),
+    );
+    expect(result.current.action.sectionId).toBeNull();
   });
 
   it('copies trigger type and filters verbatim', () => {

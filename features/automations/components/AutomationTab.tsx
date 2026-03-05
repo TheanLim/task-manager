@@ -102,10 +102,14 @@ export function AutomationTab({ projectId, sections, onShowToast }: AutomationTa
       ...rule,
       trigger: {
         ...rule.trigger,
+        // Clear sectionId — global rules use sectionName for cross-project resolution
+        sectionId: null,
         sectionName: (rule.trigger as any).sectionName ?? lookupSectionName(rule.trigger.sectionId),
       },
       action: {
         ...rule.action,
+        // Clear sectionId — global rules use sectionName for cross-project resolution
+        sectionId: null,
         sectionName: (rule.action as any).sectionName ?? lookupSectionName(rule.action.sectionId),
       },
     };

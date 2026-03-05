@@ -109,9 +109,10 @@ export function useWizardState(
       setIsDirty(false);
     } else if (open && promoteFromRule) {
       // Promotion flow: pre-fill from source rule
+      // Clear sectionId — global rules use sectionName for cross-project name-based resolution
       setTrigger({
         type: promoteFromRule.trigger.type,
-        sectionId: promoteFromRule.trigger.sectionId,
+        sectionId: null,
         sectionName: (promoteFromRule.trigger as any).sectionName,
         schedule: (promoteFromRule.trigger as any).schedule,
         lastEvaluatedAt: (promoteFromRule.trigger as any).lastEvaluatedAt,
@@ -120,7 +121,7 @@ export function useWizardState(
       setFilters(promoteFromRule.filters || []);
       setAction({
         type: promoteFromRule.action.type,
-        sectionId: promoteFromRule.action.sectionId,
+        sectionId: null,
         sectionName: (promoteFromRule.action as any).sectionName,
         dateOption: promoteFromRule.action.dateOption,
         position: promoteFromRule.action.position,
