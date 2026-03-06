@@ -1,12 +1,12 @@
 {
-  "enabled": true,
-  "name": "Context Drift Check",
-  "description": "Checks recent git commits for code changes without corresponding steering doc updates. Outputs prioritized warnings that the agent should act on before starting the user's task.",
-  "version": "1",
+  "name": "Drift Detection",
+  "version": "1.0.0",
+  "description": "Runs the context drift check script with dynamically chosen arguments based on context.",
   "when": {
-    "type": "promptSubmit"
+    "type": "userTriggered"
   },
   "then": {
     "type": "askAgent",
-    "prompt": "Run: python3 .kiro/scripts/context-drift-check.py\n\nIf the output contains CONTEXT DRIFT [HIGH], update the flagged steering docs before proceeding with the user's request. If CONTEXT DRIFT [MEDIUM], mention it to the user. If no output or script not found, proceed normally."  }
+    "prompt": "Run the context drift check script at `.kiro/scripts/context-drift-check.py`. Choose appropriate arguments based on context:\n\n- Default: `python3 .kiro/scripts/context-drift-check.py --verbose`\n- If the user mentions a timeframe, use `--since DAYS` (e.g. --since 14 for two weeks)\n- If the user mentions a commit count, use `--commits N`\n- You can combine flags: `python3 .kiro/scripts/context-drift-check.py --commits 50 --since 14 --verbose`\n\nExecute the script, then summarize the output. If drift is detected, suggest which context docs need updating."
+  }
 }

@@ -1,0 +1,12 @@
+[project]
+name = "task-manager-mcp-server"
+version = "0.1.0"
+description = "Context7 MCP server for Task Management App — subsystem discovery, context search, and agent routing"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp>=1.0.0",
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.backends._legacy:_Backend"

@@ -1,0 +1,25 @@
+{
+  "mcpServers": {
+    "context7": {
+      "command": "/Users/theanlim/.local/share/mise/installs/python/3.12.3/bin/python3",
+      "args": [
+        "mcp-server/server.py"
+      ],
+      "disabled": false,
+      "autoApprove": [
+        "list_subsystems",
+        "list_agents",
+        "get_context_files",
+        "get_files_for_subsystem",
+        "get_files_for_subsystem",
+        "get_files_for_subsystem",
+        "get_files_for_subsystem",
+        "get_files_for_subsystem",
+        "get_files_for_subsystem",
+        "get_files_for_subsystem",
+        "get_files_for_subsystem",
+        "get_files_for_subsystem"
+      ]
+    }
+  }
+}

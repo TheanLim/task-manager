@@ -1,230 +1,251 @@
 #!/usr/bin/env python3
 """
-Context Drift Detection for Kiro IDE.
+Context Drift Check — detects when code changes happen without
+corresponding context doc updates.
 
-Checks recent git commits for code changes without corresponding
-steering doc updates. Reads subsystem-map.json for the code→doc mapping.
-
-Output goes to stdout and is injected into the agent's context via hook.
-Empty output = no warnings (silent).
+Parses the MCP server's SUBSYSTEMS dict, scans recent git commits,
+and flags subsystems where code files changed but context docs didn't.
 
 Usage:
-    python3 .kiro/scripts/context-drift-check.py
-    python3 .kiro/scripts/context-drift-check.py --dismiss
+    python3 .kiro/scripts/context-drift-check.py [--commits N] [--since DAYS]
+
+Options:
+    --commits N     Check last N commits (default: 20)
+    --since DAYS    Check commits from last N days (default: 7)
+    --verbose       Show all subsystems, not just drifted ones
 """
 
-import json
-import os
+import argparse
+import ast
+import re
 import subprocess
 import sys
 from pathlib import Path
 
-MAX_COMMITS = 10
-DISMISS_MAX_SHOWS = 2
-STATE_FILE = ".kiro/scripts/.drift-state.json"
+# Priority tiers — HIGH gets auto-update warnings, MEDIUM gets mentions, LOW suppressed
+PRIORITY_TIERS: dict[str, str] = {
+    "core-infrastructure": "HIGH",
+    "automations": "HIGH",
+    "stores": "HIGH",
+    "tasks": "MEDIUM",
+    "projects": "MEDIUM",
+    "sharing": "MEDIUM",
+    "tms": "MEDIUM",
+    "keyboard": "MEDIUM",
+    "ui-shared": "LOW",
+    "e2e-tests": "LOW",
+}
 
 
-def find_repo_root() -> Path | None:
-    """Find git repo root from script location."""
-    script_dir = Path(__file__).resolve().parent
-    # Script lives at .kiro/scripts/ so repo root is 2 levels up
-    candidate = script_dir.parent.parent
-    if (candidate / ".git").exists():
-        return candidate
-    cwd = Path.cwd()
-    if (cwd / ".git").exists():
-        return cwd
-    return None
+def find_workspace_root() -> Path:
+    """Walk up from this script to find the workspace root (contains package.json)."""
+    current = Path(__file__).resolve().parent
+    for _ in range(10):
+        if (current / "package.json").exists():
+            return current
+        current = current.parent
+    print("ERROR: Could not find workspace root (no package.json found)", file=sys.stderr)
+    sys.exit(1)
 
 
-def load_subsystem_map(repo_root: Path) -> dict:
-    """Load subsystem-map.json."""
-    map_path = repo_root / ".kiro" / "scripts" / "subsystem-map.json"
-    if not map_path.exists():
-        return {}
-    try:
-        data = json.loads(map_path.read_text(encoding="utf-8"))
-        return data.get("subsystems", {})
-    except (json.JSONDecodeError, OSError):
-        return {}
-
-
-def get_head_sha(repo_root: Path) -> str | None:
+def get_changed_files(workspace: Path, commits: int = 20, since_days: int = 7) -> set[str]:
+    """Get files changed in recent git commits."""
     try:
         result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            capture_output=True, text=True, timeout=2, cwd=repo_root,
-        )
-        return result.stdout.strip() if result.returncode == 0 else None
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return None
-
-
-def load_state(repo_root: Path) -> dict:
-    state_path = repo_root / STATE_FILE
-    if state_path.exists():
-        try:
-            return json.loads(state_path.read_text())
-        except (json.JSONDecodeError, OSError):
-            pass
-    return {}
-
-
-def save_state(repo_root: Path, state: dict) -> None:
-    state_path = repo_root / STATE_FILE
-    try:
-        state_path.parent.mkdir(parents=True, exist_ok=True)
-        state_path.write_text(json.dumps(state))
-    except OSError:
-        pass
-
-
-def detect_drift(repo_root: Path, subsystems: dict) -> list:
-    """Check recent commits for code changes without doc updates."""
-    if not subsystems:
-        return []
-
-    try:
-        result = subprocess.run(
-            ["git", "log", f"--max-count={MAX_COMMITS}", "--name-only", "--format=%H"],
-            capture_output=True, text=True, timeout=5, cwd=repo_root,
+            ["git", "-P", "log", f"-n{commits}", f"--since={since_days} days ago",
+             "--name-only", "--pretty=format:"],
+            capture_output=True, text=True, cwd=workspace
         )
         if result.returncode != 0:
-            return []
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return []
+            print(f"WARNING: git log failed: {result.stderr.strip()}", file=sys.stderr)
+            return set()
+        files = set()
+        for line in result.stdout.strip().splitlines():
+            line = line.strip()
+            if line:
+                files.add(line)
+        return files
+    except FileNotFoundError:
+        print("WARNING: git not found in PATH", file=sys.stderr)
+        return set()
 
-    # Parse changed files from recent commits
-    all_changed_files = set()
-    all_changed_docs = set()
-    for line in result.stdout.strip().split("\n"):
-        line = line.strip()
-        if not line or (len(line) == 40 and all(c in "0123456789abcdef" for c in line)):
+
+def parse_subsystems_from_mcp(workspace: Path) -> dict[str, dict]:
+    """Parse SUBSYSTEMS dict from mcp-server/server.py using regex extraction."""
+    server_path = workspace / "mcp-server" / "server.py"
+    if not server_path.exists():
+        print(f"WARNING: MCP server not found at {server_path}", file=sys.stderr)
+        return {}
+
+    content = server_path.read_text()
+
+    # Extract the SUBSYSTEMS dict using regex to find the block
+    match = re.search(
+        r'^SUBSYSTEMS:\s*dict\[.*?\]\s*=\s*(\{.*?^\})',
+        content, re.MULTILINE | re.DOTALL
+    )
+    if not match:
+        print("WARNING: Could not parse SUBSYSTEMS from server.py", file=sys.stderr)
+        return {}
+
+    try:
+        subsystems_str = match.group(1)
+        # ast.literal_eval handles Python dict literals safely
+        return ast.literal_eval(subsystems_str)
+    except (ValueError, SyntaxError) as e:
+        print(f"WARNING: Failed to parse SUBSYSTEMS dict: {e}", file=sys.stderr)
+        return {}
+
+
+def classify_file(filepath: str, subsystems: dict[str, dict]) -> list[str]:
+    """Find which subsystems a file belongs to."""
+    matches = []
+    for key, sub in subsystems.items():
+        sub_files = sub.get("files", [])
+        for sf in sub_files:
+            # Direct match or directory match
+            if filepath == sf or filepath.startswith(sf.rstrip("/") + "/"):
+                matches.append(key)
+                break
+        else:
+            # Heuristic: match by directory prefix
+            if key == "core-infrastructure" and filepath.startswith("lib/"):
+                matches.append(key)
+            elif key == "stores" and filepath.startswith("stores/"):
+                matches.append(key)
+            elif key == "e2e-tests" and filepath.startswith("e2e/"):
+                matches.append(key)
+            elif key == "ui-shared" and (filepath.startswith("components/") or filepath.startswith("app/")):
+                matches.append(key)
+            elif filepath.startswith(f"features/{key}/"):
+                matches.append(key)
+    return matches
+
+
+def is_context_doc(filepath: str) -> bool:
+    """Check if a file is a context doc or documentation file."""
+    return (
+        filepath.startswith(".kiro/context/")
+        or filepath.endswith("README.md")
+        or filepath.endswith("ARCHITECTURE.md")
+        or filepath.endswith("DECISIONS.md")
+        or filepath.endswith("EXTENDING.md")
+        or filepath.endswith("DATA-FLOW.md")
+        or filepath.startswith(".kiro/steering/")
+    )
+
+
+def check_drift(
+    subsystems: dict[str, dict],
+    changed_files: set[str],
+    verbose: bool = False,
+) -> list[dict]:
+    """Check each subsystem for code changes without doc updates."""
+    findings = []
+
+    for key, sub in subsystems.items():
+        priority = PRIORITY_TIERS.get(key, "MEDIUM")
+
+        # Skip LOW priority unless verbose
+        if priority == "LOW" and not verbose:
             continue
-        all_changed_files.add(line)
-        if line.startswith(".kiro/steering/") and line.endswith(".md"):
-            all_changed_docs.add(os.path.basename(line))
 
-    # Check each subsystem
-    flagged = []
-    for key, info in subsystems.items():
-        code_patterns = info.get("codePatterns", [])
-        steering_docs = info.get("steeringDocs", [])
-        priority = info.get("priority", "MEDIUM")
+        code_changed = False
+        docs_changed = False
+        changed_code_files = []
+        changed_doc_files = []
 
-        if priority == "LOW":
-            continue
+        for f in changed_files:
+            subs = classify_file(f, subsystems)
+            if key in subs:
+                if is_context_doc(f):
+                    docs_changed = True
+                    changed_doc_files.append(f)
+                elif f.endswith((".ts", ".tsx", ".js", ".jsx", ".css")):
+                    code_changed = True
+                    changed_code_files.append(f)
 
-        # Check if any code files matching this subsystem changed
-        matched_code = []
-        for changed_file in all_changed_files:
-            for pattern in code_patterns:
-                if pattern.endswith("/"):
-                    if changed_file.startswith(pattern):
-                        matched_code.append(changed_file)
-                        break
-                elif changed_file == pattern or changed_file.endswith("/" + pattern):
-                    matched_code.append(changed_file)
-                    break
-
-        if not matched_code:
-            continue
-
-        # Check if corresponding docs were also updated
-        missing_docs = [d for d in steering_docs if d not in all_changed_docs]
-        if missing_docs:
-            flagged.append({
+        if code_changed and not docs_changed:
+            findings.append({
                 "subsystem": key,
+                "name": sub.get("name", key),
                 "priority": priority,
-                "code_files": sorted(matched_code)[:3],
-                "expected_docs": missing_docs[:3],
+                "code_files": changed_code_files,
+                "context_doc": f".kiro/context/{key}.md",
             })
 
-    return flagged
+    return findings
 
 
-def format_output(drift: list, times_shown: int = 0) -> str:
-    parts = []
-    if not drift:
-        return ""
+def format_report(findings: list[dict], commits: int, since_days: int, total_changed: int) -> str:
+    """Format the drift report for stdout."""
+    lines = []
+    lines.append("=" * 60)
+    lines.append("  CONTEXT DRIFT CHECK")
+    lines.append("=" * 60)
+    lines.append(f"  Scanned: last {commits} commits / {since_days} days")
+    lines.append(f"  Changed files: {total_changed}")
+    lines.append(f"  Drifted subsystems: {len(findings)}")
+    lines.append("=" * 60)
 
-    remaining = max(0, DISMISS_MAX_SHOWS - times_shown)
-    note = f"(showing {times_shown}/{DISMISS_MAX_SHOWS} — auto-dismisses after {remaining} more)"
+    if not findings:
+        lines.append("")
+        lines.append("  ✅ No drift detected — all code changes have matching doc updates.")
+        lines.append("")
+        return "\n".join(lines)
 
-    high = [d for d in drift if d.get("priority") == "HIGH"]
-    medium = [d for d in drift if d.get("priority") == "MEDIUM"]
+    # Sort by priority: HIGH first
+    priority_order = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+    findings.sort(key=lambda f: priority_order.get(f["priority"], 9))
 
-    if high:
-        lines = [f"CONTEXT DRIFT [HIGH — auto-update recommended] {note}:"]
-        for item in high[:3]:
-            code = ", ".join(os.path.basename(f) for f in item["code_files"][:2])
-            docs = ", ".join(item["expected_docs"][:3])
-            lines.append(f"  - {item['subsystem']} ({code}) -> update: {docs}")
-        parts.append("\n".join(lines))
+    lines.append("")
+    for f in findings:
+        icon = "🔴" if f["priority"] == "HIGH" else "🟡" if f["priority"] == "MEDIUM" else "⚪"
+        lines.append(f"  {icon} [{f['priority']}] {f['name']} ({f['subsystem']})")
+        lines.append(f"     Context doc: {f['context_doc']}")
+        lines.append(f"     Changed code ({len(f['code_files'])} files):")
+        for cf in f["code_files"][:5]:
+            lines.append(f"       - {cf}")
+        if len(f["code_files"]) > 5:
+            lines.append(f"       ... and {len(f['code_files']) - 5} more")
+        lines.append("")
 
-    if medium:
-        lines = [f"CONTEXT DRIFT [MEDIUM — mention to user] {note}:"]
-        for item in medium[:3]:
-            code = ", ".join(os.path.basename(f) for f in item["code_files"][:2])
-            docs = ", ".join(item["expected_docs"][:3])
-            lines.append(f"  - {item['subsystem']} ({code}) -> consider: {docs}")
-        parts.append("\n".join(lines))
+    lines.append("-" * 60)
+    lines.append("  ACTION: Update the context docs listed above, or run the")
+    lines.append("  drift-detection hook for a full 6-category audit.")
+    lines.append("-" * 60)
+    lines.append("")
 
-    return "\n\n".join(parts)
+    return "\n".join(lines)
 
 
 def main():
-    try:
-        repo_root = find_repo_root()
-        if not repo_root:
-            return
+    parser = argparse.ArgumentParser(description="Check for context documentation drift")
+    parser.add_argument("--commits", type=int, default=20, help="Number of recent commits to check")
+    parser.add_argument("--since", type=int, default=7, help="Check commits from last N days")
+    parser.add_argument("--verbose", action="store_true", help="Include LOW priority subsystems")
+    args = parser.parse_args()
 
-        if "--dismiss" in sys.argv:
-            head = get_head_sha(repo_root)
-            if head:
-                save_state(repo_root, {"head_sha": head, "times_shown": DISMISS_MAX_SHOWS})
-                print(f"Drift warnings dismissed at {head[:8]}.")
-            return
+    workspace = find_workspace_root()
+    subsystems = parse_subsystems_from_mcp(workspace)
 
-        subsystems = load_subsystem_map(repo_root)
-        drift = detect_drift(repo_root, subsystems)
+    if not subsystems:
+        print("ERROR: No subsystems found. Is mcp-server/server.py present?", file=sys.stderr)
+        sys.exit(1)
 
-        # Deduplicate docs across subsystems
-        seen_docs = set()
-        deduped = []
-        for item in drift:
-            new_docs = [d for d in item["expected_docs"] if d not in seen_docs]
-            if new_docs:
-                seen_docs.update(new_docs)
-                item["expected_docs"] = new_docs
-                deduped.append(item)
-        drift = deduped
+    changed_files = get_changed_files(workspace, args.commits, args.since)
 
-        # Auto-dismiss logic
-        head = get_head_sha(repo_root)
-        state = load_state(repo_root)
-        times_shown = 0
+    if not changed_files:
+        print("No changed files found in the specified commit range.")
+        sys.exit(0)
 
-        if drift and head:
-            if state.get("head_sha") == head:
-                times_shown = state.get("times_shown", 0)
-                if times_shown >= DISMISS_MAX_SHOWS:
-                    drift = []
-                else:
-                    times_shown += 1
-                    save_state(repo_root, {"head_sha": head, "times_shown": times_shown})
-            else:
-                times_shown = 1
-                save_state(repo_root, {"head_sha": head, "times_shown": 1})
-        elif not drift and state:
-            save_state(repo_root, {})
+    findings = check_drift(subsystems, changed_files, args.verbose)
+    report = format_report(findings, args.commits, args.since, len(changed_files))
+    print(report)
 
-        output = format_output(drift, times_shown)
-        if output:
-            print(output)
-
-    except Exception:
-        pass  # Never block prompt submission
+    # Exit code: 1 if HIGH priority drift found, 0 otherwise
+    has_high = any(f["priority"] == "HIGH" for f in findings)
+    sys.exit(1 if has_high else 0)
 
 
 if __name__ == "__main__":
